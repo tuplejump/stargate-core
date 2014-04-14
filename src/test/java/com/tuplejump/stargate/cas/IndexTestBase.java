@@ -24,17 +24,6 @@ public class IndexTestBase {
     protected Random rand = new Random();
     protected String[] states = new String[]{"CA", "LA", "TX", "NY", "CA", "LA", "TX", "NY", "CA", "LA", "TX", "NY", "NONEXISTENT"};
 
-    protected void assertIndexNotExists(String tName) {
-        boolean exception = false;
-        try {
-            assertThat(countResults(tName, "tags = 'tag2'", true), is(0));
-        } catch (Exception e) {
-            //expected
-            exception = true;
-        }
-        assertThat(exception, is(true));
-    }
-
 
     protected void dropTable(String ksName, String tName) {
         getSession().execute("DROP table " + ksName + "." + tName);

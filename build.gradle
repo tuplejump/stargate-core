@@ -72,6 +72,10 @@ test {
 	exclude 'com/tuplejump/perf/**'	
 }
 
+task perfTest(type:Test) << {
+    include 'com/tuplejump/perf/**'
+}
+
 idea {
   module{
     scopes.PROVIDED.plus += configurations.provided

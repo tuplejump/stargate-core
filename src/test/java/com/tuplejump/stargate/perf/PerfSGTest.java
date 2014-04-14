@@ -6,8 +6,6 @@ import org.junit.Test;
 
 /**
  * User: satya
- * Date: 30/07/13
- * Time: 2:21 PM
  */
 public class PerfSGTest extends IndexTestBase {
     String keyspace = "dummyks0";
