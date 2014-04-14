@@ -1,0 +1,85 @@
+apply plugin: 'java'
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+apply plugin: 'maven'
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+
+    maven {
+    	name 'conciseset'
+    	url "http://www.ebi.ac.uk/intact/maven/nexus/content/repositories/ebi-repo/"
+    }
+}
+
+configurations {
+    provided
+}
+
+sourceSets {
+    main.compileClasspath += configurations.provided
+    test.compileClasspath += configurations.provided
+    test.runtimeClasspath += configurations.provided
+}
+
+
+dependencies {
+
+    //lucene dependencies
+    compile group: 'org.apache.lucene', name: 'lucene-core', version: '4.7.0'
+    compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: '4.7.0'
+    compile('org.apache.lucene:lucene-queryparser:4.7.0') {
+    	exclude group: 'org.apache.lucene', module: 'lucene-sandbox'
+    }
+
+    //additional libraries
+    compile group: 'extendedset', name: 'extendedset', version: '2.2'
+    compile group: 'net.sourceforge.argo', name: 'argo', version: '3.7'
+    compile group: 'com.google.guava', name: 'guava', version: '15.0'
+
+    provided group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
+    provided group: 'commons-lang', name: 'commons-lang', version: '2.6'
+
+    //provided dependencies
+    provided('org.apache.cassandra:cassandra-all:2.0.6') {
+    	exclude group:'asm'
+    	exclude group:'org.apache.mina'
+    	exclude group:'com.google.guava'
+    }
+
+    //testing dependencies
+    testCompile group: 'junit', name: 'junit', version: '4.11+'
+
+    testCompile('com.datastax.cassandra:cassandra-driver-core:2.0.1') {
+    	exclude group:'org.apache.cassandra', module:'cassandra-all'
+    	exclude group:'log4j'
+    	exclude group:'io.netty'
+    	exclude group:'com.google.guava'
+    }
+
+    testCompile('org.cassandraunit:cassandra-unit:2.0.2.0') {
+    	exclude group:'org.apache.cassandra', module:'cassandra-all'
+    	exclude group:'log4j'
+    	exclude group:'org.sl4j'
+    	exclude group:'org.jboss.netty'
+    	exclude group:'com.google.guava'
+    }
+
+}
+
+test {
+	exclude 'com/tuplejump/perf/**'	
+}
+
+idea {
+  module{
+    scopes.PROVIDED.plus += configurations.provided
+  }
+}
+
+eclipse {
+  classpath {
+    plusConfigurations += configurations.provided 
+  }
+}

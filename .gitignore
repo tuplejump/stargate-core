@@ -1,0 +1,49 @@
+*.class
+
+.idea/
+.gradle/
+stargate.iml
+.DS_Store
+dummyIdx/
+sgindexes/
+lib/
+out/
+tagsindex/
+target/
+output/
+build/
+# ide specific exclusions, first idea then eclipse
+.idea
+/intellij
+/*.iml
+/*.ipr
+/*.iws
+/subprojects/*/*.iml
+/buildSrc/*.ipr
+/buildSrc/*.iws
+/buildSrc/*.iml
+*.classpath
+*.project
+*.settings
+.nb-gradle
+.nb-gradle-properties
+
+# java compiled files
+*.class
+
+# java package files
+*.war
+*.ear
+/logs
+
+
+
+
+
+# Package Files #
+#*.jar
+*.war
+*.ear
+junitvmw*.properties
+dist/
+*.iml

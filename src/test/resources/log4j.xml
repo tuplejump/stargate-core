@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+    <appender name="outputConsole" class="org.apache.log4j.ConsoleAppender">
+        <param name="Target" value="System.out"/>
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%d [%t] %-5p %c{3} - %m%n"/>
+        </layout>
+    </appender>
+
+    <logger name="org.cassandraunit">
+        <level value="WARN"/>
+    </logger>
+    <logger name="org.apache.cassandra">
+        <level value="ERROR"/>
+    </logger>
+    <logger name="com.datastax">
+        <level value="ERROR"/>
+    </logger>
+    <logger name="org.xerial">
+        <level value="FATAL"/>
+    </logger>
+
+    <logger name="com.tuplejump.stargate.cas.IndexSearcher">
+        <level value="WARN"/>
+    </logger>
+
+    <logger name="com.tuplejump.stargate.luc.NRTIndexer">
+        <level value="WARN"/>
+    </logger>
+    <logger name="com.tuplejump.stargate.cas.PerColIndex">
+        <level value="WARN"/>
+    </logger>
+
+    <logger name="com.tuplejump.stargate.cas.ast.XSelectStatement">
+        <level value="ERROR"/>
+    </logger>
+
+    <logger name="com.tuplejump">
+        <level value="ERROR"/>
+    </logger>
+    <logger name="com.tuplejump.stargate.cas.CompositeIndexTest">
+        <level value="WARN"/>
+    </logger>
+
+    <logger name="com.tuplejump.com.tuplejump.stargate.cas.PerRowIndexTest">
+        <level value="WARN"/>
+    </logger>
+    <logger name="com.tuplejump.com.tuplejump.stargate.cas.PerColIndexTest">
+        <level value="WARN"/>
+    </logger>
+
+    <logger name="me.prettyprint">
+        <level value="error"/>
+    </logger>
+
+    <root>
+        <priority value="debug"/>
+        <appender-ref ref="outputConsole"/>
+    </root>
+
+</log4j:configuration>
