@@ -32,10 +32,6 @@
         <level value="WARN"/>
     </logger>
 
-    <logger name="com.tuplejump.stargate.cas.ast.XSelectStatement">
-        <level value="ERROR"/>
-    </logger>
-
     <logger name="com.tuplejump">
         <level value="ERROR"/>
     </logger>
