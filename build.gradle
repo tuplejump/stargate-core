@@ -3,6 +3,11 @@ apply plugin: 'idea'
 apply plugin: 'eclipse'
 apply plugin: 'maven'
 
+version = '0.9'
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
 repositories {
     mavenCentral()
     mavenLocal()
@@ -36,7 +41,7 @@ dependencies {
     //additional libraries
     compile group: 'extendedset', name: 'extendedset', version: '2.2'
     compile group: 'net.sourceforge.argo', name: 'argo', version: '3.7'
-    compile group: 'com.google.guava', name: 'guava', version: '15.0'
+    provided group: 'com.google.guava', name: 'guava', version: '15.0'
 
     provided group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
     provided group: 'commons-lang', name: 'commons-lang', version: '2.6'
@@ -86,4 +91,19 @@ eclipse {
   classpath {
     plusConfigurations += configurations.provided 
   }
+}
+
+task copyLibs(type: Copy) {
+    from configurations.compile
+    into 'build/libs'
+}
+
+jar { dependsOn copyLibs }
+
+install {
+    repositories.mavenInstaller {
+        pom.version = '0.9'
+        pom.groupId = 'com.tuplejump'
+        pom.artifactId = 'stargate-core'
+    }
 }
