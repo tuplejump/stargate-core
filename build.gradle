@@ -42,7 +42,7 @@ dependencies {
     compile group: 'extendedset', name: 'extendedset', version: '2.2'
     compile group: 'net.sourceforge.argo', name: 'argo', version: '3.7'
     compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
-    
+
     provided group: 'com.google.guava', name: 'guava', version: '15.0'
 
     provided('org.apache.commons:commons-lang3:3.1')
