@@ -1,7 +1,7 @@
 package com.tuplejump.stargate.luc;
 
 import com.tuplejump.stargate.Constants;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;

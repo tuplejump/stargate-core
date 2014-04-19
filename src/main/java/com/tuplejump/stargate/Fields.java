@@ -4,7 +4,7 @@ import com.tuplejump.stargate.luc.BinaryTokenStream;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
