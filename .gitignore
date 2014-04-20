@@ -36,7 +36,8 @@ build/
 *.ear
 /logs
 
-
+#generated files#
+src/generated/
 
 
 
