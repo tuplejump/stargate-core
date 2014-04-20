@@ -1,0 +1,6 @@
+<!-- aop.xml -->
+<aspectj>
+    <aspects>
+        <aspect name="com.tuplejump.stargate.xcql.weave.XQueryProcessor"/>
+    </aspects>
+</aspectj>

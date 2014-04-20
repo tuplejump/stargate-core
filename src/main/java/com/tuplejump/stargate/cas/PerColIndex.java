@@ -10,6 +10,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -45,7 +46,7 @@ public class PerColIndex extends PerColumnSecondaryIndex {
     private Lock reloadLock = new ReentrantLock();
 
     @Override
-    public void delete(ByteBuffer rowKey, Column iColumn) {
+    public void delete(ByteBuffer rowKey, IColumn iColumn) {
         long ts = iColumn.maxTimestamp();
         Pair<ByteBuffer, AbstractType> pkAndVal = Utils.getPKAndValidator(rowKey, baseCfs, iColumn);
         Term idTerm = Fields.idTerm(pkAndVal.left);
@@ -64,7 +65,7 @@ public class PerColIndex extends PerColumnSecondaryIndex {
     }
 
     @Override
-    public void insert(ByteBuffer rowKey, Column iColumn) {
+    public void insert(ByteBuffer rowKey, IColumn iColumn) {
         List<Field> doc = new LinkedList<>();
         doc.addAll(Utils.tsFields(iColumn.maxTimestamp(), cfName));
         doc.addAll(Utils.idFields(rowKey, baseCfs, cfName, iColumn));
@@ -76,7 +77,7 @@ public class PerColIndex extends PerColumnSecondaryIndex {
     }
 
     @Override
-    public void update(ByteBuffer rowKey, Column col) {
+    public void update(ByteBuffer rowKey, IColumn col) {
         insert(rowKey, col);
     }
 
@@ -208,7 +209,7 @@ public class PerColIndex extends PerColumnSecondaryIndex {
     }
 
     @Override
-    public void truncateBlocking(long l) {
+    public void truncate(long l) {
         indexer.truncate(l);
     }
 

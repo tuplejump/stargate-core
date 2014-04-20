@@ -1,15 +1,17 @@
 package com.tuplejump.stargate.cas;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.ConfigurationLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.YamlConfigurationLoader;
+import org.apache.cassandra.config.SeedProviderDef;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.Loader;
+import org.yaml.snakeyaml.TypeDescription;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.util.Arrays;
 
@@ -46,13 +48,16 @@ public class CassandraUtils {
     }
 
     static void loadYaml() throws ConfigurationException, IOException {
+        InputStream input;
         URL url = CassandraUtils.getStorageConfigURL();
         logger.info("Loading settings from " + url);
-        String loaderClass = System.getProperty("cassandra.config.loader");
-        ConfigurationLoader loader = loaderClass == null
-                ? new YamlConfigurationLoader()
-                : FBUtilities.<ConfigurationLoader>construct(loaderClass, "configuration loading");
-        conf = loader.loadConfig();
+        input = url.openStream();
+        org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
+        TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
+        seedDesc.putMapPropertyType("parameters", String.class, String.class);
+        constructor.addTypeDescription(seedDesc);
+        Yaml yaml = new Yaml(new Loader(constructor));
+        conf = (Config) yaml.load(input);
         logger.info("Data files directories: " + Arrays.toString(conf.data_file_directories));
     }
 

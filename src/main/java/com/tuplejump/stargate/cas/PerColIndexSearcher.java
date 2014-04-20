@@ -4,9 +4,12 @@ import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.luc.Indexer;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.db.filter.ExtendedFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.lucene.index.NumericDocValues;
@@ -31,19 +34,19 @@ public class PerColIndexSearcher extends IndexSearcher {
 
 
     @Override
-    public List<Row> search(ExtendedFilter mainFilter) {
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean countCQL3Rows) {
         try {
             assert currentIndex.isIndexBuilt(primaryColName);
-            IndexExpression predicates = matchThisIndex(mainFilter.getClause());
+            IndexExpression predicates = matchThisIndex(clause);
             List<IndexExpression> clone = new ArrayList<>();
-            clone.addAll(mainFilter.getClause());
+            clone.addAll(clause);
             clone.remove(predicates);
             if (logger.isDebugEnabled()) {
                 logger.debug("Remaining predicates -{}", clone.toString());
             }
 
-            FilterChain chain = getFilterChain(mainFilter.maxRows(), clone);
-            ExtendedFilter filter = ExtendedFilter.create(baseCfs, mainFilter.dataRange, clone, mainFilter.maxRows(), false, mainFilter.timestamp);
+            FilterChain chain = getFilterChain(maxResults, clone);
+            ExtendedFilter filter = ExtendedFilter.create(baseCfs, dataFilter, clone, maxResults, false, countCQL3Rows);
             final Query query = getQuery(predicates);
             if (logger.isDebugEnabled()) {
                 if (chain != null) {
@@ -53,7 +56,7 @@ public class PerColIndexSearcher extends IndexSearcher {
                 logger.debug("Lucene Query class is {} and query is {}", query.getClass().getName(), query);
             }
 
-            return getRows(filter, query, chain, !clone.isEmpty());
+            return getRows(range, filter, query, chain, !clone.isEmpty());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

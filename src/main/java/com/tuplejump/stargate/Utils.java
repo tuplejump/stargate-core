@@ -5,6 +5,7 @@ import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ColumnToCollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -46,7 +47,7 @@ public class Utils {
 
     }
 
-    public static List<Field> fields(ColumnDefinition columnDef, Column iColumn, String colName, FieldType... fieldTypes) {
+    public static List<Field> fields(ColumnDefinition columnDef, IColumn iColumn, String colName, FieldType... fieldTypes) {
         List<Field> fields = new ArrayList<>(fieldTypes.length);
         for (FieldType fieldType : fieldTypes) {
             if (logger.isTraceEnabled())
@@ -61,7 +62,7 @@ public class Utils {
      * <p/>
      * Indexed field used to search by primary key during update and delete.
      */
-    public static List<Field> idFields(ByteBuffer rowKey, ColumnFamilyStore baseCfs, String cfName, Column iColumn) {
+    public static List<Field> idFields(ByteBuffer rowKey, ColumnFamilyStore baseCfs, String cfName, IColumn iColumn) {
         Pair<ByteBuffer, AbstractType> pkAndVal = getPKAndValidator(rowKey, baseCfs, iColumn);
         ByteBuffer pk = pkAndVal.left;
         AbstractType rkValValidator = pkAndVal.right;
@@ -73,7 +74,7 @@ public class Utils {
         return Arrays.asList(Fields.idDocValues(rkValValidator, pk), idxField);
     }
 
-    public static Pair<ByteBuffer, AbstractType> getPKAndValidator(ByteBuffer rowKey, ColumnFamilyStore baseCfs, Column iColumn) {
+    public static Pair<ByteBuffer, AbstractType> getPKAndValidator(ByteBuffer rowKey, ColumnFamilyStore baseCfs, IColumn iColumn) {
         CFDefinition cfDef = baseCfs.metadata.getCfDef();
         ByteBuffer pk = rowKey;
         AbstractType rkValValidator;
@@ -86,7 +87,7 @@ public class Utils {
         return Pair.create(pk, rkValValidator);
     }
 
-    public static Pair<ByteBuffer, String> makeCompositePK(ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
+    public static Pair<ByteBuffer, String> makeCompositePK(ColumnFamilyStore baseCfs, ByteBuffer rowKey, IColumn column) {
         CFDefinition cfDef = baseCfs.metadata.getCfDef();
         CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
         List<AbstractType<?>> types = baseComparator.types;

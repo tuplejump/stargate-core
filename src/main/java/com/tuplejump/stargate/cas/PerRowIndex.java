@@ -8,10 +8,7 @@ import com.tuplejump.stargate.luc.Indexer;
 import com.tuplejump.stargate.luc.NRTIndexer;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -63,9 +60,9 @@ public class PerRowIndex extends PerRowSecondaryIndex {
         } else {
             rkValValidator = baseCfs.metadata.getKeyValidator();
         }
-        Iterator<Column> cols = cf.iterator();
+        Iterator<IColumn> cols = cf.iterator();
         while (cols.hasNext()) {
-            Column iColumn = cols.next();
+            IColumn iColumn = cols.next();
             ByteBuffer key = iColumn.name();
             ByteBuffer pk = rowKey;
 
@@ -302,7 +299,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
     }
 
     @Override
-    public void truncateBlocking(long l) {
+    public void truncate(long l) {
         indexer.truncate(l);
     }
 

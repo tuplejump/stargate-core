@@ -31,6 +31,11 @@ sourceSets {
 
 dependencies {
 
+    //aspectj
+    compile group: 'org.aspectj', name: 'aspectjrt', version: '1.7.4'
+    compile group: 'org.aspectj', name: 'aspectjweaver', version: '1.7.4'
+    compile group: 'org.aspectj', name: 'aspectjtools', version: '1.7.4'
+
     //lucene dependencies
     compile group: 'org.apache.lucene', name: 'lucene-core', version: '4.7.0'
     compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: '4.7.0'
@@ -42,14 +47,17 @@ dependencies {
     compile group: 'extendedset', name: 'extendedset', version: '2.2'
     compile group: 'net.sourceforge.argo', name: 'argo', version: '3.7'
     compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
-    
-    provided group: 'com.google.guava', name: 'guava', version: '15.0'
-
-    provided('org.apache.commons:commons-lang3:3.1')
+    compile('org.apache.commons:commons-lang3:3.1')
 
     //provided dependencies
-    provided('org.apache.cassandra:cassandra-all:2.0.6') {
+    provided group: 'org.antlr', name: 'antlr', version: '3.2'
+    provided group: 'org.antlr', name: 'antlr-runtime', version: '3.2'
+    provided group: 'com.google.guava', name: 'guava', version: '15.0'
+
+
+    provided('org.apache.cassandra:cassandra-all:1.2.15') {
         exclude group: 'asm'
+        exclude group: 'org.antlr'
         exclude group: 'org.apache.mina'
         exclude group: 'com.google.guava'
     }
@@ -57,33 +65,36 @@ dependencies {
     //testing dependencies
     testCompile group: 'junit', name: 'junit', version: '4.11+'
 
-    testCompile('com.datastax.cassandra:cassandra-driver-core:2.0.1') {
+    testCompile('com.datastax.cassandra:cassandra-driver-core:1.0.6') {
         exclude group: 'org.apache.cassandra', module: 'cassandra-all'
         exclude group: 'log4j'
         exclude group: 'io.netty'
+        exclude group: 'org.antlr'
         exclude group: 'com.google.guava'
     }
 
-    testCompile('org.cassandraunit:cassandra-unit:2.0.2.0') {
+    testCompile('org.cassandraunit:cassandra-unit:1.2.0.1') {
         exclude group: 'org.apache.cassandra', module: 'cassandra-all'
         exclude group: 'log4j'
         exclude group: 'org.sl4j'
         exclude group: 'org.jboss.netty'
+        exclude group: 'org.antlr'
         exclude group: 'com.google.guava'
     }
 
 }
 
 test {
-    exclude 'com/tuplejump/perf/**'
+    jvmArgs '-javaagent:ext/aspectjweaver-1.7.4.jar'
+    exclude 'com/tuplejump/perf/**.*'
 }
 
 task perfTest(type: Test) << {
-    include 'com/tuplejump/perf/**'
 }
 
 idea {
     module {
+        sourceDirs +=file('src/generated/java')
         scopes.PROVIDED.plus += configurations.provided
     }
 }
@@ -107,4 +118,18 @@ install {
         pom.groupId = 'com.tuplejump'
         pom.artifactId = 'stargate-core'
     }
+}
+
+task genXCqlGrammar(type: JavaExec) {
+    main = 'org.antlr.Tool'
+    classpath = configurations.compile
+    classpath += configurations.provided
+    args "src/main/java/com/tuplejump/stargate/xcql/XCql.g"
+    args "-fo"
+    args "src/generated/java/com/tuplejump/stargate/xcql/ast/"
+}
+
+compileJava {
+    dependsOn genXCqlGrammar
+    source 'src/generated/java'
 }

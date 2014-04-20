@@ -63,7 +63,7 @@ public class PerColIndexTest extends IndexTestBase {
         //getSession().execute("CREATE CUSTOM INDEX stateindex ON TAG(state) WITH options = { 'class': 'com.tuplejump.stargate.cas.PerColIndex'} ");
 
         String options = "{\"Analyzer\":\"StandardAnalyzer\"}";
-        getSession().execute("CREATE CUSTOM INDEX tagsindex ON TAG(tags) USING 'com.tuplejump.stargate.cas.PerColIndex' WITH options={'sg_options':'" + options + "'}");
+        getSession().execute("XCREATE INDEX tagsindex ON TAG(tags) WITH options='" + options + "'");
         getSession().execute("CREATE CUSTOM INDEX stateindex ON TAG(state) USING 'com.tuplejump.stargate.cas.PerColIndex'");
         //then add some more data and it should be indexed as well
         getSession().execute("insert into " + keyspace + ".TAG (key,tags,state) values ('5','hello2 tag1 lol1', 'CA')");

@@ -45,11 +45,6 @@ public class BitmapFilter implements IFilter {
     }
 
     @Override
-    public long serializedSize() {
-        return 0;
-    }
-
-    @Override
     public void close() throws IOException {
         clear();
         positiveLongs = null;

@@ -12,9 +12,9 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.Pair;
@@ -51,6 +51,7 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
     Indexer indexer;
     boolean isKeyWordCheck;
     ByteBuffer primaryColName;
+    QueryPath queryPath;
 
 
     public IndexSearcher(SecondaryIndexManager indexManager, SecondaryIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Map<String, NumericConfig> numericConfigMap) {
@@ -61,16 +62,17 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
         this.indexer = indexer;
         isKeyWordCheck = indexer.getAnalyzer() instanceof KeywordAnalyzer;
         this.primaryColName = primaryColName;
+        this.queryPath = new QueryPath(baseCfs.getColumnFamilyName());
     }
 
 
-    protected List<Row> getRows(final ExtendedFilter filter, final Query query, final FilterChain chain, final boolean addlFilter) {
+    protected List<Row> getRows(final AbstractBounds<RowPosition> range, final ExtendedFilter filter, final Query query, final FilterChain chain, final boolean addlFilter) {
         SearcherCallback<List<Row>> sc = new SearcherCallback<List<Row>>() {
             @Override
             public List<Row> doWithSearcher(org.apache.lucene.search.IndexSearcher searcher) {
                 try {
                     Utils.SimpleTimer timer = Utils.getStartedTimer(logger);
-                    List<Row> results = searchResults(searcher, filter, query, chain, addlFilter);
+                    List<Row> results = searchResults(range, searcher, filter, query, chain, addlFilter);
                     timer.endLogTime("SGIndex Search with results [" + results.size() + "]over all took -");
                     return results;
                 } catch (IOException e) {
@@ -114,9 +116,8 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
         }
     }
 
-    protected List<Row> searchResults(final org.apache.lucene.search.IndexSearcher searcher, final ExtendedFilter filter, Query query, final FilterChain chain, final boolean needsFiltering) throws IOException {
+    protected List<Row> searchResults(final AbstractBounds<RowPosition> range, final org.apache.lucene.search.IndexSearcher searcher, final ExtendedFilter filter, Query query, final FilterChain chain, final boolean needsFiltering) throws IOException {
         int maxResults = filter.maxRows();
-        final DataRange range = filter.dataRange;
         Utils.SimpleTimer timer = Utils.getStartedTimer(logger);
         final BinaryDocValues rowKeyValues = Fields.getPKDocValues(searcher);
         final NumericDocValues tsValues = Fields.getTSDocValues(searcher);
@@ -178,21 +179,21 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
             private Row getRow(IDiskAtomFilter dataFilter, DecoratedKey dk, ScoreDoc scoreDoc, NumericDocValues tsValues) throws IOException {
                 ColumnFamily data;
                 if (cfDef.isComposite) {
-                    data = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter, filter.timestamp));
+                    data = baseCfs.getColumnFamily(new QueryFilter(dk, queryPath, dataFilter));
                     if (data == null || checkIfNotLatestAndRemove(tsValues, scoreDoc.doc, searcher, dk.key, data)) {
                         return null;
                     }
                 } else {
-                    data = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter, filter.timestamp));
+                    data = baseCfs.getColumnFamily(new QueryFilter(dk, queryPath, dataFilter));
                     // While the column family we'll get in the end should contains the primary clause column, the initialFilter may not have found it and can thus be null
                     if (data == null)
-                        data = TreeMapBackedSortedColumns.factory.create(baseCfs.metadata);
+                        data = ColumnFamily.create(baseCfs.metadata);
 
                     // as in CFS.filter - extend the filter to ensure we include the columns
                     // from the index expressions, just in case they weren't included in the initialFilter
-                    IDiskAtomFilter extraFilter = filter.getExtraFilter(dk, data);
+                    IDiskAtomFilter extraFilter = filter.getExtraFilter(data);
                     if (extraFilter != null) {
-                        ColumnFamily cf = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, extraFilter, filter.timestamp));
+                        ColumnFamily cf = baseCfs.getColumnFamily(new QueryFilter(dk, queryPath, extraFilter));
                         if (cf != null)
                             data.addAll(cf, HeapAllocator.instance);
                     }
@@ -224,17 +225,11 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
                     ByteBuffer start = builder.build();
 
                     ColumnSlice dataSlice = new ColumnSlice(start, builder.buildAsEndOfRange());
-                    ColumnSlice[] slices;
-                    if (baseCfs.metadata.hasStaticColumns()) {
-                        ColumnSlice staticSlice = new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, baseCfs.metadata.getStaticColumnNameBuilder().buildAsEndOfRange());
-                        slices = new ColumnSlice[]{staticSlice, dataSlice};
-                    } else {
-                        slices = new ColumnSlice[]{dataSlice};
-                    }
-                    dataFilter = new SliceQueryFilter(slices, false, Integer.MAX_VALUE, baseCfs.metadata.clusteringKeyColumns().size());
+                    ColumnSlice[] slices = new ColumnSlice[]{dataSlice};
+                    dataFilter = new SliceQueryFilter(slices, false, Integer.MAX_VALUE);
                 } else {
                     dk = baseCfs.partitioner.decorateKey(primaryKey);
-                    dataFilter = filter.columnFilter(primaryKey);
+                    dataFilter = filter.initialFilter();
                 }
                 return Pair.create(dk, dataFilter);
             }

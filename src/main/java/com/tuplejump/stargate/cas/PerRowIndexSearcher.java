@@ -4,12 +4,15 @@ import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.luc.Indexer;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.db.filter.ExtendedFilter;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.lucene.index.NumericDocValues;
@@ -43,10 +46,9 @@ public class PerRowIndexSearcher extends IndexSearcher {
     }
 
     @Override
-    public List<Row> search(ExtendedFilter mainFilter) {
+    public List<Row> search(List<IndexExpression> clause, AbstractBounds<RowPosition> range, int maxResults, IDiskAtomFilter dataFilter, boolean countCQL3Rows) {
         try {
             assert currentIndex.isIndexBuilt(primaryColName);
-            List<IndexExpression> clause = mainFilter.getClause();
             if (logger.isDebugEnabled())
                 logger.debug("All IndexExprs {}", clause);
             List<IndexExpression> predicates = matchThisIndex(clause);
@@ -54,12 +56,12 @@ public class PerRowIndexSearcher extends IndexSearcher {
             clone.addAll(clause);
             clone.removeAll(predicates);
             Query query = getBooleanQuery(predicates);
-            FilterChain chain = getFilterChain(mainFilter.maxRows(), clone);
+            FilterChain chain = getFilterChain(maxResults, clone);
             if (logger.isDebugEnabled())
                 logger.debug("IndexExprs not satisfied by PerRowIndex {}", clone);
 
-            ExtendedFilter filter = ExtendedFilter.create(baseCfs, mainFilter.dataRange, clone, mainFilter.maxRows(), false, mainFilter.timestamp);
-            return getRows(filter, query, chain, !clone.isEmpty());
+            ExtendedFilter filter = ExtendedFilter.create(baseCfs, dataFilter, clone, maxResults, false, countCQL3Rows);
+            return getRows(range, filter, query, chain, !clone.isEmpty());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -103,7 +105,7 @@ public class PerRowIndexSearcher extends IndexSearcher {
         CFDefinition cfDef = baseCfs.metadata.getCfDef();
         long ts = Fields.timestamp(tsValues, docId);
         Map<String, Map<String, String>> options = currIdx.fieldOptions;
-        Column lastColumn = null;
+        IColumn lastColumn = null;
         for (ByteBuffer colKey : cf.getColumnNames()) {
             String name = currIdx.getColumnNameString(colKey, cfDef);
             Map<String, String> option = options.get(name);

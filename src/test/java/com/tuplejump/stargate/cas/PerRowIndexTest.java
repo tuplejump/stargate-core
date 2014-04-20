@@ -56,8 +56,7 @@ public class PerRowIndexTest extends IndexTestBase {
         int i = 0;
         while (i < 40) {
             if (i == 20) {
-                //getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG2(tags) WITH options = { 'class': 'com.tuplejump.stargate.cas.PerRowIndex'} ");
-                getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG2(tags) USING 'com.tuplejump.stargate.cas.PerRowIndex' WITH options ={'sg_options':'" + options + "'}");
+                getSession().execute("XCREATE ROW INDEX tagsandstate ON TAG2(tags) WITH options='" + options + "'");
             }
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state) values (" + (i + 1) + ",'hello1 tag1 lol1', 'CA')");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state) values (" + (i + 2) + ",'hello1 tag1 lol2', 'LA')");
