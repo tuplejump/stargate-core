@@ -122,7 +122,11 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
         final NumericDocValues tsValues = Fields.getTSDocValues(searcher);
         timer.endLogTime("For BinaryDocValues retrieval -");
         Utils.SimpleTimer timer2 = Utils.getStartedTimer(logger);
+        if (query == null) {
+            return Collections.EMPTY_LIST;
+        }
         TopDocs topDocs = searcher.search(query, maxResults);
+
         timer2.endLogTime("For TopDocs search for -" + topDocs.totalHits + " results");
         if (logger.isDebugEnabled()) {
             logger.debug(String.format("Search results [%s]", topDocs.totalHits));
@@ -249,7 +253,7 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
     }
 
 
-    protected Query getQuery(IndexExpression predicate) throws QueryNodeException {
+    protected Query getQuery(IndexExpression predicate) {
         ColumnDefinition cd = baseCfs.metadata.getColumnDefinition(predicate.column_name);
         String predicateValue = cd.getValidator().getString(predicate.bufferForValue());
         String columnName = Utils.getColumnName(cd);
@@ -260,7 +264,12 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
         }
         logger.debug("Column name is {}", columnName);
         logger.debug("Numeric config is {}", parser.getNumericConfigMap());
-        return parser.parse(predicateValue, columnName);
+        try {
+            return parser.parse(predicateValue, columnName);
+        } catch (QueryNodeException e) {
+            logger.warn("Could not parse lucene query", e);
+        }
+        return null;
     }
 
 

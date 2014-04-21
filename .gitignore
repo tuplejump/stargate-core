@@ -27,7 +27,9 @@ build/
 *.settings
 .nb-gradle
 .nb-gradle-properties
-
+gradle/
+gradlew
+gradlew*.*
 # java compiled files
 *.class
 
