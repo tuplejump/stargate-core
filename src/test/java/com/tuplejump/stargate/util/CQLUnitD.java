@@ -27,7 +27,7 @@ public class CQLUnitD extends ExternalResource {
     protected String configurationFileName;
     protected Session session;
     protected static String hostIp = "127.0.0.1";
-    protected static int port = 9042;
+    protected static int port = 9142;
     protected CQLDataLoaderD loader;
 
 

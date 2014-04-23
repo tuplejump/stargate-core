@@ -46,12 +46,12 @@ public class Utils {
 
     }
 
-    public static List<Field> fields(ColumnDefinition columnDef, Column iColumn, String colName, FieldType... fieldTypes) {
+    public static List<Field> fields(ColumnDefinition columnDef, String colName, ByteBuffer value, FieldType... fieldTypes) {
         List<Field> fields = new ArrayList<>(fieldTypes.length);
         for (FieldType fieldType : fieldTypes) {
             if (logger.isTraceEnabled())
                 logger.trace("Col name is " + colName);
-            fields.add(Fields.field(colName, columnDef.getValidator(), iColumn.value(), fieldType));
+            fields.add(Fields.field(colName, columnDef.getValidator(), value, fieldType));
         }
         return fields;
     }
@@ -79,14 +79,14 @@ public class Utils {
         AbstractType rkValValidator;
         if (cfDef.isComposite) {
             rkValValidator = baseCfs.getComparator();
-            pk = makeCompositePK(baseCfs, rowKey, iColumn).left;
+            pk = makeCompositePK(baseCfs, rowKey, iColumn).left.build();
         } else {
             rkValValidator = baseCfs.metadata.getKeyValidator();
         }
         return Pair.create(pk, rkValValidator);
     }
 
-    public static Pair<ByteBuffer, String> makeCompositePK(ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
+    public static Pair<CompositeType.Builder, String> makeCompositePK(ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
         CFDefinition cfDef = baseCfs.metadata.getCfDef();
         CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
         List<AbstractType<?>> types = baseComparator.types;
@@ -98,7 +98,7 @@ public class Utils {
         builder.add(rowKey);
         for (int i = 0; i < Math.min(prefixSize, components.length); i++)
             builder.add(components[i]);
-        return Pair.create(builder.build(), colName);
+        return Pair.create(builder, colName);
     }
 
     public static ByteBuffer[] getCompositePKComponents(ColumnFamilyStore baseCfs, ByteBuffer pk) {

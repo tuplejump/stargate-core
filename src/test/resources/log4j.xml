@@ -28,7 +28,7 @@
     <logger name="com.tuplejump.stargate.luc.NRTIndexer">
         <level value="WARN"/>
     </logger>
-    <logger name="com.tuplejump.stargate.cas.PerColIndex">
+    <logger name="com.tuplejump.stargate.cas.PerRowIndex">
         <level value="WARN"/>
     </logger>
 

@@ -68,7 +68,7 @@ public class PerColIndex extends PerColumnSecondaryIndex {
         List<Field> doc = new LinkedList<>();
         doc.addAll(Utils.tsFields(iColumn.maxTimestamp(), cfName));
         doc.addAll(Utils.idFields(rowKey, baseCfs, cfName, iColumn));
-        List<Field> fields = Utils.fields(columnDef, iColumn, colName, fieldType);
+        List<Field> fields = Utils.fields(columnDef, colName, iColumn.value(), fieldType);
         if (logger.isDebugEnabled())
             logger.debug(idxName + " - fields -" + fields.toString());
         doc.addAll(fields);

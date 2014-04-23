@@ -46,6 +46,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
     protected Map<String, NumericConfig> numericConfigMap;
     protected Map<String, FieldType> fieldTypes;
     protected SortedSet<String> stringColumnNames;
+    protected Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed;
     protected Map<String, String> idxOptions;
     private Lock reloadLock = new ReentrantLock();
 
@@ -63,33 +64,58 @@ public class PerRowIndex extends PerRowSecondaryIndex {
         } else {
             rkValValidator = baseCfs.metadata.getKeyValidator();
         }
+
         Iterator<Column> cols = cf.iterator();
         while (cols.hasNext()) {
             Column iColumn = cols.next();
-            ByteBuffer key = iColumn.name();
+            ByteBuffer colName = iColumn.name();
             ByteBuffer pk = rowKey;
 
             String name;
+            List<Field> fields;
             if (cfDef.isComposite) {
-                Pair<ByteBuffer, String> pkAndName = Utils.makeCompositePK(baseCfs, rowKey, iColumn);
-                pk = pkAndName.left;
+                Pair<CompositeType.Builder, String> pkAndName = Utils.makeCompositePK(baseCfs, rowKey, iColumn);
+                CompositeType.Builder builder = pkAndName.left;
+                pk = builder.build();
                 name = pkAndName.right;
+                fields = primaryKeysVsFields.get(pk);
+                if (fields == null) {
+                    // new pk found
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("New PK found");
+                        logger.debug(rkValValidator.getString(pk));
+                    }
+                    fields = new LinkedList<>();
+                    primaryKeysVsFields.put(pk, fields);
+                    validators.put(pk, rkValValidator);
+                    timestamps.put(pk, 0l);
+                    for (Map.Entry<Integer, Pair<String, ByteBuffer>> entry : clusteringKeysIndexed.entrySet()) {
+                        ByteBuffer value = builder.get(entry.getKey());
+                        ByteBuffer keyColName = entry.getValue().right;
+                        String keyColNameStr = entry.getValue().left;
+                        FieldType fieldType = fieldTypes.get(keyColNameStr);
+                        ColumnDefinition columnDefinition = baseCfs.metadata.getColumnDefinition(keyColName);
+                        addFields(fields, timestamps, pk, iColumn, columnDefinition, keyColNameStr, fieldType, value);
+                    }
+                }
+
             } else {
-                name = CFDefinition.definitionType.getString(key);
+                name = CFDefinition.definitionType.getString(colName);
+                fields = primaryKeysVsFields.get(pk);
+                if (fields == null) {
+                    // new pk found
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("New PK found");
+                    }
+                    fields = new LinkedList<>();
+                    primaryKeysVsFields.put(pk, fields);
+                    validators.put(pk, rkValValidator);
+                    timestamps.put(pk, 0l);
+                }
+
             }
             if (logger.isTraceEnabled()) {
                 logger.trace("Column family is composite - [" + cfDef.isComposite + "] and column name is [" + name + "]");
-            }
-            List<Field> fields = primaryKeysVsFields.get(pk);
-            if (fields == null) {
-                // new pk found
-                if (logger.isDebugEnabled()) {
-                    logger.debug("New PK found");
-                }
-                fields = new LinkedList<>();
-                primaryKeysVsFields.put(pk, fields);
-                validators.put(pk, rkValValidator);
-                timestamps.put(pk, 0l);
             }
 
             if (logger.isDebugEnabled())
@@ -97,17 +123,24 @@ public class PerRowIndex extends PerRowSecondaryIndex {
             FieldType fieldType = fieldTypes.get(name);
             //if fieldType was not found then the column is not indexed
             if (fieldType != null) {
-                long existingTS = timestamps.get(pk);
-                timestamps.put(pk, Math.max(existingTS, iColumn.maxTimestamp()));
-                ColumnDefinition columnDefinition = baseCfs.metadata.getColumnDefinitionFromColumnName(key);
-                List<Field> fieldsForField = Utils.fields(columnDefinition, iColumn, name, fieldType);
-                if (logger.isDebugEnabled())
-                    logger.debug("Adding fields {} for column name {}", fields, name);
-                fields.addAll(fieldsForField);
+                ColumnDefinition columnDefinition = baseCfs.metadata.getColumnDefinitionFromColumnName(colName);
+                addFields(fields, timestamps, pk, iColumn, columnDefinition, name, fieldType, iColumn.value());
             }
         }
 
         addToIndex(cf, dk, primaryKeysVsFields, validators, timestamps);
+    }
+
+    private void addFieldForKeyField(Map<ByteBuffer, Long> timestamps, Column iColumn, ByteBuffer pk, List<Field> fields, CompositeType.Builder builder, Map.Entry<Integer, Pair<String, ByteBuffer>> entry) {
+    }
+
+    private void addFields(List<Field> fields, Map<ByteBuffer, Long> timestamps, ByteBuffer pk, Column iColumn, ColumnDefinition columnDefinition, String colNameStr, FieldType fieldType, ByteBuffer value) {
+        long existingTS = timestamps.get(pk);
+        timestamps.put(pk, Math.max(existingTS, iColumn.maxTimestamp()));
+        List<Field> fieldsForField = Utils.fields(columnDefinition, colNameStr, value, fieldType);
+        if (logger.isDebugEnabled())
+            logger.debug("Adding fields {} for column name {}", fields, colNameStr);
+        fields.addAll(fieldsForField);
     }
 
     private void addToIndex(ColumnFamily cf, DecoratedKey dk, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, AbstractType> validators, Map<ByteBuffer, Long> timestamps) {
@@ -173,6 +206,21 @@ public class PerRowIndex extends PerRowSecondaryIndex {
 
         stringColumnNames = new TreeSet<>();
         stringColumnNames.addAll(fieldOptions.keySet());
+
+        clusteringKeysIndexed = new LinkedHashMap<>();
+
+        List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
+        for (ColumnDefinition colDef : clusteringKeys) {
+            String colName = CFDefinition.definitionType.getString(colDef.name);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Clustering key name is {} and index is {}", colName, colDef.componentIndex);
+            }
+            if (stringColumnNames.contains(colName)) {
+                clusteringKeysIndexed.put(colDef.componentIndex + 1, Pair.create(colName, colDef.name));
+            }
+        }
+
+
         fieldTypes = new TreeMap<>();
         numericConfigMap = new HashMap<>();
         for (String columnName : stringColumnNames) {
@@ -183,6 +231,8 @@ public class PerRowIndex extends PerRowSecondaryIndex {
                 numericConfigMap.put(columnName, Utils.numericConfig(options, fieldType));
             }
         }
+
+
         idxOptions = fieldOptions.get(colName);
         if (logger.isDebugEnabled()) {
             logger.debug("SGIndex index options -" + idxOptions);
