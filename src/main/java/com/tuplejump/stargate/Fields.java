@@ -10,11 +10,12 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 
 import static com.tuplejump.stargate.Constants.*;
@@ -25,17 +26,13 @@ import static com.tuplejump.stargate.Constants.*;
  * Utility methods to deal in fields.
  */
 public class Fields {
-    public static Map<String, FieldType> fieldTypesCache = new HashMap<>();
+    private static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
     /**
      * Get the field type with options specified in the indexes meta table.
      */
     public static FieldType fieldType(Map<String, String> options, String cfName, String name, AbstractType validator) {
-        FieldType fieldType = fieldTypesCache.get(cfName + "~" + name);
-        if (fieldType != null)
-            return fieldType;
-
-        fieldType = new FieldType();
+        FieldType fieldType = new FieldType();
         fieldType.setIndexed(getBool(options.get(indexed)));
         fieldType.setTokenized(getBool(options.get(tokenized)));
         fieldType.setStored(getBool(options.get(stored)));
@@ -55,7 +52,6 @@ public class Fields {
                 fieldType.setNumericPrecisionStep(Integer.parseInt(numPrecision));
             }
         }
-        fieldTypesCache.put(cfName + "~" + name, fieldType);
         return fieldType;
     }
 

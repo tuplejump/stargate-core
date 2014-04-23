@@ -205,28 +205,28 @@ public class PerRowIndex extends PerRowSecondaryIndex {
         stringColumnNames.addAll(fieldOptions.keySet());
 
         clusteringKeysIndexed = new LinkedHashMap<>();
-
+        Set<String> added = new HashSet<>(stringColumnNames.size());
         List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
         fieldTypes = new TreeMap<>();
         numericConfigMap = new HashMap<>();
         for (ColumnDefinition colDef : clusteringKeys) {
-            String colName = CFDefinition.definitionType.getString(colDef.name).toLowerCase();
+            String colName = CFDefinition.definitionType.getString(colDef.name);
             if (logger.isDebugEnabled()) {
-                logger.debug("Clustering key name is {} and index is {}", colName, colDef.componentIndex);
+                logger.debug("Clustering key name is {} and index is {}", colName, colDef.componentIndex + 1);
             }
             if (stringColumnNames.contains(colName)) {
                 clusteringKeysIndexed.put(colDef.componentIndex + 1, Pair.create(colName, colDef.name));
                 addFieldType(colName, colDef);
+                added.add(colName);
             }
         }
 
         for (String columnName : stringColumnNames) {
-            if (!clusteringKeysIndexed.containsKey(columnName.toLowerCase())) {
+            if (added.add(columnName.toLowerCase())) {
                 ColumnDefinition colDef = columnDef;
                 addFieldType(columnName, colDef);
             }
         }
-
 
         idxOptions = fieldOptions.get(colName);
         if (logger.isDebugEnabled()) {

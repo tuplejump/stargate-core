@@ -8,10 +8,10 @@ import org.junit.Test;
 /**
  * User: satya
  */
-public class IndexOnKeysTest extends IndexTestBase {
+public class NumericIndexOnKeysTest extends IndexTestBase {
     String keyspace = "dummyks3Keys";
 
-    public IndexOnKeysTest() {
+    public NumericIndexOnKeysTest() {
         cassandraCQLUnit = CQLUnitD.getCQLUnit(null);
     }
 

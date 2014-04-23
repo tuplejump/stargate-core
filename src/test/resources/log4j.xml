@@ -31,6 +31,12 @@
     <logger name="com.tuplejump.stargate.cas.PerRowIndex">
         <level value="WARN"/>
     </logger>
+    <logger name="com.tuplejump.stargate.cas.PerColIndex">
+        <level value="WARN"/>
+    </logger>
+    <logger name="com.tuplejump.stargate.Utils">
+        <level value="WARN"/>
+    </logger>
 
     <logger name="com.tuplejump">
         <level value="ERROR"/>
