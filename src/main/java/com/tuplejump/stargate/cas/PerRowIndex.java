@@ -131,9 +131,6 @@ public class PerRowIndex extends PerRowSecondaryIndex {
         addToIndex(cf, dk, primaryKeysVsFields, validators, timestamps);
     }
 
-    private void addFieldForKeyField(Map<ByteBuffer, Long> timestamps, Column iColumn, ByteBuffer pk, List<Field> fields, CompositeType.Builder builder, Map.Entry<Integer, Pair<String, ByteBuffer>> entry) {
-    }
-
     private void addFields(List<Field> fields, Map<ByteBuffer, Long> timestamps, ByteBuffer pk, Column iColumn, ColumnDefinition columnDefinition, String colNameStr, FieldType fieldType, ByteBuffer value) {
         long existingTS = timestamps.get(pk);
         timestamps.put(pk, Math.max(existingTS, iColumn.maxTimestamp()));
@@ -197,7 +194,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
         ksName = baseCfs.metadata.ksName;
         cfName = baseCfs.metadata.cfName;
         idxName = columnDef.getIndexName();
-        colName = CFDefinition.definitionType.getString(columnDef.name);
+        colName = CFDefinition.definitionType.getString(columnDef.name).toLowerCase();
         String optionsJson = columnDef.getIndexOptions().get(Constants.INDEX_OPTIONS_JSON);
         //getForRow all the fields options.
         fieldOptions = Options.getForRow(optionsJson, colName);
@@ -210,25 +207,23 @@ public class PerRowIndex extends PerRowSecondaryIndex {
         clusteringKeysIndexed = new LinkedHashMap<>();
 
         List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
+        fieldTypes = new TreeMap<>();
+        numericConfigMap = new HashMap<>();
         for (ColumnDefinition colDef : clusteringKeys) {
-            String colName = CFDefinition.definitionType.getString(colDef.name);
+            String colName = CFDefinition.definitionType.getString(colDef.name).toLowerCase();
             if (logger.isDebugEnabled()) {
                 logger.debug("Clustering key name is {} and index is {}", colName, colDef.componentIndex);
             }
             if (stringColumnNames.contains(colName)) {
                 clusteringKeysIndexed.put(colDef.componentIndex + 1, Pair.create(colName, colDef.name));
+                addFieldType(colName, colDef);
             }
         }
 
-
-        fieldTypes = new TreeMap<>();
-        numericConfigMap = new HashMap<>();
         for (String columnName : stringColumnNames) {
-            Map<String, String> options = fieldOptions.get(columnName);
-            FieldType fieldType = Utils.fieldType(options, cfName, colName, columnDef.getValidator());
-            fieldTypes.put(columnName, fieldType);
-            if (fieldType.numericType() != null) {
-                numericConfigMap.put(columnName, Utils.numericConfig(options, fieldType));
+            if (!clusteringKeysIndexed.containsKey(columnName.toLowerCase())) {
+                ColumnDefinition colDef = columnDef;
+                addFieldType(columnName, colDef);
             }
         }
 
@@ -239,6 +234,15 @@ public class PerRowIndex extends PerRowSecondaryIndex {
             logger.debug("SGIndex Column names being indexed -" + stringColumnNames);
         }
         lockSwapIndexer(true);
+    }
+
+    private void addFieldType(String columnName, ColumnDefinition colDef) {
+        Map<String, String> options = fieldOptions.get(columnName);
+        FieldType fieldType = Utils.fieldType(options, cfName, columnName, colDef.getValidator());
+        if (fieldType.numericType() != null) {
+            numericConfigMap.put(columnName, Utils.numericConfig(options, fieldType));
+        }
+        fieldTypes.put(columnName, fieldType);
     }
 
     @Override
