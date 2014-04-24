@@ -29,7 +29,7 @@ public class Options {
     private static final JdomParser JDOM_PARSER = new JdomParser();
 
     static {
-        idFieldOptions.put(tokenized, "true");
+        idFieldOptions.put(tokenized, "false");
         //need searching while deleting
         idFieldOptions.put(indexed, "true");
         defaultIndexesDir = System.getProperty("sg.index.dir", "_DUMMY_");

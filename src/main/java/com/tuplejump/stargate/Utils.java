@@ -69,8 +69,7 @@ public class Utils {
     }
 
     public static List<Field> idFields(String cfName, ByteBuffer pk, AbstractType rkValValidator) {
-        Field idxField = Fields.idField(rkValValidator, pk, Fields.fieldType(Options.idFieldOptions(), cfName, PK_NAME_INDEXED, rkValValidator));
-        return Arrays.asList(Fields.idDocValues(rkValValidator, pk), idxField);
+        return Arrays.asList(Fields.idDocValues(rkValValidator, pk));
     }
 
     public static Pair<ByteBuffer, AbstractType> getPKAndValidator(ByteBuffer rowKey, ColumnFamilyStore baseCfs, Column iColumn) {

@@ -22,6 +22,7 @@ import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.queryparser.flexible.core.QueryNodeException;
 import org.apache.lucene.queryparser.flexible.core.parser.EscapeQuerySyntax;
 import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser;
@@ -118,13 +119,14 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
         int maxResults = filter.maxRows();
         final DataRange range = filter.dataRange;
         Utils.SimpleTimer timer = Utils.getStartedTimer(logger);
-        final BinaryDocValues rowKeyValues = Fields.getPKDocValues(searcher);
+        final SortedDocValues rowKeyValues = Fields.getPKDocValues(searcher);
         final NumericDocValues tsValues = Fields.getTSDocValues(searcher);
         timer.endLogTime("For BinaryDocValues retrieval -");
         Utils.SimpleTimer timer2 = Utils.getStartedTimer(logger);
         if (query == null) {
             return Collections.EMPTY_LIST;
         }
+
         TopDocs topDocs = searcher.search(query, maxResults);
 
         timer2.endLogTime("For TopDocs search for -" + topDocs.totalHits + " results");

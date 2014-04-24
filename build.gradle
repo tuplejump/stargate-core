@@ -75,10 +75,11 @@ dependencies {
 }
 
 test {
-    exclude 'com/tuplejump/perf/**'
+    jvmArgs '-javaagent:ext/jamm-0.2.5.jar'
 }
 
 task perfTest(type: Test) << {
+    jvmArgs '-javaagent:ext/jamm-0.2.5.jar'
     include 'com/tuplejump/perf/**'
 }
 

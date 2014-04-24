@@ -1,6 +1,5 @@
 package com.tuplejump.stargate;
 
-import com.tuplejump.stargate.luc.BinaryTokenStream;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -59,9 +58,9 @@ public class Fields {
         return Boolean.parseBoolean(value);
     }
 
-    public static BinaryDocValues getPKDocValues(IndexSearcher searcher) throws IOException {
+    public static SortedDocValues getPKDocValues(IndexSearcher searcher) throws IOException {
         AtomicReader wrapper = SlowCompositeReaderWrapper.wrap(searcher.getIndexReader());
-        return wrapper.getBinaryDocValues(PK_NAME_DOC_VAL);
+        return wrapper.getSortedDocValues(PK_NAME_DOC_VAL);
     }
 
     public static NumericDocValues getTSDocValues(IndexSearcher searcher) throws IOException {
@@ -79,21 +78,9 @@ public class Fields {
         return tsValues.get(docId);
     }
 
-    public static Field idField(final AbstractType abstractType, final ByteBuffer byteBufferValue, FieldType fieldType) {
-        BytesRef bytesRef = new BytesRef(byteBufferValue.array(), byteBufferValue.arrayOffset(), byteBufferValue.limit());
-        BinaryTokenStream tokenStream = new BinaryTokenStream(bytesRef);
-        return new Field(PK_NAME_INDEXED, tokenStream, fieldType) {
-            @Override
-            public String toString() {
-                return String.format("PK Indexed Field<%s>", abstractType.getString(byteBufferValue));
-            }
-
-        };
-    }
-
     public static Field idDocValues(final AbstractType abstractType, final ByteBuffer byteBufferValue) {
         BytesRef bytesRef = new BytesRef(byteBufferValue.array(), byteBufferValue.arrayOffset(), byteBufferValue.limit());
-        return new BinaryDocValuesField(PK_NAME_DOC_VAL, bytesRef) {
+        return new SortedDocValuesField(PK_NAME_DOC_VAL, bytesRef) {
             @Override
             public String toString() {
                 return String.format("PK BinaryDocValuesField<%s>", abstractType.getString(byteBufferValue));
@@ -110,15 +97,6 @@ public class Fields {
             @Override
             public String toString() {
                 return String.format("Timestamp NumericDocValuesField<%s>", timestamp);
-            }
-        };
-    }
-
-    public static Field tsDocValues(final String colName, final long timestamp) {
-        return new NumericDocValuesField(colName + TS_DOC_VAL, timestamp) {
-            @Override
-            public String toString() {
-                return String.format("Timestamp NumericDocValuesField<%s> for column[<%s>]", timestamp, colName);
             }
         };
     }
