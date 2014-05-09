@@ -19,6 +19,7 @@ import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.collections.iterators.ArrayIterator;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.NumericDocValues;
@@ -46,7 +47,8 @@ import java.util.*;
 public abstract class IndexSearcher extends SecondaryIndexSearcher {
 
     protected static final Logger logger = LoggerFactory.getLogger(IndexSearcher.class);
-    StandardQueryParser parser;
+    Analyzer analyzer;
+    Map<String, NumericConfig> numericConfigMap;
     final static EscapeQuerySyntax ESCAPER = new EscapeQuerySyntaxImpl();
     SecondaryIndex currentIndex;
     Indexer indexer;
@@ -56,8 +58,8 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
 
     public IndexSearcher(SecondaryIndexManager indexManager, SecondaryIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Map<String, NumericConfig> numericConfigMap) {
         super(indexManager, columns);
-        this.parser = new StandardQueryParser(indexer.getAnalyzer());
-        this.parser.setNumericConfigMap(numericConfigMap);
+        this.analyzer = indexer.getAnalyzer();
+        this.numericConfigMap = numericConfigMap;
         this.currentIndex = currentIndex;
         this.indexer = indexer;
         isKeyWordCheck = indexer.getAnalyzer() instanceof KeywordAnalyzer;
@@ -265,8 +267,10 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
             predicateValue = ESCAPER.escape(predicateValue, Locale.US, EscapeQuerySyntax.Type.STRING).toString();
         }
         logger.debug("Column name is {}", columnName);
-        logger.debug("Numeric config is {}", parser.getNumericConfigMap());
         try {
+            StandardQueryParser parser = new StandardQueryParser(analyzer);
+            parser.setNumericConfigMap(numericConfigMap);
+            logger.debug("Numeric config is {}", parser.getNumericConfigMap());
             return parser.parse(predicateValue, columnName);
         } catch (QueryNodeException e) {
             logger.warn("Could not parse lucene query", e);
