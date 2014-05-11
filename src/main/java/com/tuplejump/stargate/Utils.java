@@ -33,6 +33,31 @@ import static com.tuplejump.stargate.Constants.*;
 public class Utils {
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
+    //  NumberFormat instances are not thread safe
+    public static final ThreadLocal<NumberFormat> numberFormatThreadLocal =
+            new ThreadLocal<NumberFormat>() {
+                @Override
+                public NumberFormat initialValue() {
+                    NumberFormat fmt = NumberFormat.getInstance();
+                    fmt.setGroupingUsed(false);
+                    fmt.setMinimumIntegerDigits(4);
+                    return fmt;
+                }
+            };
+
+    public static class NumericConfigTL extends NumericConfig {
+
+        static NumberFormat dummyInstance = NumberFormat.getInstance();
+
+        public NumericConfigTL(int precisionStep, FieldType.NumericType type) {
+            super(precisionStep, dummyInstance, type);
+        }
+
+        @Override
+        public NumberFormat getNumberFormat() {
+            return numberFormatThreadLocal.get();
+        }
+    }
 
     public static FieldType fieldType(Map<String, String> options, String cfName, String name, AbstractType validator) {
         return Fields.fieldType(options, cfName, name, validator);
@@ -40,11 +65,10 @@ public class Utils {
 
     public static NumericConfig numericConfig(Map<String, String> options, FieldType fieldType) {
         if (fieldType.numericType() != null) {
-            NumericConfig numConfig = new NumericConfig(fieldType.numericPrecisionStep(), NumberFormat.getInstance(), fieldType.numericType());
+            NumericConfig numConfig = new NumericConfigTL(fieldType.numericPrecisionStep(), fieldType.numericType());
             return numConfig;
         }
         return null;
-
     }
 
     public static List<Field> fields(ColumnDefinition columnDef, IColumn iColumn, String colName, FieldType... fieldTypes) {
