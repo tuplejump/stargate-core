@@ -5,6 +5,13 @@ import com.tuplejump.stargate.util.CQLUnitD;
 import junit.framework.Assert;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 /**
  * User: satya
  */
@@ -21,6 +28,33 @@ public class NumericIndexOnKeysTest extends IndexTestBase {
             createKS(keyspace);
             createTableAndIndex();
             Assert.assertEquals(3, countResults("TAG", "tags = 'tags:hello? AND state:\"CA\"'", true));
+            final String[] checks = new String[]{
+                    "tags = 'tags:hello? AND gdp:1'",
+                    "tags = 'tags:hello? AND gdp:2'",
+                    "tags = 'tags:hello? AND gdp:3'",
+                    "tags = 'tags:hello? AND gdp:1'",
+                    "tags = 'tags:hello? AND gdp:4'"
+            };
+            final int[] results = new int[]{3, 2, 2, 3, 1};
+            ExecutorService service = Executors.newFixedThreadPool(5);
+            List<Callable<Object>> todo = new ArrayList<>();
+            for (int i = 0; i < checks.length; i++) {
+                final int j = i;
+                Callable<Object> callable = new Callable<Object>() {
+                    @Override
+                    public Object call() throws Exception {
+                        Assert.assertEquals(results[j], countResults("TAG", checks[j], true));
+                        return null;
+                    }
+                };
+                todo.add(callable);
+            }
+            List<Future<Object>> futures = service.invokeAll(todo);
+            int i = 0;
+            for (Future<Object> future : futures) {
+                future.get();
+            }
+
         } finally {
             dropTable(keyspace, "TAG");
             dropKS(keyspace);
