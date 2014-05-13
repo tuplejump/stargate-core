@@ -102,6 +102,12 @@ task copyLibs(type: Copy) {
 
 jar { dependsOn copyLibs }
 
+task dist(type:Zip) {
+    dependsOn jar
+    from ('build/libs/')
+    include '*.*'
+}
+
 install {
     repositories.mavenInstaller {
         pom.version = '0.9'

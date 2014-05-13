@@ -9,6 +9,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ColumnToCollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
@@ -149,6 +150,12 @@ public class Utils {
         logger.debug("SGIndex - INDEX_DIR_NAME -" + dirName);
         //will only create parent if not existing.
         return new File(dirName, fileName);
+    }
+
+    public static String getColumnNameStr(ByteBuffer colName) {
+        String s = CFDefinition.definitionType.getString(colName);
+        s = StringUtils.removeStart(s, ".").trim();
+        return s;
     }
 
     public static String getColumnName(ColumnDefinition cd) {

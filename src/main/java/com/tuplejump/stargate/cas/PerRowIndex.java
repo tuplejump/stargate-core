@@ -282,7 +282,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
         String nameStr;
         if (cfDef.isComposite) {
             ByteBuffer colName = ((CompositeType) baseCfs.getComparator()).extractLastComponent(name);
-            nameStr = CFDefinition.definitionType.getString(colName);
+            nameStr = Utils.getColumnNameStr(colName);
         } else {
             nameStr = CFDefinition.definitionType.getString(name);
         }

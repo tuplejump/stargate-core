@@ -133,7 +133,8 @@ public class PerColIndex extends PerColumnSecondaryIndex {
 
     @Override
     public boolean indexes(ByteBuffer name) {
-        String nameStr = CFDefinition.definitionType.getString(name);
+        //String nameStr = CFDefinition.definitionType.getString(name);
+        String nameStr = Utils.getColumnNameStr(name);
         boolean areEqual = nameStr.trim().equalsIgnoreCase(colName.trim());
         if (logger.isTraceEnabled())
             logger.trace(String.format("%s Comparing name for index - This column name [%s] - Passed column name [%s] - Equal [%s]", idxName, colName, nameStr, areEqual));
