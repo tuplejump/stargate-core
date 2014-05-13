@@ -108,6 +108,12 @@ task dist(type:Zip) {
     include '*.*'
 }
 
+task distTar(type:Tar) {
+    dependsOn jar
+    from ('build/libs/')
+    include '*.*'
+}
+
 install {
     repositories.mavenInstaller {
         pom.version = '0.9'
