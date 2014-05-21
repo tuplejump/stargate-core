@@ -85,7 +85,8 @@ public class PerRowIndexSearcher extends IndexSearcher {
             Query query = getQuery(predicate);
             logger.debug("Index Searcher - query - " + query);
             //CQL for now supports only AND expressions.
-            finalQuery.add(query, BooleanClause.Occur.MUST);
+            if (query != null)
+                finalQuery.add(query, BooleanClause.Occur.MUST);
         }
         return finalQuery;
     }

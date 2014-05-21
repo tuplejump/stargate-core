@@ -262,12 +262,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
     @Override
     public boolean indexes(ByteBuffer name) {
         CFDefinition cfDef = baseCfs.metadata.getCfDef();
-        String nameStr;
-        try {
-            nameStr = getColumnNameString(name, cfDef);
-        } catch (IllegalArgumentException e) {
-            nameStr = CFDefinition.definitionType.getString(name);
-        }
+        String nameStr = getColumnNameString(name, cfDef);
         for (String colNameStr : fieldOptions.keySet()) {
             boolean areEqual = nameStr.trim().equalsIgnoreCase(colNameStr.trim());
             if (logger.isDebugEnabled())
@@ -279,16 +274,11 @@ public class PerRowIndex extends PerRowSecondaryIndex {
     }
 
     protected String getColumnNameString(ByteBuffer name, CFDefinition cfDef) {
-        String nameStr;
+        ByteBuffer colName = name;
         if (cfDef.isComposite) {
-            ByteBuffer colName = ((CompositeType) baseCfs.getComparator()).extractLastComponent(name);
-            nameStr = Utils.getColumnNameStr(colName);
-        } else {
-            nameStr = CFDefinition.definitionType.getString(name);
+            colName = ((CompositeType) baseCfs.getComparator()).extractLastComponent(name);
         }
-
-
-        return nameStr;
+        return Utils.getColumnNameStr(colName);
     }
 
     @Override

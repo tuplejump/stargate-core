@@ -15,10 +15,7 @@ import org.apache.lucene.search.Query;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * User: satya
@@ -52,6 +49,7 @@ public class PerColIndexSearcher extends IndexSearcher {
                 logger.debug("Remaining predicates -{}", clone.toString());
                 logger.debug("Lucene Query class is {} and query is {}", query.getClass().getName(), query);
             }
+            if (query == null) return Collections.emptyList();
 
             return getRows(filter, query, chain, !clone.isEmpty());
         } catch (Exception e) {

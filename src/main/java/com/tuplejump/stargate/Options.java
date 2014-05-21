@@ -103,9 +103,9 @@ public class Options {
 
         if (primaryFieldOpts == null || primaryFieldOpts.isEmpty()) {
             //will ensure at least one field for indexing.
-            options.put(colName, defaultOpts(EMPTY_MAP));
+            options.put(colName.toLowerCase(), defaultOpts(EMPTY_MAP));
         } else {
-            options.put(colName, defaultOpts(primaryFieldOpts));
+            options.put(colName.toLowerCase(), defaultOpts(primaryFieldOpts));
         }
         assert val != null;
         List<JsonNode> fieldsArr = val.getArrayNode(FIELDS);
@@ -127,7 +127,7 @@ public class Options {
             Map<String, String> fieldOpts = getFieldOptions(fieldNode);
             if (fieldOpts != null)
                 idxOptions.putAll(fieldOpts);
-            options.put(field, idxOptions);
+            options.put(field.toLowerCase(), idxOptions);
         }
 
         return options;

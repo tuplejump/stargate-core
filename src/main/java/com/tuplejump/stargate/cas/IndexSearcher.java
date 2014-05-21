@@ -270,6 +270,7 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
         try {
             StandardQueryParser parser = new StandardQueryParser(analyzer);
             parser.setNumericConfigMap(numericConfigMap);
+            parser.setAllowLeadingWildcard(true);
             logger.debug("Numeric config is {}", parser.getNumericConfigMap());
             return parser.parse(predicateValue, columnName);
         } catch (QueryNodeException e) {
@@ -331,7 +332,8 @@ public abstract class IndexSearcher extends SecondaryIndexSearcher {
             if (logger.isDebugEnabled()) {
                 logger.debug("Search other clauses query-" + query);
             }
-            chain.add(searcher.searchReturnFilter(maxResults, query), true);
+            if (query != null)
+                chain.add(searcher.searchReturnFilter(maxResults, query), true);
         }
         return chain;
     }

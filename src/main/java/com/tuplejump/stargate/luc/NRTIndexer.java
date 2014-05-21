@@ -92,7 +92,7 @@ public class NRTIndexer implements Indexer {
         IndexWriter delegate = getIndexWriter(luceneV, options);
         indexWriter = new TrackingIndexWriter(delegate);
         indexSearcherReferenceManager = new SearcherManager(delegate, true, null);
-        reopenThread = new ControlledRealTimeReopenThread<>(indexWriter, indexSearcherReferenceManager, 5, 0.01);
+        reopenThread = new ControlledRealTimeReopenThread<>(indexWriter, indexSearcherReferenceManager, 1, 0.01);
         startReopenThread();
     }
 
@@ -118,7 +118,6 @@ public class NRTIndexer implements Indexer {
             public void run() {
                 try {
                     logger.warn(indexName + " NRT Shutdown hook called- Commiting and closing index");
-                    commit();
                     close();
                 } catch (Exception e) {
                     //do nothing
@@ -147,6 +146,7 @@ public class NRTIndexer implements Indexer {
 
         try {
             latest = indexWriter.addDocument(doc);
+            indexSearcherReferenceManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -162,6 +162,7 @@ public class NRTIndexer implements Indexer {
                 q.add(new TermQuery(t), BooleanClause.Occur.MUST);
             }
             latest = indexWriter.deleteDocuments(q);
+            indexSearcherReferenceManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -230,9 +231,10 @@ public class NRTIndexer implements Indexer {
     @Override
     public void close() {
         try {
-            logger.warn("SG NRTIndexer - Closing index -" + indexName);
             reopenThread.interrupt();
             reopenThread.close();
+            logger.warn("SG NRTIndexer - Closing index -" + indexName);
+            commit();
             indexWriter.getIndexWriter().close();
         } catch (IOException e) {
             throw new RuntimeException(e);
