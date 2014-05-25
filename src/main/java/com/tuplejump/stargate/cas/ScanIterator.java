@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
  * User: satya
  */
 public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
-    ColumnFamilyStore baseCfs;
+    ColumnFamilyStore table;
     org.apache.lucene.search.IndexSearcher searcher;
     ExtendedFilter filter;
     ArrayIterator indexIterator;
@@ -33,9 +33,9 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
     NumericDocValues tsValues;
     SearchSupport searchSupport;
 
-    public ScanIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, FilterChain chain, Query query, boolean needsFiltering) throws IOException {
+    public ScanIterator(SearchSupport searchSupport, ColumnFamilyStore table, IndexSearcher searcher, ExtendedFilter filter, FilterChain chain, Query query, boolean needsFiltering) throws IOException {
         this.searchSupport = searchSupport;
-        this.baseCfs = baseCfs;
+        this.table = table;
         this.searcher = searcher;
         this.filter = filter;
         this.chain = chain;
@@ -102,22 +102,22 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
     private Row getRow(IDiskAtomFilter dataFilter, DecoratedKey dk, long ts) throws IOException {
         ColumnFamily data;
 
-        if (baseCfs.metadata.getCfDef().isComposite) {
-            data = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter, filter.timestamp));
+        if (table.metadata.getCfDef().isComposite) {
+            data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
             if (data == null || searchSupport.deleteIfNotLatest(ts, dk.key, data)) {
                 return null;
             }
         } else {
-            data = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, dataFilter, filter.timestamp));
+            data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
             // While the column family we'll get in the end should contains the primary clause column, the initialFilter may not have found it and can thus be null
             if (data == null)
-                data = TreeMapBackedSortedColumns.factory.create(baseCfs.metadata);
+                data = TreeMapBackedSortedColumns.factory.create(table.metadata);
 
             // as in CFS.filter - extend the filter to ensure we include the columns
             // from the index expressions, just in case they weren't included in the initialFilter
             IDiskAtomFilter extraFilter = filter.getExtraFilter(dk, data);
             if (extraFilter != null) {
-                ColumnFamily cf = baseCfs.getColumnFamily(new QueryFilter(dk, baseCfs.name, extraFilter, filter.timestamp));
+                ColumnFamily cf = table.getColumnFamily(new QueryFilter(dk, table.name, extraFilter, filter.timestamp));
                 if (cf != null)
                     data.addAll(cf, HeapAllocator.instance);
             }
@@ -133,32 +133,31 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
     private Pair<DecoratedKey, IDiskAtomFilter> getFilterAndKey(ByteBuffer primaryKey) {
         DecoratedKey dk;
         IDiskAtomFilter dataFilter;
-        if (baseCfs.metadata.getCfDef().isComposite) {
-            ByteBuffer[] components = Utils.getCompositePKComponents(baseCfs, primaryKey);
+        if (table.metadata.getCfDef().isComposite) {
+            ByteBuffer[] components = Utils.getCompositePKComponents(table, primaryKey);
             ByteBuffer rowKey = Utils.getRowKeyFromPKComponents(components);
-            dk = baseCfs.partitioner.decorateKey(rowKey);
-            final CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
-            int prefixSize = baseComparator.types.size() - (baseCfs.metadata.getCfDef().hasCollections ? 2 : 1);
+            dk = table.partitioner.decorateKey(rowKey);
+            final CompositeType baseComparator = (CompositeType) table.getComparator();
+            int prefixSize = baseComparator.types.size() - (table.metadata.getCfDef().hasCollections ? 2 : 1);
 
             CompositeType.Builder builder = baseComparator.builder();
 
             for (int i = 0; i < prefixSize; i++)
                 builder.add(components[i + 1]);
 
-            // Does this "row" match the user original filter
             ByteBuffer start = builder.build();
 
             ColumnSlice dataSlice = new ColumnSlice(start, builder.buildAsEndOfRange());
             ColumnSlice[] slices;
-            if (baseCfs.metadata.hasStaticColumns()) {
-                ColumnSlice staticSlice = new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, baseCfs.metadata.getStaticColumnNameBuilder().buildAsEndOfRange());
+            if (table.metadata.hasStaticColumns()) {
+                ColumnSlice staticSlice = new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, table.metadata.getStaticColumnNameBuilder().buildAsEndOfRange());
                 slices = new ColumnSlice[]{staticSlice, dataSlice};
             } else {
                 slices = new ColumnSlice[]{dataSlice};
             }
-            dataFilter = new SliceQueryFilter(slices, false, Integer.MAX_VALUE, baseCfs.metadata.clusteringKeyColumns().size());
+            dataFilter = new SliceQueryFilter(slices, false, Integer.MAX_VALUE, table.metadata.clusteringKeyColumns().size());
         } else {
-            dk = baseCfs.partitioner.decorateKey(primaryKey);
+            dk = table.partitioner.decorateKey(primaryKey);
             dataFilter = filter.columnFilter(primaryKey);
         }
         return Pair.create(dk, dataFilter);
