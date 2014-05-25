@@ -197,8 +197,8 @@ public class NRTIndexer implements Indexer {
     @Override
     public boolean removeIndex() {
         logger.warn("SG NRTIndexer - Removing index -" + indexName);
-        close();
         try {
+            closeIndex();
             FSDirectory delegate = (FSDirectory) directory.getDelegate();
             FileUtils.deleteRecursive(delegate.getDirectory());
             directory.close();
@@ -231,15 +231,21 @@ public class NRTIndexer implements Indexer {
     @Override
     public void close() {
         try {
-            reopenThread.interrupt();
-            reopenThread.close();
-            logger.warn("SG NRTIndexer - Closing index -" + indexName);
-            commit();
-            indexWriter.getIndexWriter().close();
+            closeIndex();
+            directory.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
+    }
+
+    private void closeIndex() throws IOException {
+        logger.warn("SG NRTIndexer - Closing index -" + indexName);
+        reopenThread.interrupt();
+        reopenThread.close();
+        indexSearcherReferenceManager.close();
+        indexWriter.getIndexWriter().close();
+        analyzer.close();
     }
 
     @Override

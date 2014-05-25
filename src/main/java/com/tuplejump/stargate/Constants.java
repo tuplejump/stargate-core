@@ -15,7 +15,6 @@ public final class Constants {
     public static final String PK_NAME_DOC_VAL = "_row_key_val";
     public static final String CF_TS_DOC_VAL = "_cf_ts_val";
     public static final String CF_TS_INDEXED = "_cf_ts";
-    public static final String TS_DOC_VAL = "_ts_val";
 
     //lucene options per field
     public static final String striped = "striped";

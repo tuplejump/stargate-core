@@ -6,11 +6,18 @@ import argo.jdom.JsonRootNode;
 import argo.jdom.JsonStringNode;
 import argo.saj.InvalidSyntaxException;
 import com.tuplejump.stargate.cas.CassandraUtils;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.CFDefinition;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.utils.Pair;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.util.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import static com.tuplejump.stargate.Constants.*;
@@ -28,6 +35,76 @@ public class Options {
     private static String defaultIndexesDir;
     private static final JdomParser JDOM_PARSER = new JdomParser();
 
+    public final Map<String, Map<String, String>> fieldOptions;
+    public final Map<String, NumericConfig> numericFieldOptions;
+    public final Map<String, FieldType> fieldTypes;
+    public final Map<String, String> primaryFieldOptions;
+    public final Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed;
+    public final Set<String> indexedColumnNames;
+
+
+    public Options(Set<String> indexedColumnNames, Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed, Map<String, Map<String, String>> fieldOptions, Map<String, NumericConfig> numericFieldOptions, Map<String, FieldType> fieldTypes, Map<String, String> primaryFieldOptions) {
+        this.indexedColumnNames = indexedColumnNames;
+        this.fieldOptions = fieldOptions;
+        this.numericFieldOptions = numericFieldOptions;
+        this.fieldTypes = fieldTypes;
+        this.primaryFieldOptions = primaryFieldOptions;
+        this.clusteringKeysIndexed = clusteringKeysIndexed;
+    }
+
+
+    public static Options makeOptions(ColumnFamilyStore baseCfs, ColumnDefinition columnDef, String colName) {
+        String optionsJson = columnDef.getIndexOptions().get(Constants.INDEX_OPTIONS_JSON);
+        //getForRow all the fields options.
+        Map<String, Map<String, String>> fieldOptions = Options.getForRow(optionsJson, colName);
+        if (logger.isDebugEnabled())
+            logger.debug("SGIndex field options -" + fieldOptions);
+        Set<String> stringColumnNames = new TreeSet<>();
+        stringColumnNames.addAll(fieldOptions.keySet());
+
+        Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed = new LinkedHashMap<>();
+        Set<String> added = new HashSet<>(stringColumnNames.size());
+        List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
+        Map<String, FieldType> fieldTypes = new TreeMap<>();
+        Map<String, NumericConfig> numericConfigMap = new HashMap<>();
+        for (ColumnDefinition colDef : clusteringKeys) {
+            String columnName = CFDefinition.definitionType.getString(colDef.name);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Clustering key name is {} and index is {}", colName, colDef.componentIndex + 1);
+            }
+            if (stringColumnNames.contains(columnName)) {
+                clusteringKeysIndexed.put(colDef.componentIndex + 1, Pair.create(columnName, colDef.name));
+                addFieldType(baseCfs.name, columnName, colDef, numericConfigMap, fieldOptions, fieldTypes);
+                added.add(columnName);
+            }
+        }
+
+        for (String columnName : stringColumnNames) {
+            if (added.add(columnName.toLowerCase())) {
+                ColumnDefinition colDef = columnDef;
+                addFieldType(baseCfs.name, columnName, colDef, numericConfigMap, fieldOptions, fieldTypes);
+            }
+        }
+
+        Map<String, String> idxOptions = fieldOptions.get(colName);
+        if (logger.isDebugEnabled()) {
+            logger.debug("SGIndex index options -" + idxOptions);
+            logger.debug("SGIndex Column names being indexed -" + stringColumnNames);
+        }
+
+        return new Options(stringColumnNames, clusteringKeysIndexed, fieldOptions, numericConfigMap, fieldTypes, idxOptions);
+    }
+
+    private static void addFieldType(String cfName, String columnName, ColumnDefinition colDef, Map<String, NumericConfig> numericConfigMap, Map<String, Map<String, String>> fieldOptions, Map<String, FieldType> fieldTypes) {
+        Map<String, String> options = fieldOptions.get(columnName);
+        FieldType fieldType = Utils.fieldType(options, cfName, columnName, colDef.getValidator());
+        if (fieldType.numericType() != null) {
+            numericConfigMap.put(columnName, Utils.numericConfig(options, fieldType));
+        }
+        fieldTypes.put(columnName, fieldType);
+    }
+
+
     static {
         idFieldOptions.put(tokenized, "false");
         //need searching while deleting
@@ -44,30 +121,6 @@ public class Options {
                 throw new RuntimeException(e);
             }
         }
-
-    }
-
-    public static Map<String, String> getForColumn(String json, String ksName, String cfName, String colName, String idxName) {
-        Map<String, String> defaultOptions = defaultOpts(null);
-        JsonRootNode val = null;
-        try {
-            if (json != null)
-                val = JDOM_PARSER.parse(json);
-
-        } catch (InvalidSyntaxException e) {
-            throw new IllegalStateException(e);
-        }
-
-        Map<String, String> opts = getFieldOptions(val);
-        if (opts == null || opts.isEmpty()) {
-            //will ensure at least one field for indexing.
-            logger.debug(String.format("No Options found for %s of %s in %s of %s", idxName, colName, cfName, ksName));
-            return defaultOptions;
-        }
-        //just read the first row
-        defaultOptions.putAll(opts);
-        logger.debug(String.format("Options for %s of %s in %s of %s", idxName, colName, cfName, ksName), defaultOptions);
-        return defaultOptions;
 
     }
 
@@ -89,13 +142,13 @@ public class Options {
 
 
     public static Map<String, Map<String, String>> getForRow(String json, String colName) {
-
         Map<String, Map<String, String>> options = new HashMap<>();
         JsonRootNode val = null;
         try {
             if (json != null)
                 val = JDOM_PARSER.parse(json);
-
+            else
+                val = JDOM_PARSER.parse("{\"fields\":[]}");
         } catch (InvalidSyntaxException e) {
             throw new IllegalStateException(e);
         }

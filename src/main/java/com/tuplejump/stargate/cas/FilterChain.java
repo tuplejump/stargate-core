@@ -1,6 +1,5 @@
 package com.tuplejump.stargate.cas;
 
-import com.tuplejump.stargate.cas.IndexSearcher;
 import org.apache.cassandra.utils.IFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +12,7 @@ import java.util.List;
  * User: satya
  */
 public class FilterChain {
-    protected static final Logger logger = LoggerFactory.getLogger(IndexSearcher.class);
+    protected static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
     List<IFilter> andChain;
     List<IFilter> orChain;
 

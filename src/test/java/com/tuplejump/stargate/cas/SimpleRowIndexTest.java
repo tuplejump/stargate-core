@@ -10,11 +10,11 @@ import static org.hamcrest.Matchers.is;
 /**
  * User: satya
  */
-public class PerRowIndexTest extends IndexTestBase {
+public class SimpleRowIndexTest extends IndexTestBase {
 
     String keyspace = "dummyks2";
 
-    public PerRowIndexTest() {
+    public SimpleRowIndexTest() {
         cassandraCQLUnit = CQLUnitD.getCQLUnit(null);
     }
 

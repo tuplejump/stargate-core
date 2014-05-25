@@ -1,6 +1,5 @@
 package com.tuplejump.stargate.cas;
 
-import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.luc.Indexer;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
@@ -12,7 +11,6 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.queryparser.flexible.core.QueryNodeException;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.search.BooleanClause;
@@ -27,17 +25,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Created with IntelliJ IDEA.
  * User: satya
- * Date: 04/07/13
- * Time: 8:02 PM
- * To change this template use File | Settings | File Templates.
+ * <p/>
+ * A searcher which is used for searching on a PerRowIndex
  */
-public class PerRowIndexSearcher extends IndexSearcher {
+public class PerRowSearchSupport extends SearchSupport {
 
     protected Set<String> fieldNames;
 
-    public PerRowIndexSearcher(SecondaryIndexManager indexManager, SecondaryIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, Set<String> fieldNames, ByteBuffer primaryColName, Map<String, NumericConfig> numericConfigMap) {
+    public PerRowSearchSupport(SecondaryIndexManager indexManager, SecondaryIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, Set<String> fieldNames, ByteBuffer primaryColName, Map<String, NumericConfig> numericConfigMap) {
         super(indexManager, currentIndex, indexer, columns, primaryColName, numericConfigMap);
         this.fieldNames = fieldNames;
     }
@@ -99,22 +95,20 @@ public class PerRowIndexSearcher extends IndexSearcher {
     }
 
     @Override
-    protected boolean checkIfNotLatestAndRemove(NumericDocValues tsValues, int docId, org.apache.lucene.search.IndexSearcher searcher, ByteBuffer key, ColumnFamily cf) throws IOException {
+    public boolean deleteIfNotLatest(long timestamp, ByteBuffer key, ColumnFamily cf) throws IOException {
         PerRowIndex currIdx = ((PerRowIndex) currentIndex);
-        CFDefinition cfDef = baseCfs.metadata.getCfDef();
-        long ts = Fields.timestamp(tsValues, docId);
-        Map<String, Map<String, String>> options = currIdx.fieldOptions;
+        Map<String, Map<String, String>> options = currIdx.options.fieldOptions;
         Column lastColumn = null;
         for (ByteBuffer colKey : cf.getColumnNames()) {
-            String name = currIdx.getColumnNameString(colKey, cfDef);
+            String name = currIdx.rowIndexSupport.getActualColumnName(colKey, currIdx.tableDefinition);
             Map<String, String> option = options.get(name);
             //if fieldType was not found then the column is not indexed
             if (option != null) {
                 lastColumn = cf.getColumn(colKey);
             }
         }
-        if (lastColumn != null && lastColumn.maxTimestamp() > ts) {
-            currIdx.delete(key, ts);
+        if (lastColumn != null && lastColumn.maxTimestamp() > timestamp) {
+            currIdx.delete(key, timestamp);
             return true;
         }
         return false;

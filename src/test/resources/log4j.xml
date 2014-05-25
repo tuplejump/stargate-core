@@ -21,7 +21,7 @@
         <level value="FATAL"/>
     </logger>
 
-    <logger name="com.tuplejump.stargate.cas.IndexSearcher">
+    <logger name="com.tuplejump.stargate.cas.SearchSupport">
         <level value="WARN"/>
     </logger>
 
@@ -41,11 +41,11 @@
     <logger name="com.tuplejump">
         <level value="ERROR"/>
     </logger>
-    <logger name="com.tuplejump.stargate.cas.CompositeIndexTest">
+    <logger name="com.tuplejump.stargate.cas.WideRowTest">
         <level value="WARN"/>
     </logger>
 
-    <logger name="com.tuplejump.com.tuplejump.stargate.cas.PerRowIndexTest">
+    <logger name="com.tuplejump.com.tuplejump.stargate.cas.SimpleRowIndexTest">
         <level value="WARN"/>
     </logger>
     <logger name="com.tuplejump.com.tuplejump.stargate.cas.PerColIndexTest">

@@ -82,49 +82,11 @@ public class Utils {
         return fields;
     }
 
-    /**
-     * DocValues field(for Uninverting the index) which is used to return the list of pks during search.
-     * <p/>
-     * Indexed field used to search by primary key during update and delete.
-     */
-    public static List<Field> idFields(ByteBuffer rowKey, ColumnFamilyStore baseCfs, String cfName, Column iColumn) {
-        Pair<ByteBuffer, AbstractType> pkAndVal = getPKAndValidator(rowKey, baseCfs, iColumn);
-        ByteBuffer pk = pkAndVal.left;
-        AbstractType rkValValidator = pkAndVal.right;
-        return idFields(cfName, pk, rkValValidator);
-    }
-
     public static List<Field> idFields(String cfName, ByteBuffer pk, AbstractType rkValValidator) {
         return Arrays.asList(Fields.idDocValues(rkValValidator, pk));
     }
 
-    public static Pair<ByteBuffer, AbstractType> getPKAndValidator(ByteBuffer rowKey, ColumnFamilyStore baseCfs, Column iColumn) {
-        CFDefinition cfDef = baseCfs.metadata.getCfDef();
-        ByteBuffer pk = rowKey;
-        AbstractType rkValValidator;
-        if (cfDef.isComposite) {
-            rkValValidator = baseCfs.getComparator();
-            pk = makeCompositePK(baseCfs, rowKey, iColumn).left.build();
-        } else {
-            rkValValidator = baseCfs.metadata.getKeyValidator();
-        }
-        return Pair.create(pk, rkValValidator);
-    }
 
-    public static Pair<CompositeType.Builder, String> makeCompositePK(ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
-        CFDefinition cfDef = baseCfs.metadata.getCfDef();
-        CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
-        List<AbstractType<?>> types = baseComparator.types;
-        int idx = types.get(types.size() - 1) instanceof ColumnToCollectionType ? types.size() - 2 : types.size() - 1;
-        int prefixSize = baseComparator.types.size() - (cfDef.hasCollections ? 2 : 1);
-        ByteBuffer[] components = baseComparator.split(column.name());
-        String colName = CFDefinition.definitionType.getString(components[idx]);
-        CompositeType.Builder builder = new CompositeType.Builder(baseComparator);
-        builder.add(rowKey);
-        for (int i = 0; i < Math.min(prefixSize, components.length); i++)
-            builder.add(components[i]);
-        return Pair.create(builder, colName);
-    }
 
     public static ByteBuffer[] getCompositePKComponents(ColumnFamilyStore baseCfs, ByteBuffer pk) {
         CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
