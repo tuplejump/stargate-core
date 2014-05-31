@@ -6,7 +6,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.lucene.index.NumericDocValues;
@@ -18,6 +17,7 @@ import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 /**
  * User: satya
@@ -43,6 +43,7 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
         this.rowKeyValues = Fields.getPKDocValues(searcher);
         this.tsValues = Fields.getTSDocValues(searcher);
         int maxResults = filter.maxRows();
+
         Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
         TopDocs topDocs = searcher.search(query, maxResults);
         timer2.endLogTime("For TopDocs search for -" + topDocs.totalHits + " results");
@@ -60,8 +61,8 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
 
     @Override
     protected Row computeNext() {
-
         DataRange range = filter.dataRange;
+        SliceQueryFilter sliceQueryFilter = (SliceQueryFilter) filter.dataRange.columnFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER);
         while (indexIterator.hasNext()) {
             try {
                 ScoreDoc scoreDoc = (ScoreDoc) indexIterator.next();
@@ -69,7 +70,8 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
                 if (chain != null && !chain.accepts(primaryKey)) {
                     continue;
                 }
-                Pair<DecoratedKey, IDiskAtomFilter> keyAndFilter = getFilterAndKey(primaryKey);
+
+                Pair<DecoratedKey, IDiskAtomFilter> keyAndFilter = getFilterAndKey(primaryKey, sliceQueryFilter);
                 if (keyAndFilter == null) {
                     continue;
                 }
@@ -81,6 +83,7 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
                     }
                     continue;
                 }
+
                 if (SearchSupport.logger.isTraceEnabled()) {
                     SearchSupport.logger.trace("Returning index hit for {}", dk);
                 }
@@ -100,37 +103,15 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
     }
 
     private Row getRow(IDiskAtomFilter dataFilter, DecoratedKey dk, long ts) throws IOException {
-        ColumnFamily data;
-
-        if (table.metadata.getCfDef().isComposite) {
-            data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
-            if (data == null || searchSupport.deleteIfNotLatest(ts, dk.key, data)) {
-                return null;
-            }
-        } else {
-            data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
-            // While the column family we'll get in the end should contains the primary clause column, the initialFilter may not have found it and can thus be null
-            if (data == null)
-                data = TreeMapBackedSortedColumns.factory.create(table.metadata);
-
-            // as in CFS.filter - extend the filter to ensure we include the columns
-            // from the index expressions, just in case they weren't included in the initialFilter
-            IDiskAtomFilter extraFilter = filter.getExtraFilter(dk, data);
-            if (extraFilter != null) {
-                ColumnFamily cf = table.getColumnFamily(new QueryFilter(dk, table.name, extraFilter, filter.timestamp));
-                if (cf != null)
-                    data.addAll(cf, HeapAllocator.instance);
-            }
-
-            if (searchSupport.deleteIfNotLatest(ts, dk.key, data)) {
-                return null;
-            }
+        ColumnFamily data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
+        if (data == null || searchSupport.deleteIfNotLatest(ts, dk.key, data)) {
+            return null;
         }
         return new Row(dk, data);
     }
 
 
-    private Pair<DecoratedKey, IDiskAtomFilter> getFilterAndKey(ByteBuffer primaryKey) {
+    private Pair<DecoratedKey, IDiskAtomFilter> getFilterAndKey(ByteBuffer primaryKey, SliceQueryFilter sliceQueryFilter) {
         DecoratedKey dk;
         IDiskAtomFilter dataFilter;
         if (table.metadata.getCfDef().isComposite) {
@@ -146,16 +127,19 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
                 builder.add(components[i + 1]);
 
             ByteBuffer start = builder.build();
+            if (!sliceQueryFilter.maySelectPrefix(table.getComparator(), start)) return null;
 
+            ArrayList<ColumnSlice> allSlices = new ArrayList<>();
             ColumnSlice dataSlice = new ColumnSlice(start, builder.buildAsEndOfRange());
-            ColumnSlice[] slices;
             if (table.metadata.hasStaticColumns()) {
                 ColumnSlice staticSlice = new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, table.metadata.getStaticColumnNameBuilder().buildAsEndOfRange());
-                slices = new ColumnSlice[]{staticSlice, dataSlice};
-            } else {
-                slices = new ColumnSlice[]{dataSlice};
+                allSlices.add(staticSlice);
             }
+            allSlices.add(dataSlice);
+            ColumnSlice[] slices = new ColumnSlice[allSlices.size()];
+            allSlices.toArray(slices);
             dataFilter = new SliceQueryFilter(slices, false, Integer.MAX_VALUE, table.metadata.clusteringKeyColumns().size());
+
         } else {
             dk = table.partitioner.decorateKey(primaryKey);
             dataFilter = filter.columnFilter(primaryKey);
@@ -168,4 +152,5 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
     public void close() throws IOException {
         //no op
     }
+
 }
