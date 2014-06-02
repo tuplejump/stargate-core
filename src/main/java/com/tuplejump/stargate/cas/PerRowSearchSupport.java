@@ -50,12 +50,11 @@ public class PerRowSearchSupport extends SearchSupport {
             clone.addAll(clause);
             clone.removeAll(predicates);
             Query query = getBooleanQuery(predicates);
-            FilterChain chain = getFilterChain(mainFilter.maxRows(), clone);
             if (logger.isDebugEnabled())
                 logger.debug("IndexExprs not satisfied by PerRowIndex {}", clone);
 
             ExtendedFilter filter = ExtendedFilter.create(baseCfs, mainFilter.dataRange, clone, mainFilter.maxRows(), false, mainFilter.timestamp);
-            return getRows(filter, query, chain, !clone.isEmpty());
+            return getRows(filter, query, !clone.isEmpty());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

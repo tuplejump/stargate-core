@@ -11,11 +11,6 @@ targetCompatibility = 1.7
 repositories {
     mavenCentral()
     mavenLocal()
-
-    maven {
-        name 'conciseset'
-        url "http://www.ebi.ac.uk/intact/maven/nexus/content/repositories/ebi-repo/"
-    }
 }
 
 configurations {
@@ -39,7 +34,6 @@ dependencies {
     }
 
     //additional libraries
-    compile group: 'extendedset', name: 'extendedset', version: '2.2'
     compile group: 'net.sourceforge.argo', name: 'argo', version: '3.7'
     compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
 
@@ -102,15 +96,15 @@ task copyLibs(type: Copy) {
 
 jar { dependsOn copyLibs }
 
-task dist(type:Zip) {
+task dist(type: Zip) {
     dependsOn jar
-    from ('build/libs/')
+    from('build/libs/')
     include '*.*'
 }
 
-task distTar(type:Tar) {
+task distTar(type: Tar) {
     dependsOn jar
-    from ('build/libs/')
+    from('build/libs/')
     include '*.*'
 }
 

@@ -27,18 +27,16 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
     org.apache.lucene.search.IndexSearcher searcher;
     ExtendedFilter filter;
     ArrayIterator indexIterator;
-    FilterChain chain;
     boolean needsFiltering;
     SortedDocValues rowKeyValues;
     NumericDocValues tsValues;
     SearchSupport searchSupport;
 
-    public ScanIterator(SearchSupport searchSupport, ColumnFamilyStore table, IndexSearcher searcher, ExtendedFilter filter, FilterChain chain, Query query, boolean needsFiltering) throws IOException {
+    public ScanIterator(SearchSupport searchSupport, ColumnFamilyStore table, IndexSearcher searcher, ExtendedFilter filter, Query query, boolean needsFiltering) throws IOException {
         this.searchSupport = searchSupport;
         this.table = table;
         this.searcher = searcher;
         this.filter = filter;
-        this.chain = chain;
         this.needsFiltering = needsFiltering;
         this.rowKeyValues = Fields.getPKDocValues(searcher);
         this.tsValues = Fields.getTSDocValues(searcher);
@@ -67,9 +65,6 @@ public class ScanIterator extends ColumnFamilyStore.AbstractScanIterator {
             try {
                 ScoreDoc scoreDoc = (ScoreDoc) indexIterator.next();
                 ByteBuffer primaryKey = Fields.primaryKey(rowKeyValues, scoreDoc.doc);
-                if (chain != null && !chain.accepts(primaryKey)) {
-                    continue;
-                }
 
                 Pair<DecoratedKey, IDiskAtomFilter> keyAndFilter = getFilterAndKey(primaryKey, sliceQueryFilter);
                 if (keyAndFilter == null) {
