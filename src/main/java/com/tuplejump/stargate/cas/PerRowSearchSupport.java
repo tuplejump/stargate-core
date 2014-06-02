@@ -46,15 +46,10 @@ public class PerRowSearchSupport extends SearchSupport {
             if (logger.isDebugEnabled())
                 logger.debug("All IndexExprs {}", clause);
             List<IndexExpression> predicates = matchThisIndex(clause);
-            List<IndexExpression> clone = new ArrayList<>();
-            clone.addAll(clause);
-            clone.removeAll(predicates);
             Query query = getBooleanQuery(predicates);
-            if (logger.isDebugEnabled())
-                logger.debug("IndexExprs not satisfied by PerRowIndex {}", clone);
-
-            ExtendedFilter filter = ExtendedFilter.create(baseCfs, mainFilter.dataRange, clone, mainFilter.maxRows(), false, mainFilter.timestamp);
-            return getRows(filter, query, !clone.isEmpty());
+            //This is mainly to allow data ranges to occur on searches with range and data together.
+            ExtendedFilter filter = ExtendedFilter.create(baseCfs, mainFilter.dataRange, null, mainFilter.maxRows(), false, mainFilter.timestamp);
+            return getRows(filter, query, false);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
