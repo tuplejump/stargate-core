@@ -3,7 +3,7 @@ apply plugin: 'idea'
 apply plugin: 'eclipse'
 apply plugin: 'maven'
 
-version = '0.9.1'
+version = '0.9.3'
 
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
@@ -110,7 +110,7 @@ task distTar(type: Tar) {
 
 install {
     repositories.mavenInstaller {
-        pom.version = '0.9.1'
+        pom.version = '0.9.3'
         pom.groupId = 'com.tuplejump'
         pom.artifactId = 'stargate-core'
     }
