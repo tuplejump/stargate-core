@@ -21,17 +21,17 @@
         <level value="FATAL"/>
     </logger>
 
-    <logger name="com.tuplejump.stargate.cas.SearchSupport">
+    <logger name="com.tuplejump.stargate.cassandra.SearchSupport">
         <level value="WARN"/>
     </logger>
 
-    <logger name="com.tuplejump.stargate.luc.NRTIndexer">
+    <logger name="com.tuplejump.stargate.lucene.NearRealTimeIndexer">
         <level value="WARN"/>
     </logger>
-    <logger name="com.tuplejump.stargate.cas.PerRowIndex">
+    <logger name="com.tuplejump.stargate.cassandra.PerRowIndex">
         <level value="WARN"/>
     </logger>
-    <logger name="com.tuplejump.stargate.cas.PerColIndex">
+    <logger name="com.tuplejump.stargate.cassandra.PerColIndex">
         <level value="WARN"/>
     </logger>
     <logger name="com.tuplejump.stargate.Utils">
@@ -41,14 +41,14 @@
     <logger name="com.tuplejump">
         <level value="ERROR"/>
     </logger>
-    <logger name="com.tuplejump.stargate.cas.WideRowTest">
+    <logger name="com.tuplejump.stargate.cassandra.WideRowTest">
         <level value="WARN"/>
     </logger>
 
-    <logger name="com.tuplejump.com.tuplejump.stargate.cas.SimpleRowIndexTest">
+    <logger name="com.tuplejump.com.tuplejump.stargate.cassandra.SimpleRowIndexTest">
         <level value="WARN"/>
     </logger>
-    <logger name="com.tuplejump.com.tuplejump.stargate.cas.PerColIndexTest">
+    <logger name="com.tuplejump.com.tuplejump.stargate.cassandra.PerColIndexTest">
         <level value="WARN"/>
     </logger>
 

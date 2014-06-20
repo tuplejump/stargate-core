@@ -1,4 +1,4 @@
-package com.tuplejump.stargate.luc;
+package com.tuplejump.stargate.lucene;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;

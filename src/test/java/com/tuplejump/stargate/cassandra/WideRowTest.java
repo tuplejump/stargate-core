@@ -1,4 +1,4 @@
-package com.tuplejump.stargate.cas;
+package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.util.CQLUnitD;
@@ -24,21 +24,20 @@ public class WideRowTest extends IndexTestBase {
             createKS(keyspace);
             createTableAndIndexForRow();
             countResults("TAG2", "", false, true);
-            assertThat(countResults("TAG2", "tags = 'hello*' AND state='CA' ALLOW FILTERING", true), is(12));
-            assertThat(countResults("TAG2", "tags = 'tags:hello? AND state:\"CA\"'", true), is(12));
-            assertThat(countResults("TAG2", "tags = 'hello2' AND state='CA' ALLOW FILTERING", true), is(8));
-            assertThat(countResults("TAG2", "tags = 'tag2'", true), is(16));
+            assertThat(countResults("TAG2", "tags = '" + q("tags:hello* AND state:CA") + "'", true), is(12));
+            assertThat(countResults("TAG2", "tags = '" + q("tags:hello? AND state:CA") + "'", true), is(12));
+            assertThat(countResults("TAG2", "tags = '" + q("tags:hello2 AND state:CA") + "'", true), is(8));
+            assertThat(countResults("TAG2", "tags = '" + q("tag2") + "'", true), is(16));
+
             for (int i = 0; i < 40; i = i + 10) {
                 updateTagData("TAG2", (i + 1) + " AND segment =" + i);
             }
-            assertThat(countResults("TAG2", "tags = 'h*'", true), is(40));
-            assertThat(countResults("TAG2", "tags = 'hello1'", true), is(12));
-            assertThat(countResults("TAG2", "tags = 'hello*' AND state='CA' ALLOW FILTERING", true), is(8));
+            assertThat(countResults("TAG2", "tags = '" + q("h*") + "'", true), is(40));
+            assertThat(countResults("TAG2", "tags = '" + q("hello1") + "'", true), is(12));
             for (int i = 0; i < 20; i++) {
                 deleteTagData("TAG2", false, i);
             }
-            assertThat(countResults("TAG2", "tags = 'hello*'", true), is(16));
-            assertThat(countResults("TAG2", "state='CA' and tags='state:CA' ALLOW FILTERING", true), is(4));
+            assertThat(countResults("TAG2", "tags = '" + q("hello*") + "'", true), is(16));
         } finally {
             dropTable(keyspace, "TAG2");
             dropKS(keyspace);
@@ -56,8 +55,8 @@ public class WideRowTest extends IndexTestBase {
         int i = 0;
         while (i < 40) {
             if (i == 20) {
-                //getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG2(tags) WITH options = { 'class': 'com.tuplejump.stargate.cas.PerRowIndex'} ");
-                getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG2(tags) USING 'com.tuplejump.stargate.cas.PerRowIndex' WITH options ={'sg_options':'" + options + "'}");
+                //getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG2(tags) WITH options = { 'class': 'com.tuplejump.stargate.cassandra.PerRowIndex'} ");
+                getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG2(tags) USING 'com.tuplejump.stargate.cassandra.PerRowIndex' WITH options ={'sg_options':'" + options + "'}");
             }
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 1) + ",'hello1 tag1 lol1', 'CA'," + i + ")");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 2) + ",'hello1 tag1 lol2', 'LA'," + i + ")");

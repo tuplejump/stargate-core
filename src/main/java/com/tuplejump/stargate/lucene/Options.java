@@ -1,15 +1,20 @@
-package com.tuplejump.stargate;
+package com.tuplejump.stargate.lucene;
 
 import argo.jdom.JdomParser;
 import argo.jdom.JsonNode;
 import argo.jdom.JsonRootNode;
 import argo.jdom.JsonStringNode;
 import argo.saj.InvalidSyntaxException;
-import com.tuplejump.stargate.cas.CassandraUtils;
+import com.tuplejump.stargate.Constants;
+import com.tuplejump.stargate.Utils;
+import com.tuplejump.stargate.cassandra.CassandraUtils;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Pair;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.util.Version;
@@ -38,20 +43,42 @@ public class Options {
     public final Map<String, Map<String, String>> fieldOptions;
     public final Map<String, NumericConfig> numericFieldOptions;
     public final Map<String, FieldType> fieldTypes;
+    public final Map<String, AbstractType> validators;
     public final Map<String, String> primaryFieldOptions;
     public final Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed;
     public final Set<String> indexedColumnNames;
+    public final Version luceneVersion;
+    public final Analyzer analyzer;
+    public final String defaultField;
 
-
-    public Options(Set<String> indexedColumnNames, Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed, Map<String, Map<String, String>> fieldOptions, Map<String, NumericConfig> numericFieldOptions, Map<String, FieldType> fieldTypes, Map<String, String> primaryFieldOptions) {
+    public Options(String defaultField, Set<String> indexedColumnNames, Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed, Map<String, AbstractType> validators, Map<String, Map<String, String>> fieldOptions, Map<String, NumericConfig> numericFieldOptions, Map<String, FieldType> fieldTypes, Map<String, String> primaryFieldOptions) {
+        this.defaultField = defaultField;
         this.indexedColumnNames = indexedColumnNames;
         this.fieldOptions = fieldOptions;
         this.numericFieldOptions = numericFieldOptions;
         this.fieldTypes = fieldTypes;
+        this.validators = validators;
         this.primaryFieldOptions = primaryFieldOptions;
         this.clusteringKeysIndexed = clusteringKeysIndexed;
+        String versionStr = primaryFieldOptions.get(LUCENE_VERSION);
+        this.luceneVersion = Version.parseLeniently(versionStr);
+        this.analyzer = getAnalyzer(primaryFieldOptions, fieldOptions, luceneVersion);
     }
 
+    private Analyzer getAnalyzer(Map<String, String> options, Map<String, Map<String, String>> perFieldOptions, Version luceneV) {
+        Analyzer retVal;
+        Analyzer defaultAnalyzer = AnalyzerFactory.getAnalyzer(options, luceneV);
+        if (perFieldOptions == null) {
+            retVal = defaultAnalyzer;
+        } else {
+            Map<String, Analyzer> perFieldAnalyzers = new HashMap<>();
+            for (Map.Entry<String, Map<String, String>> fieldOptions : perFieldOptions.entrySet()) {
+                perFieldAnalyzers.put(fieldOptions.getKey(), AnalyzerFactory.getAnalyzer(fieldOptions.getValue(), luceneV));
+            }
+            retVal = new PerFieldAnalyzerWrapper(defaultAnalyzer, perFieldAnalyzers);
+        }
+        return retVal;
+    }
 
     public static Options makeOptions(ColumnFamilyStore baseCfs, ColumnDefinition columnDef, String colName) {
         String optionsJson = columnDef.getIndexOptions().get(Constants.INDEX_OPTIONS_JSON);
@@ -66,6 +93,7 @@ public class Options {
         Set<String> added = new HashSet<>(stringColumnNames.size());
         List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
         Map<String, FieldType> fieldTypes = new TreeMap<>();
+        Map<String, AbstractType> validators = new TreeMap<>();
         Map<String, NumericConfig> numericConfigMap = new HashMap<>();
         for (ColumnDefinition colDef : clusteringKeys) {
             String columnName = CFDefinition.definitionType.getString(colDef.name);
@@ -74,15 +102,17 @@ public class Options {
             }
             if (stringColumnNames.contains(columnName)) {
                 clusteringKeysIndexed.put(colDef.componentIndex + 1, Pair.create(columnName, colDef.name));
-                addFieldType(baseCfs.name, columnName, colDef, numericConfigMap, fieldOptions, fieldTypes);
+                addFieldType(baseCfs.name, columnName, colDef.getValidator(), numericConfigMap, fieldOptions, fieldTypes, validators);
                 added.add(columnName);
             }
         }
 
         for (String columnName : stringColumnNames) {
             if (added.add(columnName.toLowerCase())) {
-                ColumnDefinition colDef = columnDef;
-                addFieldType(baseCfs.name, columnName, colDef, numericConfigMap, fieldOptions, fieldTypes);
+                ColumnDefinition colDef = getColumnDefinition(baseCfs, columnName);
+                if (colDef == null)
+                    throw new IllegalArgumentException(String.format("Column Definition for %s not found", columnName));
+                addFieldType(baseCfs.name, columnName, colDef.getValidator(), numericConfigMap, fieldOptions, fieldTypes, validators);
             }
         }
 
@@ -92,12 +122,22 @@ public class Options {
             logger.debug("SGIndex Column names being indexed -" + stringColumnNames);
         }
 
-        return new Options(stringColumnNames, clusteringKeysIndexed, fieldOptions, numericConfigMap, fieldTypes, idxOptions);
+        return new Options(colName, stringColumnNames, clusteringKeysIndexed, validators, fieldOptions, numericConfigMap, fieldTypes, idxOptions);
     }
 
-    private static void addFieldType(String cfName, String columnName, ColumnDefinition colDef, Map<String, NumericConfig> numericConfigMap, Map<String, Map<String, String>> fieldOptions, Map<String, FieldType> fieldTypes) {
+    private static ColumnDefinition getColumnDefinition(ColumnFamilyStore baseCfs, String columnName) {
+        Iterable<ColumnDefinition> cols = baseCfs.metadata.regularAndStaticColumns();
+        for (ColumnDefinition columnDefinition : cols) {
+            String fromColDef = CFDefinition.definitionType.getString(columnDefinition.name);
+            if (fromColDef.equalsIgnoreCase(columnName)) return columnDefinition;
+        }
+        return null;
+    }
+
+    private static void addFieldType(String cfName, String columnName, AbstractType validator, Map<String, NumericConfig> numericConfigMap, Map<String, Map<String, String>> fieldOptions, Map<String, FieldType> fieldTypes, Map<String, AbstractType> validators) {
         Map<String, String> options = fieldOptions.get(columnName);
-        FieldType fieldType = Utils.fieldType(options, cfName, columnName, colDef.getValidator());
+        validators.put(columnName, validator);
+        FieldType fieldType = Utils.fieldType(options, cfName, columnName, validator);
         if (fieldType.numericType() != null) {
             numericConfigMap.put(columnName, Utils.numericConfig(options, fieldType));
         }

@@ -1,18 +1,21 @@
-package com.tuplejump.stargate.cas;
+package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Fields;
-import com.tuplejump.stargate.Options;
-import com.tuplejump.stargate.luc.Indexer;
-import com.tuplejump.stargate.luc.NRTIndexer;
+import com.tuplejump.stargate.lucene.Indexer;
+import com.tuplejump.stargate.lucene.NearRealTimeIndexer;
+import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TopDocs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +64,20 @@ public class PerRowIndex extends PerRowSecondaryIndex {
             //don't give the searcher out till this happens
             if (isIndexBuilt(columnDefinition.name)) break;
         }
-        return new PerRowSearchSupport(baseCfs.indexManager, this, indexer, columns, options.indexedColumnNames, columnDefinition.name, this.options.numericFieldOptions);
+        return new PerRowSearchSupport(baseCfs.indexManager, this, indexer, columns, options.indexedColumnNames, columnDefinition.name, this.options);
+    }
+
+    public ColumnFamilyStore.AbstractScanIterator getScanIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean addlFilter) {
+        try {
+            if (tableDefinition.isComposite) {
+                return new WideRowScanner(searchSupport, baseCfs, searcher, filter, topDocs, addlFilter);
+            } else {
+                return new SimpleRowScanner(searchSupport, baseCfs, searcher, filter, topDocs, addlFilter);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
 
@@ -157,7 +173,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
                     indexer = null;
                 }
                 if (createAnother)
-                    indexer = new NRTIndexer(this.options.primaryFieldOptions, this.options.fieldOptions, keyspace, baseCfs.name, indexName);
+                    indexer = new NearRealTimeIndexer(this.options, keyspace, baseCfs.name, indexName);
 
             } else {
                 throw new RuntimeException(String.format("Unable to acquire reload lock for Index %s of %s on %s of %s. Another thread is already reloading it", indexName, primaryColumnName, baseCfs.name, keyspace));

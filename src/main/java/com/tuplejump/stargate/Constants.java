@@ -38,9 +38,6 @@ public final class Constants {
     public static final String INDEX_DIR_NAME = "Index.DirName";
     public static final String INDEX_FILE_NAME = "Index.FileName";
 
-    //TODO add this option for date fields. putting here to not forget.
-    public static final String DateToolsResolution = "DateTools.Resolution";
-
     public enum Analyzers {
         StandardAnalyzer, WhitespaceAnalyzer, StopAnalyzer, SimpleAnalyzer, KeywordAnalyzer
 

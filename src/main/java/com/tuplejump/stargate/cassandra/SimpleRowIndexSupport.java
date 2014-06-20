@@ -1,9 +1,9 @@
-package com.tuplejump.stargate.cas;
+package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Fields;
-import com.tuplejump.stargate.Options;
+import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.luc.Indexer;
+import com.tuplejump.stargate.lucene.Indexer;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.Column;

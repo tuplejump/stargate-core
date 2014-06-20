@@ -1,25 +1,26 @@
-package com.tuplejump.stargate.cas;
+package com.tuplejump.stargate.cassandra;
 
-import com.tuplejump.stargate.luc.Indexer;
+import com.tuplejump.stargate.lucene.Indexer;
+import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.lucene.queryparser.flexible.core.QueryNodeException;
-import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.cassandra.utils.Pair;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,8 +34,8 @@ public class PerRowSearchSupport extends SearchSupport {
 
     protected Set<String> fieldNames;
 
-    public PerRowSearchSupport(SecondaryIndexManager indexManager, SecondaryIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, Set<String> fieldNames, ByteBuffer primaryColName, Map<String, NumericConfig> numericConfigMap) {
-        super(indexManager, currentIndex, indexer, columns, primaryColName, numericConfigMap);
+    public PerRowSearchSupport(SecondaryIndexManager indexManager, SecondaryIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, Set<String> fieldNames, ByteBuffer primaryColName, Options options) {
+        super(indexManager, currentIndex, indexer, columns, primaryColName, options);
         this.fieldNames = fieldNames;
     }
 
@@ -45,47 +46,37 @@ public class PerRowSearchSupport extends SearchSupport {
             List<IndexExpression> clause = mainFilter.getClause();
             if (logger.isDebugEnabled())
                 logger.debug("All IndexExprs {}", clause);
-            List<IndexExpression> predicates = matchThisIndex(clause);
-            Query query = getBooleanQuery(predicates);
+            Pair<Query, Sort> queryAndSort = getQuery(matchThisIndex(clause));
             //This is mainly to allow data ranges to occur on searches with range and data together.
             ExtendedFilter filter = ExtendedFilter.create(baseCfs, mainFilter.dataRange, null, mainFilter.maxRows(), false, mainFilter.timestamp);
-            return getRows(filter, query, false);
+            return getRows(filter, queryAndSort, false);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    protected List<IndexExpression> matchThisIndex(List<IndexExpression> clause) {
-        List<IndexExpression> matches = new ArrayList<>();
+    protected IndexExpression matchThisIndex(List<IndexExpression> clause) {
         for (IndexExpression expression : clause) {
             ColumnDefinition cfDef = baseCfs.metadata.getColumnDefinition(expression.column_name);
             String colName = CFDefinition.definitionType.getString(cfDef.name);
             //we only support Equal - Operators should be a part of the lucene query
             if (fieldNames.contains(colName) && expression.op == IndexOperator.EQ) {
-                matches.add(expression);
+                return expression;
             }
         }
-        return matches;
-    }
-
-
-    protected Query getBooleanQuery(List<IndexExpression> predicates) throws QueryNodeException {
-        BooleanQuery finalQuery = new BooleanQuery();
-        for (IndexExpression predicate : predicates) {
-            Query query = getQuery(predicate);
-            logger.debug("Index Searcher - query - " + query);
-            //CQL for now supports only AND expressions.
-            if (query != null)
-                finalQuery.add(query, BooleanClause.Occur.MUST);
-        }
-        return finalQuery;
+        return null;
     }
 
 
     @Override
     public boolean isIndexing(List<IndexExpression> clause) {
-        List<IndexExpression> exprs = matchThisIndex(clause);
-        return exprs != null && !exprs.isEmpty();
+        IndexExpression expr = matchThisIndex(clause);
+        return expr != null;
+    }
+
+    @Override
+    protected ColumnFamilyStore.AbstractScanIterator searchResultsIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean needsFiltering) throws IOException {
+        return ((PerRowIndex) currentIndex).getScanIterator(searchSupport, baseCfs, searcher, filter, topDocs, needsFiltering);
     }
 
     @Override

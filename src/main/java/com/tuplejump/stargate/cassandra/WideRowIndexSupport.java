@@ -1,9 +1,9 @@
-package com.tuplejump.stargate.cas;
+package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Fields;
-import com.tuplejump.stargate.Options;
+import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.luc.Indexer;
+import com.tuplejump.stargate.lucene.Indexer;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.Column;
@@ -72,8 +72,10 @@ public class WideRowIndexSupport implements RowIndexSupport {
 
     private void addColumn(ByteBuffer rowKey, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, AbstractType rowKeyValidator, Column column) {
         ByteBuffer columnName = column.name();
-        Pair<CompositeType.Builder, String> primaryKeyAndName = makeCompositePK(table, rowKey, column);
+        Pair<CompositeType.Builder, String> primaryKeyAndName = primaryKeyAndName(table, rowKey, column);
         String name = primaryKeyAndName.right;
+        if (logger.isDebugEnabled())
+            logger.debug("Got column name {} from CF", name);
         CompositeType.Builder builder = primaryKeyAndName.left;
         ByteBuffer primaryKey = builder.build();
         List<Field> fields = primaryKeysVsFields.get(primaryKey);
@@ -90,8 +92,6 @@ public class WideRowIndexSupport implements RowIndexSupport {
             addClusteringKeyFields(primaryKey, fields, timestamps, column, builder);
         }
 
-        if (logger.isDebugEnabled())
-            logger.debug("Got column name {} from CF", name);
         FieldType fieldType = options.fieldTypes.get(name);
         //if fieldType was not found then the column is not indexed
         if (fieldType != null) {
@@ -120,7 +120,7 @@ public class WideRowIndexSupport implements RowIndexSupport {
         fields.addAll(fieldsForField);
     }
 
-    public Pair<CompositeType.Builder, String> makeCompositePK(ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
+    public Pair<CompositeType.Builder, String> primaryKeyAndName(ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
         CFDefinition cfDef = baseCfs.metadata.getCfDef();
         CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
         List<AbstractType<?>> types = baseComparator.types;

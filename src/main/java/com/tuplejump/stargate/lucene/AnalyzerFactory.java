@@ -1,4 +1,4 @@
-package com.tuplejump.stargate.luc;
+package com.tuplejump.stargate.lucene;
 
 import com.tuplejump.stargate.Constants;
 import org.apache.commons.lang3.ArrayUtils;

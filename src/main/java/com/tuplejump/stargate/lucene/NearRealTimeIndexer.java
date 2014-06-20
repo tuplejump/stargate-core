@@ -1,10 +1,9 @@
-package com.tuplejump.stargate.luc;
+package com.tuplejump.stargate.lucene;
 
 import com.tuplejump.stargate.Utils;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -20,19 +19,17 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
 import static com.tuplejump.stargate.Constants.INDEX_FILE_NAME;
-import static com.tuplejump.stargate.Constants.LUCENE_VERSION;
 
 /**
  * User: satya
  * An indexer which uses an underlying lucene ControlledRealTimeReopenThread Manager
  */
-public class NRTIndexer implements Indexer {
-    private static final Logger logger = LoggerFactory.getLogger(NRTIndexer.class);
+public class NearRealTimeIndexer implements Indexer {
+    private static final Logger logger = LoggerFactory.getLogger(NearRealTimeIndexer.class);
 
     public static IndexWriterConfig.OpenMode OPEN_MODE = IndexWriterConfig.OpenMode.CREATE_OR_APPEND;
 
@@ -54,47 +51,29 @@ public class NRTIndexer implements Indexer {
 
     protected ControlledRealTimeReopenThread<IndexSearcher> reopenThread;
 
-    public NRTIndexer(Map<String, String> options, String keyspaceName, String cfName, String indexName) {
+    public NearRealTimeIndexer(Options options, String keyspaceName, String cfName, String indexName) {
         try {
-            init(options, null, keyspaceName, cfName, indexName);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public NRTIndexer(Map<String, String> options, Map<String, Map<String, String>> perFieldOptions, String keyspaceName, String cfName, String indexName) {
-        try {
-            init(options, perFieldOptions, keyspaceName, cfName, indexName);
+            init(options, keyspaceName, cfName, indexName);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
     }
 
-    private void init(Map<String, String> options, Map<String, Map<String, String>> perFieldOptions, String keyspaceName, String cfName, String indexName) throws IOException {
+    private void init(Options options, String keyspaceName, String cfName, String indexName) throws IOException {
         this.indexName = indexName;
         this.keyspaceName = keyspaceName;
         this.cfName = cfName;
-        String versionStr = options.get(LUCENE_VERSION);
-        Version luceneV = Version.parseLeniently(versionStr);
-        logger.debug(indexName + " Lucene version -" + luceneV);
-        Analyzer defaultAnalyzer = AnalyzerFactory.getAnalyzer(options, luceneV);
-        if (perFieldOptions == null) {
-            analyzer = defaultAnalyzer;
-        } else {
-            Map<String, Analyzer> perFieldAnalyzers = new HashMap<>();
-            for (Map.Entry<String, Map<String, String>> fieldOptions : perFieldOptions.entrySet()) {
-                perFieldAnalyzers.put(fieldOptions.getKey(), AnalyzerFactory.getAnalyzer(fieldOptions.getValue(), luceneV));
-            }
-            analyzer = new PerFieldAnalyzerWrapper(defaultAnalyzer, perFieldAnalyzers);
-        }
+        analyzer = options.analyzer;
         logger.debug(indexName + " Lucene analyzer -" + analyzer);
-        IndexWriter delegate = getIndexWriter(luceneV, options);
+        logger.debug(indexName + " Lucene version -" + options.luceneVersion);
+        IndexWriter delegate = getIndexWriter(options.luceneVersion, options.primaryFieldOptions);
         indexWriter = new TrackingIndexWriter(delegate);
         indexSearcherReferenceManager = new SearcherManager(delegate, true, null);
         reopenThread = new ControlledRealTimeReopenThread<>(indexWriter, indexSearcherReferenceManager, 1, 0.01);
         startReopenThread();
     }
+
 
     private IndexWriter getIndexWriter(Version luceneV, Map<String, String> options) throws IOException {
         options.put(INDEX_FILE_NAME, indexName);
@@ -129,14 +108,13 @@ public class NRTIndexer implements Indexer {
     @Override
     public void insert(final Field... docFields) {
         if (logger.isDebugEnabled()) logger.debug(indexName + " Indexing fields", Arrays.toString(docFields));
-        Iterable<Field> doc = new Iterable<Field>() {
+        Iterable doc = new Iterable() {
             @Override
-            public Iterator<Field> iterator() {
+            public Iterator iterator() {
                 return new ArrayIterator(docFields);
             }
         };
         insert(doc);
-
     }
 
     @Override
@@ -196,7 +174,7 @@ public class NRTIndexer implements Indexer {
 
     @Override
     public boolean removeIndex() {
-        logger.warn("SG NRTIndexer - Removing index -" + indexName);
+        logger.warn("SG NearRealTimeIndexer - Removing index -" + indexName);
         try {
             closeIndex();
             FSDirectory delegate = (FSDirectory) directory.getDelegate();
@@ -211,7 +189,7 @@ public class NRTIndexer implements Indexer {
     @Override
     public boolean truncate(long l) {
         try {
-            logger.warn("SG NRTIndexer - Truncating index -" + indexName);
+            logger.warn("SG NearRealTimeIndexer - Truncating index -" + indexName);
             indexWriter.deleteAll();
             return true;
         } catch (IOException e) {
@@ -240,7 +218,7 @@ public class NRTIndexer implements Indexer {
     }
 
     private void closeIndex() throws IOException {
-        logger.warn("SG NRTIndexer - Closing index -" + indexName);
+        logger.warn("SG NearRealTimeIndexer - Closing index -" + indexName);
         reopenThread.interrupt();
         reopenThread.close();
         indexSearcherReferenceManager.close();
@@ -251,7 +229,7 @@ public class NRTIndexer implements Indexer {
     @Override
     public void commit() {
         try {
-            logger.warn("SG NRTIndexer - Commiting index -" + indexName);
+            logger.warn("SG NearRealTimeIndexer - Committing index -" + indexName);
             indexWriter.getIndexWriter().commit();
         } catch (IOException e) {
             throw new RuntimeException(e);

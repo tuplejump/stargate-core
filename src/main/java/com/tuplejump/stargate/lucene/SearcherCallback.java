@@ -1,6 +1,8 @@
-package com.tuplejump.stargate.luc;
+package com.tuplejump.stargate.lucene;
 
 import org.apache.lucene.search.IndexSearcher;
+
+import java.io.IOException;
 
 /**
  * Interface for a searcher callback.
@@ -9,5 +11,5 @@ import org.apache.lucene.search.IndexSearcher;
  */
 public interface SearcherCallback<T> {
 
-    public T doWithSearcher(IndexSearcher searcher);
+    public T doWithSearcher(IndexSearcher searcher) throws IOException;
 }

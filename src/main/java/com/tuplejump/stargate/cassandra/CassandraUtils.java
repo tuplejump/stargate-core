@@ -1,4 +1,4 @@
-package com.tuplejump.stargate.cas;
+package com.tuplejump.stargate.cassandra;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.ConfigurationLoader;

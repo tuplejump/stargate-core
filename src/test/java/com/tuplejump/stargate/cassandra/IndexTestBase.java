@@ -1,4 +1,4 @@
-package com.tuplejump.stargate.cas;
+package com.tuplejump.stargate.cassandra;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
@@ -8,11 +8,10 @@ import org.junit.Rule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
 
 /**
  * User: satya
@@ -88,6 +87,68 @@ public class IndexTestBase {
     protected String getRandomState() {
         int choice = rand.nextInt(4);
         return states[choice];
+    }
+
+    protected String q(String field, String value) {
+        String query1 = "{ query:{ type:\"lucene\", field:\"%s\", value:\"%s\" }}";
+        return String.format(query1, field, value);
+    }
+
+    protected String wq(String field, String value) {
+        String query1 = "{ query:{ type:\"wildcard\", field:\"%s\", value:\"%s\" }}";
+        return String.format(query1, field, value);
+    }
+
+    protected String pfq(String field, String value) {
+        String query1 = "{ query:{ type:\"prefix\", field:\"%s\", value:\"%s\" }}";
+        return String.format(query1, field, value);
+    }
+
+    protected String fq(int maxEdits, String field, String value) {
+        String query1 = "{ query:{ type:\"fuzzy\", field:\"%s\", value:\"%s\",max_edits:" + maxEdits + " }}";
+        return String.format(query1, field, value);
+    }
+
+    protected String mq(String field, String value) {
+        String query1 = "{ query:{ type:\"match\", field:\"%s\", value:\"%s\" }}";
+        return String.format(query1, field, value);
+    }
+
+    protected String phq(int slop, String field, String... value) {
+        String toReplace = "\"%s\"";
+        for (int i = 1; i < value.length; i++) toReplace += ",\"%s\"";
+        String query1 = "{ query:{ type:\"phrase\", field:\"%s\", values:[" + toReplace + "] , slop:" + slop + "}}";
+        List<Object> args = new ArrayList<>();
+        args.add(field);
+        for (String val : value) args.add(val);
+        Object[] arr = new Object[args.size()];
+        args.toArray(arr);
+        return String.format(query1, arr);
+    }
+
+    protected String q(String value) {
+        String query1 = "{ \"query\":{ \"type\":\"lucene\", \"value\":\"%s\" }}";
+        return String.format(query1, value);
+    }
+
+    protected String bq(String query1, String query2) {
+        String query = "{ \"query\":{ \"type\":\"boolean\", \"must\":[%s,%s] }}";
+        return String.format(query, query1, query2);
+    }
+
+    protected String gtq(String field, String value) {
+        String query1 = "{ query:{ type:\"range\", field:\"%s\", lower:\"%s\" }}";
+        return String.format(query1, field, value);
+    }
+
+    protected String ltq(String field, String value) {
+        String query1 = "{ query:{ type:\"range\", field:\"%s\", upper:\"%s\" }}";
+        return String.format(query1, field, value);
+    }
+
+    protected String ltEq(String field, String value) {
+        String query1 = "{ query:{ type:\"range\", field:\"%s\", upper:\"%s\",include_upper : true  }}";
+        return String.format(query1, field, value);
     }
 
 }

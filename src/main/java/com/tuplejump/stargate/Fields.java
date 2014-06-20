@@ -7,6 +7,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.slf4j.Logger;
@@ -138,6 +139,9 @@ public class Fields {
             return new Field(name, type.compose(byteBufferValue).toString(), fieldType);
         } else if (cqlType == CQL3Type.Native.UUID) {
             return new Field(name, type.compose(byteBufferValue).toString(), fieldType);
+        } else if (cqlType == CQL3Type.Native.TIMEUUID) {
+            //TODO TimeUUID toString is not comparable.
+            return new Field(name, type.compose(byteBufferValue).toString(), fieldType);
         } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
             return new LongField(name, ((Date) type.compose(byteBufferValue)).getTime(), fieldType);
         } else if (cqlType == CQL3Type.Native.BOOLEAN) {
@@ -148,18 +152,18 @@ public class Fields {
         }
     }
 
-    public static void setNumericType(AbstractType type, FieldType fieldType) {
-        CQL3Type cqlType = type.asCQL3Type();
-        if (cqlType == CQL3Type.Native.INT) {
-            fieldType.setNumericType(FieldType.NumericType.INT);
-        } else if (cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER) {
-            fieldType.setNumericType(FieldType.NumericType.LONG);
-        } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
-            fieldType.setNumericType(FieldType.NumericType.DOUBLE);
-        } else if (cqlType == CQL3Type.Native.FLOAT) {
-            fieldType.setNumericType(FieldType.NumericType.FLOAT);
-        } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
-            fieldType.setNumericType(FieldType.NumericType.LONG);
+    public static void setNumericType(AbstractType type, FieldType luceneFieldType) {
+        CQL3Type fieldType = type.asCQL3Type();
+        if (fieldType == CQL3Type.Native.INT) {
+            luceneFieldType.setNumericType(FieldType.NumericType.INT);
+        } else if (fieldType == CQL3Type.Native.VARINT || fieldType == CQL3Type.Native.BIGINT || fieldType == CQL3Type.Native.COUNTER) {
+            luceneFieldType.setNumericType(FieldType.NumericType.LONG);
+        } else if (fieldType == CQL3Type.Native.DECIMAL || fieldType == CQL3Type.Native.DOUBLE) {
+            luceneFieldType.setNumericType(FieldType.NumericType.DOUBLE);
+        } else if (fieldType == CQL3Type.Native.FLOAT) {
+            luceneFieldType.setNumericType(FieldType.NumericType.FLOAT);
+        } else if (fieldType == CQL3Type.Native.TIMESTAMP) {
+            luceneFieldType.setNumericType(FieldType.NumericType.LONG);
         }
     }
 
