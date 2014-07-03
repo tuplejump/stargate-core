@@ -28,6 +28,8 @@ import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 import org.codehaus.jackson.annotate.JsonSubTypes;
 import org.codehaus.jackson.annotate.JsonTypeInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
@@ -57,6 +59,8 @@ import java.io.IOException;
         @JsonSubTypes.Type(value = RegexpCondition.class, name = "regexp"),
         @JsonSubTypes.Type(value = WildcardCondition.class, name = "wildcard"),})
 public abstract class Condition {
+
+    protected static final Logger logger = LoggerFactory.getLogger(Condition.class);
 
     public static final float DEFAULT_BOOST = 1.0f;
 

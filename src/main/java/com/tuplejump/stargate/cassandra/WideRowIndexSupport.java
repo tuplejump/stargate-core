@@ -1,9 +1,9 @@
 package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Fields;
-import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.Indexer;
+import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.Column;
@@ -17,20 +17,15 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.*;
 
 /**
  * User: satya
+ * Support for indexing rows of Wide tables(tables with clustering columns).
  */
-public class WideRowIndexSupport implements RowIndexSupport {
-    private static final Logger logger = LoggerFactory.getLogger(PerRowIndex.class);
-    protected Options options;
-    Indexer indexer;
-    ColumnFamilyStore table;
+public class WideRowIndexSupport extends RowIndexSupport {
 
     public WideRowIndexSupport(Options options, Indexer indexer, ColumnFamilyStore table) {
         this.options = options;
@@ -56,34 +51,33 @@ public class WideRowIndexSupport implements RowIndexSupport {
         for (Map.Entry<ByteBuffer, List<Field>> entry : primaryKeysVsFields.entrySet()) {
             ByteBuffer pk = entry.getKey();
             List<Field> fields = entry.getValue();
-            if (cf.isMarkedForDelete()) {
+            if (cf.isMarkedForDelete() && options.collectionFieldTypes.isEmpty()) {
                 if (logger.isDebugEnabled())
                     logger.debug("Column family marked for delete -" + dk);
                 delete(pk);
             } else {
                 if (logger.isDebugEnabled())
                     logger.debug("Column family update -" + dk);
-                fields.addAll(Utils.idFields(table.name, pk, rkValValidator));
-                fields.addAll(Utils.tsFields(timestamps.get(pk), table.name));
+                fields.addAll(idFields(pk, rkValValidator));
+                fields.addAll(tsFields(timestamps.get(pk)));
                 indexer.insert(fields);
             }
         }
     }
 
     private void addColumn(ByteBuffer rowKey, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, AbstractType rowKeyValidator, Column column) {
-        ByteBuffer columnName = column.name();
-        Pair<CompositeType.Builder, String> primaryKeyAndName = primaryKeyAndName(table, rowKey, column);
-        String name = primaryKeyAndName.right;
-        if (logger.isDebugEnabled())
-            logger.debug("Got column name {} from CF", name);
+        ByteBuffer columnNameBuf = column.name();
+        Pair<CompositeType.Builder, String> primaryKeyAndName = primaryKeyAndActualColumnName(table, rowKey, column);
+        String actualColName = primaryKeyAndName.right;
+        if (logger.isTraceEnabled())
+            logger.trace("Got column name {} from CF", actualColName);
         CompositeType.Builder builder = primaryKeyAndName.left;
         ByteBuffer primaryKey = builder.build();
         List<Field> fields = primaryKeysVsFields.get(primaryKey);
         if (fields == null) {
             // new pk found
-            if (logger.isDebugEnabled()) {
-                logger.debug("New PK found");
-                logger.debug(rowKeyValidator.getString(primaryKey));
+            if (logger.isTraceEnabled()) {
+                logger.trace("New PK found");
             }
             fields = new LinkedList<>();
             primaryKeysVsFields.put(primaryKey, fields);
@@ -91,14 +85,14 @@ public class WideRowIndexSupport implements RowIndexSupport {
             //first fields for clustering key columns need to be added.
             addClusteringKeyFields(primaryKey, fields, timestamps, column, builder);
         }
-
-        FieldType fieldType = options.fieldTypes.get(name);
-        //if fieldType was not found then the column is not indexed
-        if (fieldType != null) {
-            ColumnDefinition columnDefinition = table.metadata.getColumnDefinitionFromColumnName(columnName);
-            addFields(primaryKey, fields, timestamps, column, columnDefinition, name, fieldType, column.value());
+        ColumnDefinition columnDefinition = table.metadata.getColumnDefinitionFromColumnName(columnNameBuf);
+        if (options.shouldIndex(actualColName)) {
+            long existingTS = timestamps.get(primaryKey);
+            timestamps.put(primaryKey, Math.max(existingTS, column.maxTimestamp()));
+            addFields(column, actualColName, fields, columnDefinition);
         }
     }
+
 
     private void addClusteringKeyFields(ByteBuffer primaryKey, List<Field> fields, Map<ByteBuffer, Long> timestamps, Column column, CompositeType.Builder builder) {
         for (Map.Entry<Integer, Pair<String, ByteBuffer>> entry : options.clusteringKeysIndexed.entrySet()) {
@@ -107,20 +101,13 @@ public class WideRowIndexSupport implements RowIndexSupport {
             ColumnDefinition columnDefinition = table.metadata.getColumnDefinition(keyColumn);
             String keyColumnName = entry.getValue().left;
             FieldType fieldType = options.fieldTypes.get(keyColumnName);
-            addFields(primaryKey, fields, timestamps, column, columnDefinition, keyColumnName, fieldType, value);
+            long existingTS = timestamps.get(primaryKey);
+            timestamps.put(primaryKey, Math.max(existingTS, column.maxTimestamp()));
+            addField(fields, columnDefinition, keyColumnName, fieldType, value);
         }
     }
 
-    private void addFields(ByteBuffer pk, List<Field> fields, Map<ByteBuffer, Long> timestamps, Column iColumn, ColumnDefinition columnDefinition, String columnName, FieldType fieldType, ByteBuffer value) {
-        long existingTS = timestamps.get(pk);
-        timestamps.put(pk, Math.max(existingTS, iColumn.maxTimestamp()));
-        List<Field> fieldsForField = Utils.fields(columnDefinition, columnName, value, fieldType);
-        if (logger.isDebugEnabled())
-            logger.debug("Adding fields {} for column name {}", fields, columnName);
-        fields.addAll(fieldsForField);
-    }
-
-    public Pair<CompositeType.Builder, String> primaryKeyAndName(ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
+    public Pair<CompositeType.Builder, String> primaryKeyAndActualColumnName(ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
         CFDefinition cfDef = baseCfs.metadata.getCfDef();
         CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
         List<AbstractType<?>> types = baseComparator.types;

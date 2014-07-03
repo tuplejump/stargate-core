@@ -1,6 +1,5 @@
 package com.tuplejump.stargate.cassandra;
 
-import com.tuplejump.stargate.Utils;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.filter.ColumnSlice;
@@ -18,6 +17,7 @@ import java.util.ArrayList;
 
 /**
  * User: satya
+ * Iterator to read rows from wide tables using the lucene search results.
  */
 public class WideRowScanner extends RowScanner {
 
@@ -26,8 +26,8 @@ public class WideRowScanner extends RowScanner {
     }
 
     protected Pair<DecoratedKey, IDiskAtomFilter> getFilterAndKey(ByteBuffer primaryKey, SliceQueryFilter sliceQueryFilter) {
-        ByteBuffer[] components = Utils.getCompositePKComponents(table, primaryKey);
-        ByteBuffer rowKey = Utils.getRowKeyFromPKComponents(components);
+        ByteBuffer[] components = getCompositePKComponents(table, primaryKey);
+        ByteBuffer rowKey = getRowKeyFromPKComponents(components);
         DecoratedKey dk = table.partitioner.decorateKey(rowKey);
         final CompositeType baseComparator = (CompositeType) table.getComparator();
         int prefixSize = baseComparator.types.size() - (table.metadata.getCfDef().hasCollections ? 2 : 1);
@@ -52,4 +52,14 @@ public class WideRowScanner extends RowScanner {
         IDiskAtomFilter dataFilter = new SliceQueryFilter(slices, false, Integer.MAX_VALUE, table.metadata.clusteringKeyColumns().size());
         return Pair.create(dk, dataFilter);
     }
+
+    public ByteBuffer[] getCompositePKComponents(ColumnFamilyStore baseCfs, ByteBuffer pk) {
+        CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
+        return baseComparator.split(pk);
+    }
+
+    public ByteBuffer getRowKeyFromPKComponents(ByteBuffer[] pkComponents) {
+        return pkComponents[0];
+    }
+
 }

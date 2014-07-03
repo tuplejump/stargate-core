@@ -3,15 +3,33 @@ package com.tuplejump.stargate.cassandra;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
+import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.util.CQLUnitD;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.Version;
 import org.junit.Rule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.*;
 
 /**
  * User: satya
@@ -126,10 +144,16 @@ public class IndexTestBase {
         return String.format(query1, arr);
     }
 
-    protected String q(String value) {
-        String query1 = "{ \"query\":{ \"type\":\"lucene\", \"value\":\"%s\" }}";
-        return String.format(query1, value);
+    protected String nq(String field, String value) {
+        String query1 = "{ " + node(value) + " }";
+        return String.format(query1, field);
     }
+
+    protected String node(String value) {
+        String node = "\"node\":{ \"query\":\"%s\"} ";
+        return String.format(node, value);
+    }
+
 
     protected String bq(String query1, String query2) {
         String query = "{ \"query\":{ \"type\":\"boolean\", \"must\":[%s,%s] }}";
@@ -149,6 +173,63 @@ public class IndexTestBase {
     protected String ltEq(String field, String value) {
         String query1 = "{ query:{ type:\"range\", field:\"%s\", upper:\"%s\",include_upper : true  }}";
         return String.format(query1, field, value);
+    }
+
+    static class MemIndex {
+        static Set<PosixFilePermission> perms = PosixFilePermissions.fromString("rwxrwx--x");
+        static FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(perms);
+        File file;
+        Directory directory;
+        IndexWriter writer;
+        StandardQueryParser parser;
+        Properties options;
+        DirectoryReader reader;
+        IndexSearcher searcher;
+
+        public MemIndex(com.tuplejump.stargate.lucene.Properties properties) {
+            this.options = properties;
+            Version luceneV = Version.parseLeniently(Version.LUCENE_48.name());
+            Analyzer analyzer = new PerFieldAnalyzerWrapper(options.getAnalyzer(), options.perFieldAnalyzers());
+            IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
+            try {
+                Path path = Files.createTempDirectory(null, fileAttributes);
+                file = path.toFile();
+                file.deleteOnExit();
+                directory = FSDirectory.open(file);
+                writer = new IndexWriter(directory, config);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            config.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            parser = new StandardQueryParser(analyzer);
+            parser.setAllowLeadingWildcard(true);
+            parser.setNumericConfigMap(properties.getDynamicNumericConfig());
+        }
+
+        public void add(Iterable<Field> fields) throws IOException {
+            writer.addDocument(fields);
+        }
+
+        public int hits(String luceneQuery, String defaultField) throws Exception {
+            maybeRefreshSearcher();
+            Query query = parser.parse(luceneQuery, defaultField);
+            TopDocs docs = searcher.search(query, Integer.MAX_VALUE);
+            return docs.totalHits;
+        }
+
+        private void maybeRefreshSearcher() throws IOException {
+            if (reader == null) {
+                reader = DirectoryReader.open(writer, true);
+                searcher = new IndexSearcher(reader);
+            } else {
+                DirectoryReader newReader = DirectoryReader.openIfChanged(reader);
+                if (newReader != null) {
+                    reader = newReader;
+                    searcher = new IndexSearcher(reader);
+                }
+            }
+        }
+
     }
 
 }

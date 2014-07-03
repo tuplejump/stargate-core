@@ -13,6 +13,9 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
 
+/**
+ * Utilities to read Cassandra configuration
+ */
 public class CassandraUtils {
     private static final Logger logger = LoggerFactory.getLogger(CassandraUtils.class);
     private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";

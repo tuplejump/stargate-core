@@ -3,12 +3,9 @@ package com.tuplejump.stargate;
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.slf4j.Logger;
@@ -18,12 +15,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.text.NumberFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-
-import static com.tuplejump.stargate.Constants.*;
 
 /**
  * User: satya
@@ -58,11 +49,7 @@ public class Utils {
         }
     }
 
-    public static FieldType fieldType(Map<String, String> options, String cfName, String name, AbstractType validator) {
-        return Fields.fieldType(options, cfName, name, validator);
-    }
-
-    public static NumericConfig numericConfig(Map<String, String> options, FieldType fieldType) {
+    public static NumericConfig numericConfig(FieldType fieldType) {
         if (fieldType.numericType() != null) {
             NumericConfig numConfig = new NumericConfigTL(fieldType.numericPrecisionStep(), fieldType.numericType());
             return numConfig;
@@ -70,41 +57,10 @@ public class Utils {
         return null;
     }
 
-    public static List<Field> fields(ColumnDefinition columnDef, String colName, ByteBuffer value, FieldType... fieldTypes) {
-        List<Field> fields = new ArrayList<>(fieldTypes.length);
-        for (FieldType fieldType : fieldTypes) {
-            if (logger.isTraceEnabled())
-                logger.trace("Col name is " + colName);
-            fields.add(Fields.field(colName, columnDef.getValidator(), value, fieldType));
-        }
-        return fields;
-    }
 
-    public static List<Field> idFields(String cfName, ByteBuffer pk, AbstractType rkValValidator) {
-        return Arrays.asList(Fields.idDocValues(rkValValidator, pk));
-    }
-
-
-
-    public static ByteBuffer[] getCompositePKComponents(ColumnFamilyStore baseCfs, ByteBuffer pk) {
-        CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
-        return baseComparator.split(pk);
-    }
-
-    public static ByteBuffer getRowKeyFromPKComponents(ByteBuffer[] pkComponents) {
-        return pkComponents[0];
-    }
-
-
-    public static List<Field> tsFields(long ts, String cfName) {
-        FieldType tsFieldType = Fields.fieldType(Options.idFieldOptions(), cfName, CF_TS_INDEXED, CQL3Type.Native.BIGINT.getType());
-        Field tsField = Fields.tsField(ts, tsFieldType);
-        return Arrays.asList(Fields.tsDocValues(ts), tsField);
-    }
-
-    public static File getDirectory(String ksName, String cfName, Map<String, String> options) throws IOException {
-        String fileName = options.get(INDEX_FILE_NAME);
-        String dirName = options.get(INDEX_DIR_NAME);
+    public static File getDirectory(String ksName, String cfName, String indexName) throws IOException {
+        String fileName = indexName;
+        String dirName = Options.defaultIndexesDir;
         dirName = dirName + File.separator + ksName + File.separator + cfName;
         logger.debug("SGIndex - INDEX_FILE_NAME -" + fileName);
         logger.debug("SGIndex - INDEX_DIR_NAME -" + dirName);

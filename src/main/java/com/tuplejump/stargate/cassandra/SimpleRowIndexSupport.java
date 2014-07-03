@@ -1,9 +1,9 @@
 package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Fields;
-import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.Indexer;
+import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.Column;
@@ -12,10 +12,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -24,12 +21,9 @@ import java.util.List;
 
 /**
  * User: satya
+ * Support for indexing simple(without clustering columns) tables
  */
-public class SimpleRowIndexSupport implements RowIndexSupport {
-    private static final Logger logger = LoggerFactory.getLogger(PerRowIndex.class);
-    protected Options options;
-    Indexer indexer;
-    ColumnFamilyStore table;
+public class SimpleRowIndexSupport extends RowIndexSupport {
 
     public SimpleRowIndexSupport(Options options, Indexer indexer, ColumnFamilyStore table) {
         this.options = options;
@@ -54,25 +48,22 @@ public class SimpleRowIndexSupport implements RowIndexSupport {
             while (cols.hasNext()) {
                 Column iColumn = cols.next();
                 ByteBuffer colName = iColumn.name();
+                ColumnDefinition columnDefinition = table.metadata.getColumnDefinitionFromColumnName(colName);
                 String name = CFDefinition.definitionType.getString(colName);
                 if (logger.isDebugEnabled()) {
                     logger.debug("Got column name {} from CF", name);
                 }
-                FieldType fieldType = options.fieldTypes.get(name);
-                //if fieldType was not found then the column is not indexed
-                if (fieldType != null) {
-                    ColumnDefinition columnDefinition = table.metadata.getColumnDefinitionFromColumnName(colName);
-                    List<Field> fieldsForField = Utils.fields(columnDefinition, name, iColumn.value(), fieldType);
-                    fields.addAll(fieldsForField);
-                }
+                if (options.shouldIndex(name))
+                    addFields(iColumn, name, fields, columnDefinition);
             }
             if (logger.isDebugEnabled())
                 logger.debug("Column family update -" + dk);
-            fields.addAll(Utils.idFields(table.name, rowKey, rkValValidator));
-            fields.addAll(Utils.tsFields(cf.maxTimestamp(), table.name));
+            fields.addAll(idFields(rowKey, rkValValidator));
+            fields.addAll(tsFields(cf.maxTimestamp()));
             indexer.insert(fields);
         }
     }
+
 
     @Override
     public String getActualColumnName(ByteBuffer name, CFDefinition cfDef) {

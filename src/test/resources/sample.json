@@ -1,0 +1,117 @@
+[
+  {
+    "age": 40,
+    "eyeColor": "green",
+    "name": "Casey Stone",
+    "gender": "female",
+    "company": "EXODOC",
+    "address": "760 Gold Street, Choctaw, Iowa, 3595",
+    "registered": "2014-03-30T18:24:14 -06:-30",
+    "latitude": 30.904815,
+    "longitude": 169.113457,
+    "tags":["idiot","fool","bad"],
+    "friends": [
+      {
+        "name": "Casey Stone"
+      },
+      {
+        "name": "Clark Wise"
+      },
+      {
+        "name": "Letitia Holder"
+      }
+    ]
+  },
+  {
+    "age": 20,
+    "eyeColor": "brown",
+    "name": "Selma Nelson",
+    "gender": "female",
+    "company": "WAAB",
+    "address": "421 Dictum Court, Deltaville, Hawaii, 5115",
+    "registered": "2014-05-13T23:42:48 -06:-30",
+    "latitude": 88.721567,
+    "longitude": -77.946054,
+    "tags":["good","nice","cool"],
+    "friends": [
+      {
+        "name": "Casey Stone"
+      },
+      {
+        "name": "Sweet Chambers"
+      },
+      {
+        "name": "Cantor Wise"
+      }
+    ]
+  },
+  {
+    "age": 37,
+    "eyeColor": "brown",
+    "name": "Powers Brown",
+    "gender": "male",
+    "company": "EXODOC",
+    "address": "527 Beard Street, Springhill, Iowa, 4189",
+    "registered": "2014-05-15T01:38:29 -06:-30",
+    "latitude": 11.414768,
+    "longitude": -97.106062,
+    "tags":["bad","ugly","yuck"],
+    "friends": [
+      {
+        "name": "Anthony Vaughan"
+      },
+      {
+        "name": "Sweet Chambers"
+      },
+      {
+        "name": "Cantor Hunt"
+      }
+    ]
+  },
+  {
+    "age": 34,
+    "eyeColor": "blue",
+    "name": "Mercer Roberts",
+    "gender": "male",
+    "company": "BEDDER",
+    "address": "496 Thornton Street, Gwynn, Maine, 3535",
+    "registered": "2014-02-21T09:08:57 -06:-30",
+    "latitude": -59.376042,
+    "longitude": 68.532665,
+    "tags":["friendly","nice","cool"],
+    "friends": [
+      {
+        "name": "Casey Stone"
+      },
+      {
+        "name": "Wooten Daugherty"
+      },
+      {
+        "name": "Robyn Wynn"
+      }
+    ]
+  },
+  {
+    "age": 35,
+    "eyeColor": "blue",
+    "name": "Avila Quinn",
+    "gender": "male",
+    "company": "BEDDER",
+    "address": "682 Beadel Street, Cawood, Arkansas, 9088",
+    "registered": "2014-01-15T13:07:00 -06:-30",
+    "latitude": -21.666006,
+    "longitude": 137.589547,
+    "tags":["good","bad","ugly"],
+    "friends": [
+      {
+        "name": "Patty Salas"
+      },
+      {
+        "name": "Clark Wise"
+      },
+      {
+        "name": "Casey Stone"
+      }
+    ]
+  }
+]

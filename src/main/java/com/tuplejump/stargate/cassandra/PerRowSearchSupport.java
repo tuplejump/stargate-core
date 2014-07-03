@@ -2,6 +2,7 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.lucene.Indexer;
 import com.tuplejump.stargate.lucene.Options;
+import com.tuplejump.stargate.lucene.Properties;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.Column;
@@ -22,7 +23,6 @@ import org.apache.lucene.search.TopDocs;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -34,9 +34,9 @@ public class PerRowSearchSupport extends SearchSupport {
 
     protected Set<String> fieldNames;
 
-    public PerRowSearchSupport(SecondaryIndexManager indexManager, SecondaryIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, Set<String> fieldNames, ByteBuffer primaryColName, Options options) {
+    public PerRowSearchSupport(SecondaryIndexManager indexManager, SecondaryIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
         super(indexManager, currentIndex, indexer, columns, primaryColName, options);
-        this.fieldNames = fieldNames;
+        this.fieldNames = options.fieldTypes.keySet();
     }
 
     @Override
@@ -62,6 +62,8 @@ public class PerRowSearchSupport extends SearchSupport {
             //we only support Equal - Operators should be a part of the lucene query
             if (fieldNames.contains(colName) && expression.op == IndexOperator.EQ) {
                 return expression;
+            } else if (colName.equalsIgnoreCase(((PerRowIndex) this.currentIndex).primaryColumnName)) {
+                return expression;
             }
         }
         return null;
@@ -82,11 +84,10 @@ public class PerRowSearchSupport extends SearchSupport {
     @Override
     public boolean deleteIfNotLatest(long timestamp, ByteBuffer key, ColumnFamily cf) throws IOException {
         PerRowIndex currIdx = ((PerRowIndex) currentIndex);
-        Map<String, Map<String, String>> options = currIdx.options.fieldOptions;
         Column lastColumn = null;
         for (ByteBuffer colKey : cf.getColumnNames()) {
             String name = currIdx.rowIndexSupport.getActualColumnName(colKey, currIdx.tableDefinition);
-            Map<String, String> option = options.get(name);
+            Properties option = options.getFields().get(name);
             //if fieldType was not found then the column is not indexed
             if (option != null) {
                 lastColumn = cf.getColumn(colKey);

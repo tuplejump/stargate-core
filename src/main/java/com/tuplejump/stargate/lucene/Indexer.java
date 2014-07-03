@@ -4,6 +4,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.Term;
 
+import java.util.List;
+
 /**
  * User: satya
  * An interface for a stargate indexer.
@@ -19,6 +21,8 @@ public interface Indexer {
     public void commit();
 
     public void close();
+
+    void insert(List<Iterable<Field>> docs);
 
     public void delete(Term... idTerm);
 

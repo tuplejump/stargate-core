@@ -16,8 +16,7 @@
 package com.tuplejump.stargate.parse;
 
 import com.tuplejump.stargate.lucene.Options;
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.marshal.AbstractType;
+import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.search.SortField;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
@@ -61,40 +60,23 @@ public class SortingField {
         if (field == null || field.trim().isEmpty()) {
             throw new IllegalArgumentException("Field name required");
         }
-        AbstractType fieldType = schema.validators.get(field);
-        return sortField(field, fieldType, reverse);
+        Properties properties = schema.getProperties(field);
+        return sortField(field, properties, reverse);
     }
 
 
-    public static CQL3SortField sortField(String name, AbstractType type, boolean reverse) {
-        CQL3Type cqlType = type.asCQL3Type();
-        if (cqlType == CQL3Type.Native.INT) {
-            return new CQL3SortField(name, SortField.Type.INT, reverse, cqlType);
-        } else if (cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER) {
-            return new CQL3SortField(name, SortField.Type.LONG, reverse, cqlType);
-        } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
-            return new CQL3SortField(name, SortField.Type.DOUBLE, reverse, cqlType);
-        } else if (cqlType == CQL3Type.Native.FLOAT) {
-            return new CQL3SortField(name, SortField.Type.FLOAT, reverse, cqlType);
-        } else if (cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.VARCHAR) {
-            return new CQL3SortField(name, SortField.Type.STRING_VAL, reverse, cqlType);
-        } else if (cqlType == CQL3Type.Native.UUID) {
-            return new CQL3SortField(name, SortField.Type.STRING, reverse, cqlType);
-        } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
-            return new CQL3SortField(name, SortField.Type.LONG, reverse, cqlType);
-        } else if (cqlType == CQL3Type.Native.BOOLEAN) {
-            return new CQL3SortField(name, SortField.Type.SCORE, reverse, cqlType);
+    public static SortField sortField(String name, Properties properties, boolean reverse) {
+        Properties.Type cqlType = properties.getType();
+        if (cqlType == Properties.Type.integer) {
+            return new SortField(name, SortField.Type.INT, reverse);
+        } else if (cqlType == Properties.Type.bigint) {
+            return new SortField(name, SortField.Type.LONG, reverse);
+        } else if (cqlType == Properties.Type.bigdecimal) {
+            return new SortField(name, SortField.Type.DOUBLE, reverse);
+        } else if (cqlType == Properties.Type.decimal) {
+            return new SortField(name, SortField.Type.FLOAT, reverse);
         } else {
-            return new CQL3SortField(name, SortField.Type.BYTES, reverse, cqlType);
-        }
-    }
-
-    public static class CQL3SortField extends SortField {
-        public CQL3Type cql3Type;
-
-        public CQL3SortField(String field, Type type, boolean reverse, CQL3Type cql3Type) {
-            super(field, type, reverse);
-            this.cql3Type = cql3Type;
+            return new SortField(name, SortField.Type.STRING, reverse);
         }
     }
 

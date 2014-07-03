@@ -22,8 +22,15 @@
     </logger>
 
     <logger name="com.tuplejump.stargate.cassandra.SearchSupport">
-        <level value="WARN"/>
+        <level value="TRACE"/>
     </logger>
+    <logger name="com.tuplejump.stargate.cassandra.RowIndexSupport">
+        <level value="TRACE"/>
+    </logger>
+    <logger name="com.tuplejump.stargate.parse.Condition">
+        <level value="DEBUG"/>
+    </logger>
+
 
     <logger name="com.tuplejump.stargate.lucene.NearRealTimeIndexer">
         <level value="WARN"/>
@@ -48,7 +55,7 @@
     <logger name="com.tuplejump.com.tuplejump.stargate.cassandra.SimpleRowIndexTest">
         <level value="WARN"/>
     </logger>
-    <logger name="com.tuplejump.com.tuplejump.stargate.cassandra.PerColIndexTest">
+    <logger name="com.tuplejump.com.tuplejump.stargate.cassandra.CollectionIndexTest">
         <level value="WARN"/>
     </logger>
 

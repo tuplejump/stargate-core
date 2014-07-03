@@ -1,6 +1,5 @@
 package com.tuplejump.stargate.cassandra;
 
-import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.util.CQLUnitD;
 import junit.framework.Assert;
 import org.junit.Test;
@@ -27,13 +26,13 @@ public class NumericIndexOnKeysTest extends IndexTestBase {
         try {
             createKS(keyspace);
             createTableAndIndex();
-            Assert.assertEquals(3, countResults("TAG", "tags = '" + q("tags:hello? AND state:CA") + "'", true));
+            Assert.assertEquals(3, countResults("TAG", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
             final String[] checks = new String[]{
-                    "tags = '" + q("tags:hello? AND gdp:1") + "'",
-                    "tags = '" + q("tags:hello? AND gdp:2") + "'",
-                    "tags = '" + q("tags:hello? AND gdp:3") + "'",
-                    "tags = '" + q("tags:hello? AND gdp:1") + "'",
-                    "tags = '" + q("tags:hello? AND gdp:4") + "'"
+                    "magic = '" + q("tags", "tags:hello? AND gdp:1") + "'",
+                    "magic = '" + q("tags", "tags:hello? AND gdp:2") + "'",
+                    "magic = '" + q("tags", "tags:hello? AND gdp:3") + "'",
+                    "magic = '" + q("tags", "tags:hello? AND gdp:1") + "'",
+                    "magic = '" + q("tags", "tags:hello? AND gdp:4") + "'"
             };
             final int[] results = new int[]{3, 2, 2, 3, 1};
             ExecutorService service = Executors.newFixedThreadPool(5);
@@ -63,26 +62,27 @@ public class NumericIndexOnKeysTest extends IndexTestBase {
     }
 
     private void createTableAndIndex() {
-        String options = "{\"Analyzer\":\"StandardAnalyzer\"," +
-                "\"fields\":[\"state\",\"gdp\"]," +
-                "\"state\":" +
-                "{\"striped\":\"true\"}" +
-                "}";
+        String options = "{\n" +
+                "\t\"fields\":{\n" +
+                "\t\t\"tags\":{},\n" +
+                "\t\t\"state\":{},\n" +
+                "\t\t\"gdp\":{}\n" +
+                "\t}\n" +
+                "}\n";
         getSession().execute("USE " + keyspace + ";");
-        getSession().execute("CREATE TABLE TAG(key varchar, key1 varchar, state varchar, category varchar,tags varchar, gdp bigint, PRIMARY KEY((key,key1),state,gdp))");
+        getSession().execute("CREATE TABLE TAG(key varchar, key1 varchar, state varchar, category varchar,tags varchar, gdp bigint, magic text, PRIMARY KEY((key,key1),state,gdp))");
         //first insert some data
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('1','A','hello1 tag1 lol1', 'CA','first', 1)");
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('2','B','hello1 tag1 lol2', 'LA','first', 4)");
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('3','C','hello1 tag2 lol1', 'NY','first',2)");
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('4','D','hello1 tag2 lol2', 'TX','first',3)");
         //then create the index. old values should be indexed
-        getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG(tags) USING 'com.tuplejump.stargate.cassandra.PerRowIndex' WITH options ={'sg_options':'" + options + "'}");
+        getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG(magic) USING 'com.tuplejump.stargate.cassandra.PerRowIndex' WITH options ={'sg_options':'" + options + "'}");
         //then add some more data and it should be indexed as well
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('5','A','hello2 tag1 lol1', 'CA','second', 1)");
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('6','B','hello2 tag1 lol2', 'NY','second', 2)");
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('7','C','hello2 tag2 lol1', 'CA','second', 1)");
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('8','D','hello2 tag2 lol2', 'TX','second',3)");
-        Utils.threadSleep(3000);
     }
 
 }

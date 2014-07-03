@@ -20,8 +20,6 @@ import org.apache.lucene.search.*;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.SerializationConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +39,10 @@ public class Search {
      */
     private final Condition filterCondition;
 
+
+    /**
+     * The sorting to apply
+     */
     private final Sorting sorting;
 
     /**
@@ -70,24 +72,6 @@ public class Search {
      */
     public boolean usesSorting() {
         return queryCondition != null || sorting != null;
-    }
-
-    /**
-     * Returns the {@link Condition} for querying. Maybe {@code null} meaning no querying.
-     *
-     * @return The {@link Condition} for querying. Maybe {@code null} meaning no querying.
-     */
-    public Condition queryCondition() {
-        return queryCondition;
-    }
-
-    /**
-     * Returns the {@link Condition} for filtering. Maybe {@code null} meaning no filtering.
-     *
-     * @return The {@link Condition} for filtering. Maybe {@code null} meaning no filtering.
-     */
-    public Condition filterCondition() {
-        return filterCondition;
     }
 
     /**
@@ -123,29 +107,12 @@ public class Search {
      */
     public static Search fromJson(String json) {
         try {
-            Search search = jsonMapper.readValue(json, Search.class);
-            return search;
+            JsonParser jp = Options.f.createJsonParser(json);
+            return jp.readValueAs(Search.class);
         } catch (Exception e) {
             String message = "Cannot parse JSON index expression: " + json;
             logger.error(message, e);
             throw new IllegalArgumentException(message, e);
-        }
-    }
-
-    /**
-     * Validates this {@link Search} against the specified {@link Options}.
-     *
-     * @param schema A {@link Options}.
-     */
-    public void validate(Options schema) throws Exception {
-        if (queryCondition != null) {
-            queryCondition.query(schema);
-        }
-        if (filterCondition != null) {
-            filterCondition.filter(schema);
-        }
-        if (sorting != null) {
-            sorting.sort(schema);
         }
     }
 
@@ -163,13 +130,4 @@ public class Search {
         return builder.toString();
     }
 
-    /**
-     * The embedded JSON serializer.
-     */
-    private static final ObjectMapper jsonMapper = new ObjectMapper();
-
-    static {
-        jsonMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
-        jsonMapper.configure(SerializationConfig.Feature.AUTO_DETECT_IS_GETTERS, false);
-    }
 }

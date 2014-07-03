@@ -6,7 +6,8 @@ import java.io.IOException;
 
 /**
  * Interface for a searcher callback.
- * The callback method will be called with the searcher.
+ * The callback method will be called with the searcher. This callback is in place so that lucene IndexSearcher resources
+ * are cleaned up properly
  * User: satya
  */
 public interface SearcherCallback<T> {

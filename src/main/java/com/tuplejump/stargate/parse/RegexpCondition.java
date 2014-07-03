@@ -16,8 +16,7 @@
 package com.tuplejump.stargate.parse;
 
 import com.tuplejump.stargate.lucene.Options;
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.marshal.AbstractType;
+import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -94,18 +93,22 @@ public class RegexpCondition extends Condition {
         }
 
         Query query;
-        AbstractType abstractType = schema.validators.get(field);
-        CQL3Type fieldType = abstractType.asCQL3Type();
-
-        if (fieldType == CQL3Type.Native.ASCII || fieldType == CQL3Type.Native.TEXT || fieldType == CQL3Type.Native.VARCHAR) {
-            Term term = new Term(field, value);
-            query = new RegexpQuery(term);
-        } else {
-            String message = String.format("Regexp queries are not supported by %s mapper", fieldType);
-            throw new UnsupportedOperationException(message);
+        Properties properties = schema.getProperties(field);
+        if (properties != null) {
+            Properties.Type fieldType = properties.getType();
+            if (fieldType.isCharSeq()) {
+                Term term = new Term(field, value);
+                query = new RegexpQuery(term);
+            } else {
+                String message = String.format("Regexp queries are not supported by %s mapper", fieldType);
+                throw new UnsupportedOperationException(message);
+            }
+            query.setBoost(boost);
+            return query;
         }
-        query.setBoost(boost);
-        return query;
+        String message = String.format("Regex queries cannot be supported until mapping is defined");
+        throw new UnsupportedOperationException(message);
+
     }
 
     /**

@@ -20,6 +20,7 @@ import java.nio.ByteBuffer;
 
 /**
  * User: satya
+ * An iterator which reads the actual rows from Cassandra using the search results
  */
 public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     ColumnFamilyStore table;

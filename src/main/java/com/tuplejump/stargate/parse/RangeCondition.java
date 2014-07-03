@@ -16,16 +16,13 @@
 package com.tuplejump.stargate.parse;
 
 import com.tuplejump.stargate.lucene.Options;
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.marshal.AbstractType;
+import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
-
-import java.util.Map;
 
 /**
  * A {@link Condition} implementation that matches a field within an range of values.
@@ -144,47 +141,51 @@ public class RangeCondition extends Condition {
             throw new IllegalArgumentException("Field name required");
         }
         NumericConfig numericConfig = schema.numericFieldOptions.get(field);
-        Map<String, AbstractType> validators = schema.validators;
-        AbstractType abstractType = validators.get(field);
-        CQL3Type fieldType = abstractType.asCQL3Type();
-        //TODO Range on TimeUUID type
-        if (fieldType == CQL3Type.Native.ASCII || fieldType == CQL3Type.Native.TEXT || fieldType == CQL3Type.Native.VARCHAR) {
-            String lowerVal = null, upperVal = null;
-            if (this.lower != null) {
-                lowerVal = analyze(field, this.lower.toString(), schema.analyzer);
-            }
-            if (this.upper != null) {
-                upperVal = analyze(field, this.upper.toString(), schema.analyzer);
-            }
-            query = TermRangeQuery.newStringRange(field, lowerVal, upperVal, includeLower, includeUpper);
-        } else if (fieldType == CQL3Type.Native.INT) {
-            assert numericConfig != null;
-            Integer lower = this.lower == null ? Integer.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).intValue();
-            Integer upper = this.upper == null ? Integer.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).intValue();
-            query = NumericRangeQuery.newIntRange(field, lower, upper, includeLower, includeUpper);
-        } else if (fieldType == CQL3Type.Native.VARINT || fieldType == CQL3Type.Native.BIGINT || fieldType == CQL3Type.Native.COUNTER || fieldType == CQL3Type.Native.TIMESTAMP) {
-            assert numericConfig != null;
-            Long lower = this.lower == null ? Long.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).longValue();
-            Long upper = this.upper == null ? Long.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).longValue();
-            query = NumericRangeQuery.newLongRange(field, lower, upper, includeLower, includeUpper);
-        } else if (fieldType == CQL3Type.Native.FLOAT) {
-            assert numericConfig != null;
-            Float lower = this.lower == null ? Float.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).floatValue();
-            Float upper = this.upper == null ? Float.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).floatValue();
-            query = NumericRangeQuery.newFloatRange(field, lower, upper, includeLower, includeUpper);
-        } else if (fieldType == CQL3Type.Native.DECIMAL || fieldType == CQL3Type.Native.DOUBLE) {
-            assert numericConfig != null;
-            Double lower = this.lower == null ? Double.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).doubleValue();
-            Double upper = this.upper == null ? Double.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).doubleValue();
-            query = NumericRangeQuery.newDoubleRange(field, lower, upper, includeLower, includeUpper);
-        } else {
-            String message = String.format("Range queries are not supported by %s mapper", fieldType);
-            throw new UnsupportedOperationException(message);
-        }
-        query.setBoost(boost);
-        return query;
-    }
 
+        Properties properties = schema.getProperties(field);
+        if (properties != null) {
+            Properties.Type fieldType = properties.getType();
+            //TODO Range on TimeUUID type
+            if (fieldType.isCharSeq()) {
+                String lowerVal = null, upperVal = null;
+                if (this.lower != null) {
+                    lowerVal = analyze(field, this.lower.toString(), schema.analyzer);
+                }
+                if (this.upper != null) {
+                    upperVal = analyze(field, this.upper.toString(), schema.analyzer);
+                }
+                query = TermRangeQuery.newStringRange(field, lowerVal, upperVal, includeLower, includeUpper);
+            } else if (fieldType == Properties.Type.integer) {
+                assert numericConfig != null;
+                Integer lower = this.lower == null ? Integer.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).intValue();
+                Integer upper = this.upper == null ? Integer.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).intValue();
+                query = NumericRangeQuery.newIntRange(field, lower, upper, includeLower, includeUpper);
+            } else if (fieldType == Properties.Type.bigint) {
+                assert numericConfig != null;
+                Long lower = this.lower == null ? Long.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).longValue();
+                Long upper = this.upper == null ? Long.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).longValue();
+                query = NumericRangeQuery.newLongRange(field, lower, upper, includeLower, includeUpper);
+            } else if (fieldType == Properties.Type.decimal) {
+                assert numericConfig != null;
+                Float lower = this.lower == null ? Float.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).floatValue();
+                Float upper = this.upper == null ? Float.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).floatValue();
+                query = NumericRangeQuery.newFloatRange(field, lower, upper, includeLower, includeUpper);
+            } else if (fieldType == Properties.Type.bigdecimal) {
+                assert numericConfig != null;
+                Double lower = this.lower == null ? Double.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).doubleValue();
+                Double upper = this.upper == null ? Double.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).doubleValue();
+                query = NumericRangeQuery.newDoubleRange(field, lower, upper, includeLower, includeUpper);
+            } else {
+                String message = String.format("Range queries are not supported by %s mapper", fieldType);
+                throw new UnsupportedOperationException(message);
+            }
+            query.setBoost(boost);
+            return query;
+        }
+        String message = String.format("Range queries cannot be supported until mapping is defined");
+        throw new UnsupportedOperationException(message);
+
+    }
 
     /**
      * {@inheritDoc}

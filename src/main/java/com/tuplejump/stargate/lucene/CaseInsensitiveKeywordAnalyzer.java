@@ -9,6 +9,7 @@ import java.io.Reader;
 
 /**
  * User: satya
+ * A special analyzer which does not tokenize the passed strings but converts them to lower case
  */
 public class CaseInsensitiveKeywordAnalyzer extends Analyzer {
 

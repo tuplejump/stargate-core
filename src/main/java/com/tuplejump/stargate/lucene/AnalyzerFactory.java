@@ -1,6 +1,7 @@
 package com.tuplejump.stargate.lucene;
 
 import com.tuplejump.stargate.Constants;
+import com.tuplejump.stargate.lucene.json.dewey.DeweyIdAnalyzer;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
@@ -9,17 +10,14 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.Version;
 
-import java.util.Map;
-
-import static com.tuplejump.stargate.Constants.ANALYZER;
-
 /**
  * User: satya
+ * A factory for making analyzer from the name given in the mapping.
  */
 public class AnalyzerFactory {
 
-    public static Analyzer getAnalyzer(Map<String, String> options, Version luceneV) {
-        String analyzerName = options.get(ANALYZER);
+    public static Analyzer getAnalyzer(String analyzerName, Version luceneV) {
+
         if (ArrayUtils.contains(Constants.Analyzers.values(), analyzerName)) {
             try {
                 return (Analyzer) Class.forName(analyzerName).newInstance();
@@ -28,6 +26,9 @@ public class AnalyzerFactory {
             }
         } else {
             switch (Constants.Analyzers.valueOf(analyzerName)) {
+                case JsonAnalyzer: {
+                    return new DeweyIdAnalyzer(luceneV);
+                }
                 case SimpleAnalyzer: {
                     return new SimpleAnalyzer(luceneV);
                 }
@@ -49,5 +50,6 @@ public class AnalyzerFactory {
             }
         }
     }
+
 
 }

@@ -16,7 +16,6 @@
 package com.tuplejump.stargate.parse;
 
 import com.tuplejump.stargate.lucene.Options;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser;
 import org.apache.lucene.search.Query;
 import org.codehaus.jackson.annotate.JsonCreator;
@@ -83,12 +82,12 @@ public class LuceneCondition extends Condition {
             throw new IllegalArgumentException("Query statement required");
         }
         try {
-            Analyzer analyzer = schema.analyzer;
-            StandardQueryParser parser = new StandardQueryParser(analyzer);
+            StandardQueryParser parser = new StandardQueryParser(schema.analyzer);
             parser.setNumericConfigMap(schema.numericFieldOptions);
             parser.setAllowLeadingWildcard(true);
             Query luceneQuery = parser.parse(query, getDefaultField(schema));
             luceneQuery.setBoost(boost);
+            logger.debug("Lucene query is {}", luceneQuery);
             return luceneQuery;
         } catch (Exception e) {
             throw new RuntimeException("Error while parsing lucene syntax query", e);

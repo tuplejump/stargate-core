@@ -34,9 +34,11 @@ public class NumericQueryTest extends IndexTestBase {
     }
 
     private void createTableAndIndexForCol() {
-        String options = "{" +
-                "\"fields\":[\"gdp\"]" +
-                "}";
+        String options = "{\n" +
+                "\t\"fields\":{\n" +
+                "\t\t\"gdp\":{}\n" +
+                "\t}\n" +
+                "}\n";
 
         getSession().execute("USE " + keyspace + ";");
         getSession().execute("CREATE TABLE TAG(key varchar primary key, tags varchar, state varchar, gdp int, stargate varchar)");
@@ -55,7 +57,6 @@ public class NumericQueryTest extends IndexTestBase {
         getSession().execute("insert into " + keyspace + ".TAG (key,tags,state,gdp) values ('6','hello2 tag1 lol2', 'NY', 2)");
         getSession().execute("insert into " + keyspace + ".TAG (key,tags,state,gdp) values ('7','hello2 tag2 lol1', 'CA', 1)");
         getSession().execute("insert into " + keyspace + ".TAG (key,tags,state,gdp) values ('8','hello2 tag2 lol2', 'TX',3)");
-        Utils.threadSleep(3000);
     }
 
 }

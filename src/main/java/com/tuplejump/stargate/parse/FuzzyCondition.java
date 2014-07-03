@@ -16,8 +16,7 @@
 package com.tuplejump.stargate.parse;
 
 import com.tuplejump.stargate.lucene.Options;
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.marshal.AbstractType;
+import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -163,19 +162,23 @@ public class FuzzyCondition extends Condition {
             throw new IllegalArgumentException("max_expansions must be positive.");
         }
 
-        AbstractType abstractType = schema.validators.get(field);
-        CQL3Type fieldType = abstractType.asCQL3Type();
-
-        if (fieldType == CQL3Type.Native.ASCII || fieldType == CQL3Type.Native.TEXT || fieldType == CQL3Type.Native.VARCHAR) {
-            String analyzedValue = analyze(field, value, schema.analyzer);
-            Term term = new Term(field, analyzedValue);
-            Query query = new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
-            query.setBoost(boost);
-            return query;
+        Properties properties = schema.getProperties(field);
+        String message;
+        if (properties != null) {
+            Properties.Type fieldType = properties.getType();
+            if (fieldType == Properties.Type.string || fieldType == Properties.Type.text) {
+                String analyzedValue = analyze(field, value, schema.analyzer);
+                Term term = new Term(field, analyzedValue);
+                Query query = new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
+                query.setBoost(boost);
+                return query;
+            }
+            message = String.format("Fuzzy queries cannot be supported for field type %s", fieldType);
         } else {
-            String message = String.format("Fuzzy queries are not supported by %s mapper", fieldType);
-            throw new UnsupportedOperationException(message);
+
+            message = String.format("Fuzzy queries cannot be supported until mapping is defined");
         }
+        throw new UnsupportedOperationException(message);
     }
 
     /**

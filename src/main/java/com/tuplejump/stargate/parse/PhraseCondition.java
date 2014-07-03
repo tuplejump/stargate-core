@@ -16,8 +16,7 @@
 package com.tuplejump.stargate.parse;
 
 import com.tuplejump.stargate.lucene.Options;
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.marshal.AbstractType;
+import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.PhraseQuery;
@@ -116,31 +115,33 @@ public class PhraseCondition extends Condition {
         if (slop < 0) {
             throw new IllegalArgumentException("Slop must be positive");
         }
-
-        AbstractType abstractType = schema.validators.get(field);
-        CQL3Type fieldType = abstractType.asCQL3Type();
-
-        if (fieldType == CQL3Type.Native.ASCII || fieldType == CQL3Type.Native.TEXT || fieldType == CQL3Type.Native.VARCHAR) {
-            Analyzer analyzer = schema.analyzer;
-            PhraseQuery query = new PhraseQuery();
-            query.setSlop(slop);
-            query.setBoost(boost);
-            int count = 0;
-            for (String value : values) {
-                if (value != null) {
-                    String analyzedValue = analyze(field, value, analyzer);
-                    if (analyzedValue != null) {
-                        Term term = new Term(field, analyzedValue);
-                        query.add(term, count);
+        Properties properties = schema.getProperties(field);
+        if (properties != null) {
+            Properties.Type fieldType = properties.getType();
+            if (fieldType.isCharSeq()) {
+                Analyzer analyzer = schema.analyzer;
+                PhraseQuery query = new PhraseQuery();
+                query.setSlop(slop);
+                query.setBoost(boost);
+                int count = 0;
+                for (String value : values) {
+                    if (value != null) {
+                        String analyzedValue = analyze(field, value, analyzer);
+                        if (analyzedValue != null) {
+                            Term term = new Term(field, analyzedValue);
+                            query.add(term, count);
+                        }
                     }
+                    count++;
                 }
-                count++;
+                return query;
+            } else {
+                String message = String.format("Unsupported query %s for mapper %s", this, fieldType);
+                throw new UnsupportedOperationException(message);
             }
-            return query;
-        } else {
-            String message = String.format("Unsupported query %s for mapper %s", this, fieldType);
-            throw new UnsupportedOperationException(message);
         }
+        String message = String.format("Phrase queries cannot be supported until mapping is defined");
+        throw new UnsupportedOperationException(message);
     }
 
     /**

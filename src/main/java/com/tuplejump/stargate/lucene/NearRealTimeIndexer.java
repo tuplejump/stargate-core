@@ -20,9 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.Map;
-
-import static com.tuplejump.stargate.Constants.INDEX_FILE_NAME;
+import java.util.List;
 
 /**
  * User: satya
@@ -51,23 +49,23 @@ public class NearRealTimeIndexer implements Indexer {
 
     protected ControlledRealTimeReopenThread<IndexSearcher> reopenThread;
 
-    public NearRealTimeIndexer(Options options, String keyspaceName, String cfName, String indexName) {
+    public NearRealTimeIndexer(Analyzer analyzer, String keyspaceName, String cfName, String indexName) {
         try {
-            init(options, keyspaceName, cfName, indexName);
+            init(analyzer, keyspaceName, cfName, indexName);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
     }
 
-    private void init(Options options, String keyspaceName, String cfName, String indexName) throws IOException {
+    private void init(Analyzer analyzer, String keyspaceName, String cfName, String indexName) throws IOException {
         this.indexName = indexName;
         this.keyspaceName = keyspaceName;
         this.cfName = cfName;
-        analyzer = options.analyzer;
+        this.analyzer = analyzer;
         logger.debug(indexName + " Lucene analyzer -" + analyzer);
-        logger.debug(indexName + " Lucene version -" + options.luceneVersion);
-        IndexWriter delegate = getIndexWriter(options.luceneVersion, options.primaryFieldOptions);
+        logger.debug(indexName + " Lucene version -" + Properties.luceneVersion);
+        IndexWriter delegate = getIndexWriter(Properties.luceneVersion);
         indexWriter = new TrackingIndexWriter(delegate);
         indexSearcherReferenceManager = new SearcherManager(delegate, true, null);
         reopenThread = new ControlledRealTimeReopenThread<>(indexWriter, indexSearcherReferenceManager, 1, 0.01);
@@ -75,9 +73,8 @@ public class NearRealTimeIndexer implements Indexer {
     }
 
 
-    private IndexWriter getIndexWriter(Version luceneV, Map<String, String> options) throws IOException {
-        options.put(INDEX_FILE_NAME, indexName);
-        File dir = Utils.getDirectory(keyspaceName, cfName, options);
+    private IndexWriter getIndexWriter(Version luceneV) throws IOException {
+        File dir = Utils.getDirectory(keyspaceName, cfName, indexName);
         IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
         config.setRAMBufferSizeMB(256);
         config.setOpenMode(OPEN_MODE);
@@ -124,6 +121,19 @@ public class NearRealTimeIndexer implements Indexer {
 
         try {
             latest = indexWriter.addDocument(doc);
+            indexSearcherReferenceManager.maybeRefresh();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void insert(List<Iterable<Field>> docs) {
+        if (logger.isDebugEnabled())
+            logger.debug(indexName + " Indexing fields" + docs);
+
+        try {
+            latest = indexWriter.addDocuments(docs);
             indexSearcherReferenceManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);

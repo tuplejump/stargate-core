@@ -16,7 +16,7 @@
 package com.tuplejump.stargate.parse;
 
 import com.tuplejump.stargate.lucene.Options;
-import org.apache.cassandra.cql3.CQL3Type;
+import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -89,37 +89,42 @@ public class MatchCondition extends Condition {
             throw new IllegalArgumentException("Field value required");
         }
         NumericConfig numericConfig = schema.numericFieldOptions.get(field);
-        CQL3Type fieldType = schema.validators.get(field).asCQL3Type();
-        Query query;
-        if (fieldType == CQL3Type.Native.ASCII || fieldType == CQL3Type.Native.TEXT || fieldType == CQL3Type.Native.VARCHAR) {
-            String analyzedValue = analyze(field, value.toString(), schema.analyzer);
-            if (analyzedValue == null) {
-                throw new IllegalArgumentException("Value discarded by analyzer");
+        Properties properties = schema.getProperties(field);
+        if (properties != null) {
+            Properties.Type fieldType = properties.getType();
+            Query query;
+            if (fieldType.isCharSeq()) {
+                String analyzedValue = analyze(field, value.toString(), schema.analyzer);
+                if (analyzedValue == null) {
+                    throw new IllegalArgumentException("Value discarded by analyzer");
+                }
+                Term term = new Term(field, analyzedValue);
+                query = new TermQuery(term);
+            } else if (fieldType == Properties.Type.integer) {
+                assert numericConfig != null;
+                Integer value = (Integer) numericConfig.getNumberFormat().parse(this.value.toString());
+                query = NumericRangeQuery.newIntRange(field, value, value, true, true);
+            } else if (fieldType == Properties.Type.bigint || fieldType == Properties.Type.date) {
+                assert numericConfig != null;
+                Long value = (Long) numericConfig.getNumberFormat().parse(this.value.toString());
+                query = NumericRangeQuery.newLongRange(field, value, value, true, true);
+            } else if (fieldType == Properties.Type.decimal) {
+                assert numericConfig != null;
+                Float value = (Float) numericConfig.getNumberFormat().parse(this.value.toString());
+                query = NumericRangeQuery.newFloatRange(field, value, value, true, true);
+            } else if (fieldType == Properties.Type.bigdecimal) {
+                assert numericConfig != null;
+                Double value = (Double) numericConfig.getNumberFormat().parse(this.value.toString());
+                query = NumericRangeQuery.newDoubleRange(field, value, value, true, true);
+            } else {
+                String message = String.format("Match queries are not supported by %s field type", fieldType);
+                throw new UnsupportedOperationException(message);
             }
-            Term term = new Term(field, analyzedValue);
-            query = new TermQuery(term);
-        } else if (fieldType == CQL3Type.Native.INT) {
-            assert numericConfig != null;
-            Integer value = (Integer) numericConfig.getNumberFormat().parse(this.value.toString());
-            query = NumericRangeQuery.newIntRange(field, value, value, true, true);
-        } else if (fieldType == CQL3Type.Native.VARINT || fieldType == CQL3Type.Native.BIGINT || fieldType == CQL3Type.Native.COUNTER || fieldType == CQL3Type.Native.TIMESTAMP) {
-            assert numericConfig != null;
-            Long value = (Long) numericConfig.getNumberFormat().parse(this.value.toString());
-            query = NumericRangeQuery.newLongRange(field, value, value, true, true);
-        } else if (fieldType == CQL3Type.Native.FLOAT) {
-            assert numericConfig != null;
-            Float value = (Float) numericConfig.getNumberFormat().parse(this.value.toString());
-            query = NumericRangeQuery.newFloatRange(field, value, value, true, true);
-        } else if (fieldType == CQL3Type.Native.DECIMAL || fieldType == CQL3Type.Native.DOUBLE) {
-            assert numericConfig != null;
-            Double value = (Double) numericConfig.getNumberFormat().parse(this.value.toString());
-            query = NumericRangeQuery.newDoubleRange(field, value, value, true, true);
-        } else {
-            String message = String.format("Match queries are not supported by %s mapper", fieldType);
-            throw new UnsupportedOperationException(message);
+            query.setBoost(boost);
+            return query;
         }
-        query.setBoost(boost);
-        return query;
+        String message = String.format("Match queries cannot be supported until mapping is defined");
+        throw new UnsupportedOperationException(message);
     }
 
     /**

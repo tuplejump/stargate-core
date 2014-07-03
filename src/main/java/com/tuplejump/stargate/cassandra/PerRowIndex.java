@@ -1,5 +1,6 @@
 package com.tuplejump.stargate.cassandra;
 
+import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.lucene.Indexer;
 import com.tuplejump.stargate.lucene.NearRealTimeIndexer;
@@ -27,9 +28,10 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * User: satya
  * A per row lucene index.
+ * This index requires Options to be passed as a json using sg_options as key in  the CQL Index options
  */
 public class PerRowIndex extends PerRowSecondaryIndex {
-    private static final Logger logger = LoggerFactory.getLogger(PerRowIndex.class);
+    protected static final Logger logger = LoggerFactory.getLogger(PerRowIndex.class);
     Indexer indexer;
     protected ColumnDefinition columnDefinition;
     protected String keyspace;
@@ -64,7 +66,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
             //don't give the searcher out till this happens
             if (isIndexBuilt(columnDefinition.name)) break;
         }
-        return new PerRowSearchSupport(baseCfs.indexManager, this, indexer, columns, options.indexedColumnNames, columnDefinition.name, this.options);
+        return new PerRowSearchSupport(baseCfs.indexManager, this, indexer, columns, columnDefinition.name, this.options);
     }
 
     public ColumnFamilyStore.AbstractScanIterator getScanIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean addlFilter) {
@@ -91,7 +93,8 @@ public class PerRowIndex extends PerRowSecondaryIndex {
         tableName = baseCfs.name;
         tableDefinition = baseCfs.metadata.getCfDef();
         primaryColumnName = CFDefinition.definitionType.getString(columnDefinition.name).toLowerCase();
-        this.options = Options.makeOptions(baseCfs, columnDefinition, primaryColumnName);
+        String optionsJson = columnDefinition.getIndexOptions().get(Constants.INDEX_OPTIONS_JSON);
+        this.options = Options.getOptions(primaryColumnName, baseCfs, optionsJson);
         lockSwapIndexer(true);
         if (tableDefinition.isComposite) {
             rowIndexSupport = new WideRowIndexSupport(options, indexer, baseCfs);
@@ -117,7 +120,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
     public boolean indexes(ByteBuffer name) {
         CFDefinition cfDef = baseCfs.metadata.getCfDef();
         String toCheck = rowIndexSupport.getActualColumnName(name, cfDef);
-        for (String columnName : this.options.fieldOptions.keySet()) {
+        for (String columnName : this.options.getFields().keySet()) {
             boolean areEqual = toCheck.trim().equalsIgnoreCase(columnName.trim());
             if (logger.isDebugEnabled())
                 logger.debug(String.format("Comparing name for index - This column name [%s] - Passed column name [%s] - Equal [%s]", columnName, toCheck, areEqual));
@@ -173,7 +176,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
                     indexer = null;
                 }
                 if (createAnother)
-                    indexer = new NearRealTimeIndexer(this.options, keyspace, baseCfs.name, indexName);
+                    indexer = new NearRealTimeIndexer(this.options.analyzer, keyspace, baseCfs.name, indexName);
 
             } else {
                 throw new RuntimeException(String.format("Unable to acquire reload lock for Index %s of %s on %s of %s. Another thread is already reloading it", indexName, primaryColumnName, baseCfs.name, keyspace));
