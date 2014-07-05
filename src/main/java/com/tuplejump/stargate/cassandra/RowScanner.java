@@ -100,7 +100,7 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
         if (data == null || searchSupport.deleteIfNotLatest(ts, dk.key, data)) {
             return null;
         }
-        ColumnFamily cleanColumnFamily = ArrayBackedSortedColumns.factory.create(table.metadata);
+        ColumnFamily cleanColumnFamily = TreeMapBackedSortedColumns.factory.create(table.metadata);
         boolean metaColAdded = false;
         Column firstColumn = null;
         for (Column column : data) {
