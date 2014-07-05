@@ -7,7 +7,6 @@ import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.lucene.json.JsonDocument;
 import com.tuplejump.stargate.lucene.json.StreamingJsonDocument;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
@@ -47,11 +46,10 @@ public abstract class RowIndexSupport {
      * For Wide row tables, the column names are actually a concatenation of the Clustering key column names and this column name itself.
      * We use the valu
      *
-     * @param name  The CQL name of the column.
-     * @param cfDef The column definition for this column
-     * @return
+     * @param name The CQL name buffer of the column.
+     * @return The String name of the column
      */
-    public abstract String getActualColumnName(ByteBuffer name, CFDefinition cfDef);
+    public abstract String getActualColumnName(ByteBuffer name);
 
 
     protected List<Field> collectionFields(CollectionType validator, String colName, Column column) {
@@ -65,7 +63,7 @@ public abstract class RowIndexSupport {
             ByteBuffer keyBuf = components[components.length - 1];
             fields.add(Fields.field(colName + ".key", keyType, keyBuf, fieldTypesArr[0]));
             fields.add(Fields.field(colName + ".value", valueType, column.value(), fieldTypesArr[1]));
-            //fields.add(Fields.field(keyType.getString(keyBuf), valueType, column.value(), fieldTypesArr[1]));
+            fields.add(Fields.field(keyType.getString(keyBuf), valueType, column.value(), fieldTypesArr[1]));
         } else if (validator instanceof SetType) {
             fields.add(Fields.field(colName, keyType, components[components.length - 1], fieldTypesArr[0]));
         } else if (validator instanceof ListType) {

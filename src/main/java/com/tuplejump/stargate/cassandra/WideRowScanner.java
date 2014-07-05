@@ -1,5 +1,7 @@
 package com.tuplejump.stargate.cassandra;
 
+import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.filter.ColumnSlice;
@@ -7,6 +9,7 @@ import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.search.IndexSearcher;
@@ -23,6 +26,20 @@ public class WideRowScanner extends RowScanner {
 
     public WideRowScanner(SearchSupport searchSupport, ColumnFamilyStore table, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean needsFiltering) throws Exception {
         super(searchSupport, table, searcher, filter, topDocs, needsFiltering);
+    }
+
+    @Override
+    protected void addMetaColumn(Column firstColumn, String colName, Float score, ColumnFamily cleanColumnFamily) {
+        CompositeType baseComparator = (CompositeType) table.getComparator();
+        ByteBuffer[] components = baseComparator.split(firstColumn.name());
+        int prefixSize = baseComparator.types.size() - (table.metadata.getCfDef().hasCollections ? 2 : 1);
+        CompositeType.Builder builder = baseComparator.builder();
+        for (int i = 0; i < prefixSize; i++)
+            builder.add(components[i]);
+        builder.add(UTF8Type.instance.decompose(colName));
+        ByteBuffer finalColumnName = builder.build();
+        Column scoreColumn = new Column(finalColumnName, UTF8Type.instance.decompose("{\"score\":" + score.toString() + "}"));
+        cleanColumnFamily.addColumn(scoreColumn);
     }
 
     protected Pair<DecoratedKey, IDiskAtomFilter> getFilterAndKey(ByteBuffer primaryKey, SliceQueryFilter sliceQueryFilter) {
@@ -52,6 +69,7 @@ public class WideRowScanner extends RowScanner {
         IDiskAtomFilter dataFilter = new SliceQueryFilter(slices, false, Integer.MAX_VALUE, table.metadata.clusteringKeyColumns().size());
         return Pair.create(dk, dataFilter);
     }
+
 
     public ByteBuffer[] getCompositePKComponents(ColumnFamilyStore baseCfs, ByteBuffer pk) {
         CompositeType baseComparator = (CompositeType) baseCfs.getComparator();

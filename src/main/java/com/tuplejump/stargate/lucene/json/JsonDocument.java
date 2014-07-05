@@ -1,6 +1,5 @@
 package com.tuplejump.stargate.lucene.json;
 
-import argo.jdom.JdomParser;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.document.Field;
@@ -15,7 +14,6 @@ import java.util.List;
  */
 public abstract class JsonDocument implements Iterable<Field> {
 
-    private static JdomParser js = new JdomParser();
     protected List<Field> fields = new ArrayList<>();
     protected Properties jsonMapping;
     protected String jsonColName;

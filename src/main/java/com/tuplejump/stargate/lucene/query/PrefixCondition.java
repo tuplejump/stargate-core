@@ -13,24 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.tuplejump.stargate.parse;
+package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.WildcardQuery;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
 /**
- * Implements the wildcard search query. Supported wildcards are {@code *}, which matches any character sequence
- * (including the empty one), and {@code ?}, which matches any single character. '\' is the escape character.
- * <p/>
- * Note this query can be slow, as it needs to iterate over many terms. In order to prevent extremely slow
- * WildcardQueries, a Wildcard term should not start with the wildcard {@code *}.
+ * A {@link Condition} implementation that matches documents containing terms with a specified prefix.
  */
-public class WildcardCondition extends Condition {
+public class PrefixCondition extends Condition {
 
     /**
      * The field name
@@ -52,9 +48,9 @@ public class WildcardCondition extends Condition {
      * @param value the field value.
      */
     @JsonCreator
-    public WildcardCondition(@JsonProperty("boost") Float boost,
-                             @JsonProperty("field") String field,
-                             @JsonProperty("value") String value) {
+    public PrefixCondition(@JsonProperty("boost") Float boost,
+                           @JsonProperty("field") String field,
+                           @JsonProperty("value") String value) {
         super(boost);
 
         this.field = field != null ? field.toLowerCase() : null;
@@ -88,7 +84,7 @@ public class WildcardCondition extends Condition {
         if (field == null || field.trim().isEmpty()) {
             throw new IllegalArgumentException("Field name required");
         }
-        if (value == null || value.trim().isEmpty()) {
+        if (value == null) {
             throw new IllegalArgumentException("Field value required");
         }
 
@@ -96,21 +92,21 @@ public class WildcardCondition extends Condition {
         Properties properties = schema.getProperties(field);
         if (properties != null) {
             Properties.Type fieldType = properties.getType();
+
             if (fieldType.isCharSeq()) {
                 Term term = new Term(field, value);
-                query = new WildcardQuery(term);
+                query = new PrefixQuery(term);
             } else {
-                String message = String.format("Wildcard queries are not supported by %s mapper", fieldType);
+                String message = String.format("Prefix queries are not supported by %s mapper", fieldType);
                 throw new UnsupportedOperationException(message);
             }
             query.setBoost(boost);
             return query;
         }
-        String message = String.format("Wildcard queries cannot be supported until mapping is defined");
+        String message = String.format("Prefix queries cannot be supported until mapping is defined");
         throw new UnsupportedOperationException(message);
 
     }
-
 
     /**
      * {@inheritDoc}

@@ -1,14 +1,14 @@
 package com.tuplejump.stargate.lucene.json.dewey;
 
-import argo.staj.JsonStreamElement;
-import argo.staj.JsonStreamElementType;
-import argo.staj.StajParser;
+import com.tuplejump.stargate.lucene.Options;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.JsonToken;
 
 import java.io.*;
 import java.util.Stack;
@@ -25,47 +25,42 @@ public class DeweyTokenizer extends Tokenizer {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final TypeAttribute typeAtt = addAttribute(TypeAttribute.class);
     private final PayloadAttribute payloadAtt = addAttribute(PayloadAttribute.class);
-    private StajParser js;
     Stack<Integer> levelStack;
     int siblingId;
-    JsonStreamElementType lastEvent;
+    JsonToken lastEvent;
+    JsonParser js;
 
     /**
      * creates a new PatternTokenizer returning tokens from group (-1 for split functionality)
      */
     public DeweyTokenizer(Reader input) throws IOException {
         super(input);
-        js = new StajParser(input);
+        js = Options.f.createJsonParser(input);
         levelStack = new Stack<>();
     }
 
     @Override
     public void reset() throws IOException {
         super.reset();
-        js = new StajParser(input);
+        js = Options.f.createJsonParser(input);
         levelStack = new Stack<>();
     }
 
     @Override
     public boolean incrementToken() throws IOException {
         clearAttributes();
-        if (!js.hasNext()) return false;
-        JsonStreamElement el = js.next();
-        JsonStreamElementType evt = el.jsonStreamElementType();
+        if (js.nextToken() == null) return false;
+        JsonToken evt = js.nextToken();
         if (evt == null) return false;
-        if (evt == JsonStreamElementType.START_DOCUMENT) {
-            lastEvent = evt;
-            return true;
-        }
 
-        if (evt == JsonStreamElementType.START_OBJECT || evt == JsonStreamElementType.START_ARRAY || evt == JsonStreamElementType.START_FIELD) {
+        if (evt == JsonToken.START_OBJECT || evt == JsonToken.START_ARRAY || evt == JsonToken.FIELD_NAME) {
             levelStack.push(siblingId);
             siblingId = 0;
             lastEvent = evt;
-            if (!(evt == JsonStreamElementType.START_FIELD))
+            if (!(evt == JsonToken.FIELD_NAME))
                 return true;
         }
-        if (evt == JsonStreamElementType.END_OBJECT || evt == JsonStreamElementType.END_ARRAY || evt == JsonStreamElementType.END_FIELD) {
+        if (evt == JsonToken.END_OBJECT || evt == JsonToken.END_ARRAY) {
             siblingId = levelStack.size() > 0 ? levelStack.pop() : 0;
             siblingId++;
             lastEvent = evt;
@@ -74,32 +69,33 @@ public class DeweyTokenizer extends Tokenizer {
         lastEvent = evt;
 
         switch (evt) {
-            case START_FIELD:
-                setTerm(el.text());
+            case FIELD_NAME:
+                setTerm(js.getText());
                 typeAtt.setType(FIELD);
                 break;
 
-            case STRING:
-                setTerm(el.text());
+            case VALUE_STRING:
+                setTerm(js.getText());
                 typeAtt.setType(STRING);
                 break;
 
-            case NUMBER:
-                setTerm(el.text());
+            case VALUE_NUMBER_INT:
+            case VALUE_NUMBER_FLOAT:
+                setTerm(js.getNumberValue().toString());
                 typeAtt.setType(NUMBER);
                 break;
 
-            case FALSE:
+            case VALUE_FALSE:
                 setTerm("false");
                 typeAtt.setType(BOOLEAN);
                 break;
 
-            case TRUE:
+            case VALUE_TRUE:
                 setTerm("true");
                 typeAtt.setType(BOOLEAN);
                 break;
 
-            case NULL:
+            case VALUE_NULL:
                 setTerm("null");
                 typeAtt.setType(NULL);
                 break;

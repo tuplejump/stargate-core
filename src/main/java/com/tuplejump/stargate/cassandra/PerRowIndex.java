@@ -43,6 +43,10 @@ public class PerRowIndex extends PerRowSecondaryIndex {
     protected CFDefinition tableDefinition;
     private Lock indexLock = new ReentrantLock();
 
+    public ColumnDefinition getColumnDefinition() {
+        return columnDefinition;
+    }
+
     @Override
     public void index(ByteBuffer rowKey, ColumnFamily cf) {
         rowIndexSupport.indexRow(rowKey, cf);
@@ -118,8 +122,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
 
     @Override
     public boolean indexes(ByteBuffer name) {
-        CFDefinition cfDef = baseCfs.metadata.getCfDef();
-        String toCheck = rowIndexSupport.getActualColumnName(name, cfDef);
+        String toCheck = rowIndexSupport.getActualColumnName(name);
         for (String columnName : this.options.getFields().keySet()) {
             boolean areEqual = toCheck.trim().equalsIgnoreCase(columnName.trim());
             if (logger.isDebugEnabled())

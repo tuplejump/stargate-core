@@ -1,6 +1,5 @@
 package com.tuplejump.stargate.cassandra;
 
-import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.util.CQLUnitD;
 import org.junit.Test;
 
@@ -67,7 +66,7 @@ public class SimpleRowIndexTest extends IndexTestBase {
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state) values (" + (i + 2) + ",'hello1 tag1 lol2', 'LA')");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state) values (" + (i + 3) + ",'hello1 tag2 lol1', 'NY')");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state) values (" + (i + 4) + ",'hello1 tag2 lol2', 'TX')");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state) values (" + (i + 5) + ",'hllo3 tag3 lol3', 'TX')");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state) values (" + (i + 5) + ",'hllo3 tag3 lol3', 'TX' )");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state) values (" + (i + 6) + ",'hello2 tag1 lol1', 'CA')");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state) values (" + (i + 7) + ",'hello2 tag1 lol2', 'NY')");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state) values (" + (i + 8) + ",'hello2 tag2 lol1', 'CA')");

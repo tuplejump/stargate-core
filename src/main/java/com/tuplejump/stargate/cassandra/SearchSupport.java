@@ -4,13 +4,12 @@ import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.Indexer;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
-import com.tuplejump.stargate.parse.Search;
+import com.tuplejump.stargate.lucene.query.Search;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.filter.ExtendedFilter;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.thrift.IndexExpression;
@@ -40,13 +39,13 @@ public abstract class SearchSupport extends SecondaryIndexSearcher {
 
     protected static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
     Analyzer analyzer;
-    SecondaryIndex currentIndex;
+    PerRowIndex currentIndex;
     Indexer indexer;
     boolean isKeyWordCheck;
     ByteBuffer primaryColName;
     Options options;
 
-    public SearchSupport(SecondaryIndexManager indexManager, SecondaryIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
+    public SearchSupport(SecondaryIndexManager indexManager, PerRowIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
         super(indexManager, columns);
         this.analyzer = indexer.getAnalyzer();
         this.options = options;
@@ -69,7 +68,7 @@ public abstract class SearchSupport extends SecondaryIndexSearcher {
                 } else {
                     Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
                     int maxResults = filter.maxRows();
-                    TopDocs topDocs = searcher.search(query.left, maxResults, query.right);
+                    TopDocs topDocs = searcher.searchAfter(null, query.left, null, maxResults, query.right, true, false);
                     timer2.endLogTime("For TopDocs search for -" + topDocs.totalHits + " results");
                     if (SearchSupport.logger.isDebugEnabled()) {
                         SearchSupport.logger.debug(String.format("Search results [%s]", topDocs.totalHits));

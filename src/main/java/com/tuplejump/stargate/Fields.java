@@ -13,6 +13,7 @@ import org.apache.lucene.util.NumericUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Date;
+import java.util.Locale;
 
 import static com.tuplejump.stargate.Constants.*;
 
@@ -88,34 +89,6 @@ public class Fields {
         return new Term(CF_TS_INDEXED, tsBytes);
     }
 
-    public static Field field(String name, AbstractType type, Object composedValue, FieldType fieldType) {
-        CQL3Type cqlType = type.asCQL3Type();
-        if (cqlType == CQL3Type.Native.INT) {
-            return new IntField(name, (Integer) composedValue, fieldType);
-        } else if (cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER) {
-            return new LongField(name, ((Number) composedValue).longValue(), fieldType);
-        } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
-            return new DoubleField(name, ((Number) composedValue).doubleValue(), fieldType);
-        } else if (cqlType == CQL3Type.Native.FLOAT) {
-            return new FloatField(name, ((Number) composedValue).floatValue(), fieldType);
-        } else if (cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.VARCHAR) {
-            return new Field(name, composedValue.toString(), fieldType);
-        } else if (cqlType == CQL3Type.Native.UUID) {
-            return new Field(name, composedValue.toString(), fieldType);
-        } else if (cqlType == CQL3Type.Native.TIMEUUID) {
-            //TODO TimeUUID toString is not comparable.
-            return new Field(name, composedValue.toString(), fieldType);
-        } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
-            return new LongField(name, ((Date) composedValue).getTime(), fieldType);
-        } else if (cqlType == CQL3Type.Native.BOOLEAN) {
-            Boolean val = ((Boolean) composedValue);
-            return new Field(name, val.toString(), fieldType);
-        } else {
-            return new Field(name, ByteBufferUtil.getArray((ByteBuffer) composedValue), fieldType);
-        }
-    }
-
-
     public static Field field(String name, AbstractType type, ByteBuffer byteBufferValue, FieldType fieldType) {
         if (fieldType.docValueType() != null) {
             return docValueField(name, type, byteBufferValue);
@@ -157,8 +130,9 @@ public class Fields {
         } else if (type == Properties.Type.decimal) {
             return new FloatField(name, Float.parseFloat(value), fieldType);
         } else if (type == Properties.Type.date) {
-            //TODO
-            return new LongField(name, Date.parse(value), fieldType);
+            //TODO - set correct locale
+            FormatDateTimeFormatter formatter = Dates.forPattern(value, Locale.US);
+            return new LongField(name, formatter.parser().parseMillis(value), fieldType);
         } else if (type == Properties.Type.bool) {
             Boolean val = Boolean.parseBoolean(value);
             return new Field(name, val.toString(), fieldType);

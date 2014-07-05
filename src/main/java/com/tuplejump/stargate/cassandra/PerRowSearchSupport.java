@@ -10,7 +10,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.filter.ExtendedFilter;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
@@ -34,7 +33,7 @@ public class PerRowSearchSupport extends SearchSupport {
 
     protected Set<String> fieldNames;
 
-    public PerRowSearchSupport(SecondaryIndexManager indexManager, SecondaryIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
+    public PerRowSearchSupport(SecondaryIndexManager indexManager, PerRowIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
         super(indexManager, currentIndex, indexer, columns, primaryColName, options);
         this.fieldNames = options.fieldTypes.keySet();
     }
@@ -86,7 +85,7 @@ public class PerRowSearchSupport extends SearchSupport {
         PerRowIndex currIdx = ((PerRowIndex) currentIndex);
         Column lastColumn = null;
         for (ByteBuffer colKey : cf.getColumnNames()) {
-            String name = currIdx.rowIndexSupport.getActualColumnName(colKey, currIdx.tableDefinition);
+            String name = currIdx.rowIndexSupport.getActualColumnName(colKey);
             Properties option = options.getFields().get(name);
             //if fieldType was not found then the column is not indexed
             if (option != null) {

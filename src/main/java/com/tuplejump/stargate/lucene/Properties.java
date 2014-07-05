@@ -124,15 +124,7 @@ public class Properties {
                 analyzerObj = AnalyzerFactory.getAnalyzer(analyzer, Properties.luceneVersion);
             }
         }
-
         return analyzerObj;
-    }
-
-    public boolean hasObjectFields() {
-        for (Properties properties : fields.values()) {
-            if (properties.getType() == Type.object) return true;
-        }
-        return false;
     }
 
     public Map<String, Properties> getFields() {

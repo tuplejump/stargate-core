@@ -66,7 +66,7 @@ public class SimpleRowIndexSupport extends RowIndexSupport {
 
 
     @Override
-    public String getActualColumnName(ByteBuffer name, CFDefinition cfDef) {
+    public String getActualColumnName(ByteBuffer name) {
         return Utils.getColumnNameStr(name);
     }
 

@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.tuplejump.stargate.parse;
+package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -30,7 +30,7 @@ import org.codehaus.jackson.annotate.JsonProperty;
  * Note this query can be slow, as it needs to iterate over many terms. In order to prevent extremely slow
  * WildcardQueries, a Wildcard term should not start with the wildcard {@code *}.
  */
-public class RegexpCondition extends Condition {
+public class WildcardCondition extends Condition {
 
     /**
      * The field name
@@ -52,9 +52,9 @@ public class RegexpCondition extends Condition {
      * @param value the field value.
      */
     @JsonCreator
-    public RegexpCondition(@JsonProperty("boost") Float boost,
-                           @JsonProperty("field") String field,
-                           @JsonProperty("value") String value) {
+    public WildcardCondition(@JsonProperty("boost") Float boost,
+                             @JsonProperty("field") String field,
+                             @JsonProperty("value") String value) {
         super(boost);
 
         this.field = field != null ? field.toLowerCase() : null;
@@ -98,18 +98,19 @@ public class RegexpCondition extends Condition {
             Properties.Type fieldType = properties.getType();
             if (fieldType.isCharSeq()) {
                 Term term = new Term(field, value);
-                query = new RegexpQuery(term);
+                query = new WildcardQuery(term);
             } else {
-                String message = String.format("Regexp queries are not supported by %s mapper", fieldType);
+                String message = String.format("Wildcard queries are not supported by %s mapper", fieldType);
                 throw new UnsupportedOperationException(message);
             }
             query.setBoost(boost);
             return query;
         }
-        String message = String.format("Regex queries cannot be supported until mapping is defined");
+        String message = String.format("Wildcard queries cannot be supported until mapping is defined");
         throw new UnsupportedOperationException(message);
 
     }
+
 
     /**
      * {@inheritDoc}

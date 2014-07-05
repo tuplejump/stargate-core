@@ -67,7 +67,7 @@ public class WideRowIndexSupport extends RowIndexSupport {
 
     private void addColumn(ByteBuffer rowKey, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, AbstractType rowKeyValidator, Column column) {
         ByteBuffer columnNameBuf = column.name();
-        Pair<CompositeType.Builder, String> primaryKeyAndName = primaryKeyAndActualColumnName(table, rowKey, column);
+        Pair<CompositeType.Builder, String> primaryKeyAndName = primaryKeyAndActualColumnName(true, table, rowKey, column);
         String actualColName = primaryKeyAndName.right;
         if (logger.isTraceEnabled())
             logger.trace("Got column name {} from CF", actualColName);
@@ -107,19 +107,28 @@ public class WideRowIndexSupport extends RowIndexSupport {
         }
     }
 
-    public Pair<CompositeType.Builder, String> primaryKeyAndActualColumnName(ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
-        CFDefinition cfDef = baseCfs.metadata.getCfDef();
+    public Pair<CompositeType.Builder, String> primaryKeyAndActualColumnName(boolean withPkBuilder, ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
         CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
+        CFDefinition cfDef = baseCfs.metadata.getCfDef();
+        int prefixSize = baseComparator.types.size() - (cfDef.hasCollections ? 2 : 1);
         List<AbstractType<?>> types = baseComparator.types;
         int idx = types.get(types.size() - 1) instanceof ColumnToCollectionType ? types.size() - 2 : types.size() - 1;
-        int prefixSize = baseComparator.types.size() - (cfDef.hasCollections ? 2 : 1);
         ByteBuffer[] components = baseComparator.split(column.name());
         String colName = CFDefinition.definitionType.getString(components[idx]);
+        if (withPkBuilder) {
+            CompositeType.Builder builder = pkBuilder(rowKey, baseComparator, prefixSize, components);
+            return Pair.create(builder, colName);
+        } else {
+            return Pair.create(null, colName);
+        }
+    }
+
+    private CompositeType.Builder pkBuilder(ByteBuffer rowKey, CompositeType baseComparator, int prefixSize, ByteBuffer[] components) {
         CompositeType.Builder builder = new CompositeType.Builder(baseComparator);
         builder.add(rowKey);
         for (int i = 0; i < Math.min(prefixSize, components.length); i++)
             builder.add(components[i]);
-        return Pair.create(builder, colName);
+        return builder;
     }
 
     private void delete(ByteBuffer pk) {
@@ -129,7 +138,7 @@ public class WideRowIndexSupport extends RowIndexSupport {
         indexer.delete(term);
     }
 
-    public String getActualColumnName(ByteBuffer name, CFDefinition cfDef) {
+    public String getActualColumnName(ByteBuffer name) {
         ByteBuffer colName = ((CompositeType) table.getComparator()).extractLastComponent(name);
         return Utils.getColumnNameStr(colName);
     }

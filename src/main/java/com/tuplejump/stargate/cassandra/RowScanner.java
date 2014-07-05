@@ -6,6 +6,7 @@ import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.collections.iterators.ArrayIterator;
@@ -14,6 +15,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -23,6 +26,7 @@ import java.nio.ByteBuffer;
  * An iterator which reads the actual rows from Cassandra using the search results
  */
 public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
+    protected static final Logger logger = LoggerFactory.getLogger(RowScanner.class);
     ColumnFamilyStore table;
     org.apache.lucene.search.IndexSearcher searcher;
     ExtendedFilter filter;
@@ -75,7 +79,7 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
                     SearchSupport.logger.trace("Returning index hit for {}", dk);
                 }
                 long ts = tsValues.get(scoreDoc.doc);
-                Row row = getRow(keyAndFilter.right, dk, ts);
+                Row row = getRow(keyAndFilter.right, dk, ts, scoreDoc.score);
                 if (row == null) {
                     if (SearchSupport.logger.isTraceEnabled())
                         SearchSupport.logger.trace("Returned Row is null");
@@ -89,14 +93,36 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
         return endOfData();
     }
 
-    private Row getRow(IDiskAtomFilter dataFilter, DecoratedKey dk, long ts) throws IOException {
+    private Row getRow(IDiskAtomFilter dataFilter, DecoratedKey dk, long ts, Float score) throws IOException {
+        String indexColumnName = searchSupport.currentIndex.primaryColumnName;
+
         ColumnFamily data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
         if (data == null || searchSupport.deleteIfNotLatest(ts, dk.key, data)) {
             return null;
         }
-        return new Row(dk, data);
+        ColumnFamily cleanColumnFamily = ArrayBackedSortedColumns.factory.create(table.metadata);
+        boolean metaColAdded = false;
+        Column firstColumn = null;
+        for (Column column : data) {
+            if (firstColumn == null) firstColumn = column;
+            String thisColName = searchSupport.currentIndex.rowIndexSupport.getActualColumnName(column.name());
+            boolean isIndexColumn = indexColumnName.equals(thisColName);
+            if (isIndexColumn) {
+                logger.warn("Primary col name {}", UTF8Type.instance.compose(column.name()));
+                Column scoreColumn = new Column(column.name(), UTF8Type.instance.decompose("{\"score\":" + score.toString() + "}"));
+                cleanColumnFamily.addColumn(scoreColumn);
+                metaColAdded = true;
+            } else {
+                cleanColumnFamily.addColumn(column);
+            }
+        }
+        if (!metaColAdded && firstColumn != null) {
+            addMetaColumn(firstColumn, indexColumnName, score, cleanColumnFamily);
+        }
+        return new Row(dk, cleanColumnFamily);
     }
 
+    protected abstract void addMetaColumn(Column firstColumn, String colName, Float score, ColumnFamily cleanColumnFamily);
 
     protected abstract Pair<DecoratedKey, IDiskAtomFilter> getFilterAndKey(ByteBuffer primaryKey, SliceQueryFilter sliceQueryFilter);
 

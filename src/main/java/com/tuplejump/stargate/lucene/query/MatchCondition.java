@@ -13,20 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.tuplejump.stargate.parse;
+package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
+import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
 /**
- * A {@link Condition} implementation that matches documents containing terms with a specified prefix.
+ * A {@link Condition} implementation that matches documents containing a value for a field.
  */
-public class PrefixCondition extends Condition {
+public class MatchCondition extends Condition {
 
     /**
      * The field name
@@ -36,23 +38,22 @@ public class PrefixCondition extends Condition {
     /**
      * The field value
      */
-    private final String value;
+    private Object value;
 
     /**
      * Constructor using the field name and the value to be matched.
      *
      * @param boost The boost for this query clause. Documents matching this clause will (in addition to the normal
-     *              weightings) have their score multiplied by {@code boost}. If {@code null}, then DEFAULT_BOOST
+     *              weightings) have their score multiplied by {@code boost}. If {@code null}, then  DEFAULT_BOOST
      *              is used as default.
      * @param field the field name.
      * @param value the field value.
      */
     @JsonCreator
-    public PrefixCondition(@JsonProperty("boost") Float boost,
-                           @JsonProperty("field") String field,
-                           @JsonProperty("value") String value) {
+    public MatchCondition(@JsonProperty("boost") Float boost,
+                          @JsonProperty("field") String field,
+                          @JsonProperty("value") Object value) {
         super(boost);
-
         this.field = field != null ? field.toLowerCase() : null;
         this.value = value;
     }
@@ -71,7 +72,7 @@ public class PrefixCondition extends Condition {
      *
      * @return the field value.
      */
-    public String getValue() {
+    public Object getValue() {
         return value;
     }
 
@@ -79,33 +80,51 @@ public class PrefixCondition extends Condition {
      * {@inheritDoc}
      */
     @Override
-    public Query query(Options schema) {
+    public Query query(Options schema) throws Exception {
 
         if (field == null || field.trim().isEmpty()) {
             throw new IllegalArgumentException("Field name required");
         }
-        if (value == null) {
+        if (value == null || value instanceof String && ((String) value).trim().isEmpty()) {
             throw new IllegalArgumentException("Field value required");
         }
-
-        Query query;
+        NumericConfig numericConfig = schema.numericFieldOptions.get(field);
         Properties properties = schema.getProperties(field);
         if (properties != null) {
             Properties.Type fieldType = properties.getType();
-
+            Query query;
             if (fieldType.isCharSeq()) {
-                Term term = new Term(field, value);
-                query = new PrefixQuery(term);
+                String analyzedValue = analyze(field, value.toString(), schema.analyzer);
+                if (analyzedValue == null) {
+                    throw new IllegalArgumentException("Value discarded by analyzer");
+                }
+                Term term = new Term(field, analyzedValue);
+                query = new TermQuery(term);
+            } else if (fieldType == Properties.Type.integer) {
+                assert numericConfig != null;
+                Integer value = (Integer) numericConfig.getNumberFormat().parse(this.value.toString());
+                query = NumericRangeQuery.newIntRange(field, value, value, true, true);
+            } else if (fieldType == Properties.Type.bigint || fieldType == Properties.Type.date) {
+                assert numericConfig != null;
+                Long value = (Long) numericConfig.getNumberFormat().parse(this.value.toString());
+                query = NumericRangeQuery.newLongRange(field, value, value, true, true);
+            } else if (fieldType == Properties.Type.decimal) {
+                assert numericConfig != null;
+                Float value = (Float) numericConfig.getNumberFormat().parse(this.value.toString());
+                query = NumericRangeQuery.newFloatRange(field, value, value, true, true);
+            } else if (fieldType == Properties.Type.bigdecimal) {
+                assert numericConfig != null;
+                Double value = (Double) numericConfig.getNumberFormat().parse(this.value.toString());
+                query = NumericRangeQuery.newDoubleRange(field, value, value, true, true);
             } else {
-                String message = String.format("Prefix queries are not supported by %s mapper", fieldType);
+                String message = String.format("Match queries are not supported by %s field type", fieldType);
                 throw new UnsupportedOperationException(message);
             }
             query.setBoost(boost);
             return query;
         }
-        String message = String.format("Prefix queries cannot be supported until mapping is defined");
+        String message = String.format("Match queries cannot be supported until mapping is defined");
         throw new UnsupportedOperationException(message);
-
     }
 
     /**

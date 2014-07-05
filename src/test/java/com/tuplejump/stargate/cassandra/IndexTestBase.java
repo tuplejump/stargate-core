@@ -73,8 +73,7 @@ public class IndexTestBase {
         int count1 = 0;
         while (iter.hasNext()) {
             Row row = iter.next();
-            if (!log)
-                logger.warn(row.toString());
+            System.out.println(row.toString());
             count1++;
         }
         System.out.println("Search query[" + query + "] in [" + taken + "] ms - count [" + count1 + "]");
@@ -143,17 +142,6 @@ public class IndexTestBase {
         args.toArray(arr);
         return String.format(query1, arr);
     }
-
-    protected String nq(String field, String value) {
-        String query1 = "{ " + node(value) + " }";
-        return String.format(query1, field);
-    }
-
-    protected String node(String value) {
-        String node = "\"node\":{ \"query\":\"%s\"} ";
-        return String.format(node, value);
-    }
-
 
     protected String bq(String query1, String query2) {
         String query = "{ \"query\":{ \"type\":\"boolean\", \"must\":[%s,%s] }}";
