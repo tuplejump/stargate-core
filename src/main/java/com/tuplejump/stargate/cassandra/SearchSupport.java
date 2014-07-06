@@ -73,8 +73,8 @@ public abstract class SearchSupport extends SecondaryIndexSearcher {
                     if (SearchSupport.logger.isDebugEnabled()) {
                         SearchSupport.logger.debug(String.format("Search results [%s]", topDocs.totalHits));
                     }
-
                     ColumnFamilyStore.AbstractScanIterator iter = searchResultsIterator(searchSupport, baseCfs, searcher, filter, topDocs, needsFiltering);
+                    //takes care of paging.
                     results = baseCfs.filter(iter, filter);
                 }
                 timer.endLogTime("SGIndex Search with results [" + results.size() + "]over all took -");
@@ -102,5 +102,5 @@ public abstract class SearchSupport extends SecondaryIndexSearcher {
 
     protected abstract ColumnFamilyStore.AbstractScanIterator searchResultsIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean needsFiltering) throws IOException;
 
-    public abstract boolean deleteIfNotLatest(long ts, ByteBuffer key, ColumnFamily cf) throws IOException;
+    public abstract boolean deleteIfNotLatest(long ts, String pkString, ColumnFamily cf) throws IOException;
 }

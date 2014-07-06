@@ -78,7 +78,7 @@ public class JsonDocumentTest extends IndexTestBase {
             formatJsonNode(kid, writer, 0);
             writer.flush();
             String json = sw.toString();
-            getSession().execute("insert into " + keyspace + ".JSON_SAMPLE (key,jsonCol) values (" + (i++ + 1) + ",'" + json + "')");
+            getSession().execute("insert into JSON_SAMPLE (key,jsonCol) values (" + (i++ + 1) + ",'" + json + "')");
         }
         Assert.assertEquals(5, countResults("JSON_SAMPLE", "", false, false));
         Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + q("age", "40") + "'", true));

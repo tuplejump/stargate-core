@@ -28,9 +28,7 @@ import java.util.*;
 public class WideRowIndexSupport extends RowIndexSupport {
 
     public WideRowIndexSupport(Options options, Indexer indexer, ColumnFamilyStore table) {
-        this.options = options;
-        this.indexer = indexer;
-        this.table = table;
+        super(options, indexer, table);
     }
 
     @Override
@@ -40,39 +38,45 @@ public class WideRowIndexSupport extends RowIndexSupport {
         Map<ByteBuffer, Long> timestamps = new HashMap<>();
         AbstractType rowKeyValidator = table.getComparator();
         Iterator<Column> cols = cf.iterator();
+        Map<ByteBuffer, String> pkNames = new HashMap<>();
         while (cols.hasNext()) {
             Column column = cols.next();
-            addColumn(rowKey, primaryKeysVsFields, timestamps, rowKeyValidator, column);
+            addColumn(rowKey, pkNames, primaryKeysVsFields, timestamps, column);
         }
-        addToIndex(cf, dk, primaryKeysVsFields, timestamps, rowKeyValidator);
+        addToIndex(cf, dk, pkNames, primaryKeysVsFields, timestamps, rowKeyValidator);
     }
 
-    private void addToIndex(ColumnFamily cf, DecoratedKey dk, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, AbstractType rkValValidator) {
+    private void addToIndex(ColumnFamily cf, DecoratedKey dk, Map<ByteBuffer, String> pkNames, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, AbstractType rkValValidator) {
         for (Map.Entry<ByteBuffer, List<Field>> entry : primaryKeysVsFields.entrySet()) {
             ByteBuffer pk = entry.getKey();
+            String pkName = pkNames.get(pk);
             List<Field> fields = entry.getValue();
+            Term term = Fields.idTerm(pkName);
             if (cf.isMarkedForDelete() && options.collectionFieldTypes.isEmpty()) {
                 if (logger.isDebugEnabled())
                     logger.debug("Column family marked for delete -" + dk);
-                delete(pk);
+                if (logger.isDebugEnabled())
+                    logger.debug(String.format("RowIndex delete - Key [%s]", term));
+                indexer.delete(term);
             } else {
                 if (logger.isDebugEnabled())
                     logger.debug("Column family update -" + dk);
-                fields.addAll(idFields(pk, rkValValidator));
+                fields.addAll(idFields(pkName, pk, rkValValidator));
                 fields.addAll(tsFields(timestamps.get(pk)));
-                indexer.insert(fields);
+                indexer.upsert(fields, term);
             }
         }
     }
 
-    private void addColumn(ByteBuffer rowKey, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, AbstractType rowKeyValidator, Column column) {
+    private void addColumn(ByteBuffer rowKey, Map<ByteBuffer, String> pkNames, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, Column column) {
         ByteBuffer columnNameBuf = column.name();
-        Pair<CompositeType.Builder, String> primaryKeyAndName = primaryKeyAndActualColumnName(true, table, rowKey, column);
+        Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndName = primaryKeyAndActualColumnName(true, table, rowKey, column);
         String actualColName = primaryKeyAndName.right;
         if (logger.isTraceEnabled())
             logger.trace("Got column name {} from CF", actualColName);
-        CompositeType.Builder builder = primaryKeyAndName.left;
-        ByteBuffer primaryKey = builder.build();
+        Pair<CompositeType.Builder, StringBuilder> builders = primaryKeyAndName.left;
+        ByteBuffer primaryKey = builders.left.build();
+        pkNames.put(primaryKey, builders.right.toString());
         List<Field> fields = primaryKeysVsFields.get(primaryKey);
         if (fields == null) {
             // new pk found
@@ -83,7 +87,7 @@ public class WideRowIndexSupport extends RowIndexSupport {
             primaryKeysVsFields.put(primaryKey, fields);
             timestamps.put(primaryKey, 0l);
             //first fields for clustering key columns need to be added.
-            addClusteringKeyFields(primaryKey, fields, timestamps, column, builder);
+            addClusteringKeyFields(primaryKey, fields, timestamps, column, builders.left);
         }
         ColumnDefinition columnDefinition = table.metadata.getColumnDefinitionFromColumnName(columnNameBuf);
         if (options.shouldIndex(actualColName)) {
@@ -107,7 +111,8 @@ public class WideRowIndexSupport extends RowIndexSupport {
         }
     }
 
-    public Pair<CompositeType.Builder, String> primaryKeyAndActualColumnName(boolean withPkBuilder, ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
+    public Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndActualColumnName(boolean withPkBuilder, ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
+        AbstractType<?> rowKeyComparator = baseCfs.metadata.getKeyValidator();
         CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
         CFDefinition cfDef = baseCfs.metadata.getCfDef();
         int prefixSize = baseComparator.types.size() - (cfDef.hasCollections ? 2 : 1);
@@ -116,27 +121,27 @@ public class WideRowIndexSupport extends RowIndexSupport {
         ByteBuffer[] components = baseComparator.split(column.name());
         String colName = CFDefinition.definitionType.getString(components[idx]);
         if (withPkBuilder) {
-            CompositeType.Builder builder = pkBuilder(rowKey, baseComparator, prefixSize, components);
+            Pair<CompositeType.Builder, StringBuilder> builder = pkBuilder(rowKeyComparator, rowKey, baseComparator, prefixSize, components);
             return Pair.create(builder, colName);
         } else {
             return Pair.create(null, colName);
         }
     }
 
-    private CompositeType.Builder pkBuilder(ByteBuffer rowKey, CompositeType baseComparator, int prefixSize, ByteBuffer[] components) {
+    private Pair<CompositeType.Builder, StringBuilder> pkBuilder(AbstractType rowKeyComparator, ByteBuffer rowKey, CompositeType baseComparator, int prefixSize, ByteBuffer[] components) {
+        List<AbstractType<?>> types = baseComparator.types;
+        StringBuilder sb = new StringBuilder();
         CompositeType.Builder builder = new CompositeType.Builder(baseComparator);
         builder.add(rowKey);
-        for (int i = 0; i < Math.min(prefixSize, components.length); i++)
+        sb.append(rowKeyComparator.getString(rowKey));
+        for (int i = 0; i < Math.min(prefixSize, components.length); i++) {
             builder.add(components[i]);
-        return builder;
+            AbstractType<?> componentType = types.get(i);
+            sb.append(':').append(componentType.compose(components[i]));
+        }
+        return Pair.create(builder, sb);
     }
 
-    private void delete(ByteBuffer pk) {
-        Term term = Fields.idTerm(pk);
-        if (logger.isDebugEnabled())
-            logger.debug(String.format("SGIndex delete - Key [%s]", term));
-        indexer.delete(term);
-    }
 
     public String getActualColumnName(ByteBuffer name) {
         ByteBuffer colName = ((CompositeType) table.getComparator()).extractLastComponent(name);

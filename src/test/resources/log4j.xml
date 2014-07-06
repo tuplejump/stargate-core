@@ -22,14 +22,14 @@
     </logger>
 
     <logger name="com.tuplejump.stargate.cassandra.SearchSupport">
-        <level value="WARN"/>
+        <level value="TRACE"/>
     </logger>
     <logger name="com.tuplejump.stargate.cassandra.RowIndexSupport">
         <level value="WARN"/>
     </logger>
 
     <logger name="com.tuplejump.stargate.cassandra.RowScanner">
-        <level value="WARN"/>
+        <level value="TRACE"/>
     </logger>
 
     <logger name="com.tuplejump.stargate.lucene.query.Condition">

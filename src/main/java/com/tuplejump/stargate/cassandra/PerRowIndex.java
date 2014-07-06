@@ -13,6 +13,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -43,10 +44,6 @@ public class PerRowIndex extends PerRowSecondaryIndex {
     protected CFDefinition tableDefinition;
     private Lock indexLock = new ReentrantLock();
 
-    public ColumnDefinition getColumnDefinition() {
-        return columnDefinition;
-    }
-
     @Override
     public void index(ByteBuffer rowKey, ColumnFamily cf) {
         rowIndexSupport.indexRow(rowKey, cf);
@@ -54,12 +51,13 @@ public class PerRowIndex extends PerRowSecondaryIndex {
 
     @Override
     public void delete(DecoratedKey key) {
-        Term term = Fields.idTerm(key.key);
+        AbstractType<?> rkValValidator = baseCfs.metadata.getKeyValidator();
+        Term term = Fields.rkTerm(rkValValidator.getString(key.key));
         indexer.delete(term);
     }
 
-    protected void delete(ByteBuffer pk, Long ts) {
-        indexer.delete(Fields.idTerm(pk), Fields.tsTerm(ts));
+    protected void delete(String pkString, Long ts) {
+        indexer.delete(Fields.idTerm(pkString), Fields.tsTerm(ts));
     }
 
 
@@ -89,7 +87,9 @@ public class PerRowIndex extends PerRowSecondaryIndex {
 
     @Override
     public void init() {
-        assert baseCfs != null && columnDefs != null && columnDefs.size() == 1;
+        assert baseCfs != null;
+        assert columnDefs != null;
+        assert columnDefs.size() > 0;
         columnDefinition = columnDefs.iterator().next();
         //null comparator since this is a custom index.
         keyspace = baseCfs.metadata.ksName;
@@ -135,7 +135,8 @@ public class PerRowIndex extends PerRowSecondaryIndex {
 
     @Override
     public void forceBlockingFlush() {
-        indexer.commit();
+        if (indexer != null)
+            indexer.commit();
     }
 
     @Override
@@ -163,8 +164,10 @@ public class PerRowIndex extends PerRowSecondaryIndex {
     @Override
     public void reload() {
         logger.warn(indexName + " Got call to RELOAD index.");
-        if (indexer == null) init();
-        if (isIndexBuilt(columnDefinition.name)) {
+        if (indexer == null && columnDefinition.getIndexOptions() != null && !columnDefinition.getIndexOptions().isEmpty()) {
+            init();
+        }
+        if (indexer != null && isIndexBuilt(columnDefinition.name)) {
             indexer.commit();
         }
     }

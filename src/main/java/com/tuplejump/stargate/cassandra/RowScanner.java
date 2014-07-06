@@ -1,5 +1,6 @@
 package com.tuplejump.stargate.cassandra;
 
+import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.Fields;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
@@ -10,6 +11,8 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.collections.iterators.ArrayIterator;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.IndexSearcher;
@@ -60,6 +63,9 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
         while (indexIterator.hasNext()) {
             try {
                 ScoreDoc scoreDoc = (ScoreDoc) indexIterator.next();
+                Document document = searcher.doc(scoreDoc.doc);
+                IndexableField stringField = document.getField(Constants.PK_NAME_INDEXED);
+                String pkNameString = stringField.stringValue();
                 ByteBuffer primaryKey = Fields.primaryKey(rowKeyValues, scoreDoc.doc);
 
                 Pair<DecoratedKey, IDiskAtomFilter> keyAndFilter = getFilterAndKey(primaryKey, sliceQueryFilter);
@@ -79,7 +85,9 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
                     SearchSupport.logger.trace("Returning index hit for {}", dk);
                 }
                 long ts = tsValues.get(scoreDoc.doc);
-                Row row = getRow(keyAndFilter.right, dk, ts, scoreDoc.score);
+
+
+                Row row = getRow(pkNameString, keyAndFilter.right, dk, ts, scoreDoc.score);
                 if (row == null) {
                     if (SearchSupport.logger.isTraceEnabled())
                         SearchSupport.logger.trace("Returned Row is null");
@@ -93,11 +101,11 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
         return endOfData();
     }
 
-    private Row getRow(IDiskAtomFilter dataFilter, DecoratedKey dk, long ts, Float score) throws IOException {
+    private Row getRow(String pkString, IDiskAtomFilter dataFilter, DecoratedKey dk, long ts, Float score) throws IOException {
         String indexColumnName = searchSupport.currentIndex.primaryColumnName;
 
         ColumnFamily data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
-        if (data == null || searchSupport.deleteIfNotLatest(ts, dk.key, data)) {
+        if (data == null || searchSupport.deleteIfNotLatest(ts, pkString, data)) {
             return null;
         }
         ColumnFamily cleanColumnFamily = TreeMapBackedSortedColumns.factory.create(table.metadata);

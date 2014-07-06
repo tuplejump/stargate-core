@@ -70,14 +70,14 @@ public class WideRowScanner extends RowScanner {
         return Pair.create(dk, dataFilter);
     }
 
-
-    public ByteBuffer[] getCompositePKComponents(ColumnFamilyStore baseCfs, ByteBuffer pk) {
+    public static ByteBuffer[] getCompositePKComponents(ColumnFamilyStore baseCfs, ByteBuffer pk) {
         CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
         return baseComparator.split(pk);
     }
 
-    public ByteBuffer getRowKeyFromPKComponents(ByteBuffer[] pkComponents) {
+    public static ByteBuffer getRowKeyFromPKComponents(ByteBuffer[] pkComponents) {
         return pkComponents[0];
     }
+
 
 }

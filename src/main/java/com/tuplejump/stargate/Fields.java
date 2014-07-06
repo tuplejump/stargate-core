@@ -3,7 +3,7 @@ package com.tuplejump.stargate;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
@@ -13,6 +13,7 @@ import org.apache.lucene.util.NumericUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 import static com.tuplejump.stargate.Constants.*;
@@ -49,6 +50,10 @@ public class Fields {
         };
     }
 
+    public static Field idField(String pkValue) {
+        return new StringField(PK_NAME_INDEXED, pkValue, Field.Store.YES);
+    }
+
     public static Field textField(String name, String value) {
         return new TextField(name, value, Field.Store.NO);
     }
@@ -78,9 +83,12 @@ public class Fields {
         };
     }
 
-    public static Term idTerm(ByteBuffer byteBufferValue) {
-        BytesRef bytesRef = new BytesRef(byteBufferValue.array(), byteBufferValue.arrayOffset(), byteBufferValue.limit());
-        return new Term(PK_NAME_INDEXED, bytesRef);
+    public static Term idTerm(String pkString) {
+        return new Term(PK_NAME_INDEXED, pkString);
+    }
+
+    public static Term rkTerm(String rkString) {
+        return new Term(RK_NAME_INDEXED, rkString);
     }
 
     public static Term tsTerm(long ts) {
@@ -103,19 +111,19 @@ public class Fields {
         } else if (cqlType == CQL3Type.Native.FLOAT) {
             return new FloatField(name, ((Number) type.compose(byteBufferValue)).floatValue(), fieldType);
         } else if (cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.VARCHAR) {
-            return new Field(name, type.compose(byteBufferValue).toString(), fieldType);
+            return new Field(name, type.getString(byteBufferValue), fieldType);
         } else if (cqlType == CQL3Type.Native.UUID) {
-            return new Field(name, type.compose(byteBufferValue).toString(), fieldType);
+            return new Field(name, type.getString(byteBufferValue), fieldType);
         } else if (cqlType == CQL3Type.Native.TIMEUUID) {
             //TODO TimeUUID toString is not comparable.
-            return new Field(name, type.compose(byteBufferValue).toString(), fieldType);
+            return new Field(name, type.getString(byteBufferValue), fieldType);
         } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
             return new LongField(name, ((Date) type.compose(byteBufferValue)).getTime(), fieldType);
         } else if (cqlType == CQL3Type.Native.BOOLEAN) {
             Boolean val = ((Boolean) type.compose(byteBufferValue));
             return new Field(name, val.toString(), fieldType);
         } else {
-            return new Field(name, ByteBufferUtil.getArray(byteBufferValue), fieldType);
+            return new Field(name, toString(byteBufferValue, type), fieldType);
         }
     }
 
@@ -166,6 +174,26 @@ public class Fields {
                 return String.format("BinaryDocValuesField <%s> <%s>", stripedName, abstractType.getString(byteBufferValue));
             }
         };
+    }
+
+    public static String toString(ByteBuffer byteBuffer, AbstractType<?> type) {
+        if (type instanceof CompositeType) {
+            CompositeType composite = (CompositeType) type;
+            List<AbstractType<?>> types = composite.types;
+            ByteBuffer[] components = composite.split(byteBuffer);
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < components.length; i++) {
+                AbstractType<?> componentType = types.get(i);
+                ByteBuffer component = components[i];
+                sb.append(componentType.compose(component));
+                if (i < types.size() - 1) {
+                    sb.append(':');
+                }
+            }
+            return sb.toString();
+        } else {
+            return type.compose(byteBuffer).toString();
+        }
     }
 
 

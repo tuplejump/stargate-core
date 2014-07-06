@@ -77,15 +77,14 @@ public class PerRowSearchSupport extends SearchSupport {
 
     @Override
     protected ColumnFamilyStore.AbstractScanIterator searchResultsIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean needsFiltering) throws IOException {
-        return ((PerRowIndex) currentIndex).getScanIterator(searchSupport, baseCfs, searcher, filter, topDocs, needsFiltering);
+        return currentIndex.getScanIterator(searchSupport, baseCfs, searcher, filter, topDocs, needsFiltering);
     }
 
     @Override
-    public boolean deleteIfNotLatest(long timestamp, ByteBuffer key, ColumnFamily cf) throws IOException {
-        PerRowIndex currIdx = ((PerRowIndex) currentIndex);
+    public boolean deleteIfNotLatest(long timestamp, String pkString, ColumnFamily cf) throws IOException {
         Column lastColumn = null;
         for (ByteBuffer colKey : cf.getColumnNames()) {
-            String name = currIdx.rowIndexSupport.getActualColumnName(colKey);
+            String name = currentIndex.rowIndexSupport.getActualColumnName(colKey);
             Properties option = options.getFields().get(name);
             //if fieldType was not found then the column is not indexed
             if (option != null) {
@@ -93,7 +92,7 @@ public class PerRowSearchSupport extends SearchSupport {
             }
         }
         if (lastColumn != null && lastColumn.maxTimestamp() > timestamp) {
-            currIdx.delete(key, timestamp);
+            currentIndex.delete(pkString, timestamp);
             return true;
         }
         return false;

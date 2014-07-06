@@ -37,6 +37,8 @@ public class NearRealTimeIndexer implements Indexer {
 
     protected NRTCachingDirectory directory;
 
+    protected File file;
+
     protected Analyzer analyzer;
 
     protected String indexName;
@@ -74,12 +76,12 @@ public class NearRealTimeIndexer implements Indexer {
 
 
     private IndexWriter getIndexWriter(Version luceneV) throws IOException {
-        File dir = Utils.getDirectory(keyspaceName, cfName, indexName);
+        file = Utils.getDirectory(keyspaceName, cfName, indexName);
         IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
         config.setRAMBufferSizeMB(256);
         config.setOpenMode(OPEN_MODE);
-        directory = new NRTCachingDirectory(FSDirectory.open(dir), 100, 100);
-        logger.warn(indexName + " SG Index - Opened dir[" + dir.getAbsolutePath() + "] - Openmode[" + OPEN_MODE + "]");
+        directory = new NRTCachingDirectory(FSDirectory.open(file), 100, 100);
+        logger.warn(indexName + " SG Index - Opened dir[" + file.getAbsolutePath() + "] - Openmode[" + OPEN_MODE + "]");
         return new IndexWriter(directory, config);
     }
 
@@ -103,37 +105,12 @@ public class NearRealTimeIndexer implements Indexer {
     }
 
     @Override
-    public void insert(final Field... docFields) {
-        if (logger.isDebugEnabled()) logger.debug(indexName + " Indexing fields", Arrays.toString(docFields));
-        Iterable doc = new Iterable() {
-            @Override
-            public Iterator iterator() {
-                return new ArrayIterator(docFields);
-            }
-        };
-        insert(doc);
-    }
-
-    @Override
-    public void insert(Iterable<Field> doc) {
+    public void upsert(Iterable<Field> doc,Term idTerm) {
         if (logger.isDebugEnabled())
             logger.debug(indexName + " Indexing fields" + doc);
 
         try {
-            latest = indexWriter.addDocument(doc);
-            indexSearcherReferenceManager.maybeRefresh();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public void insert(List<Iterable<Field>> docs) {
-        if (logger.isDebugEnabled())
-            logger.debug(indexName + " Indexing fields" + docs);
-
-        try {
-            latest = indexWriter.addDocuments(docs);
+            latest = indexWriter.updateDocument(idTerm,doc);
             indexSearcherReferenceManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -187,8 +164,7 @@ public class NearRealTimeIndexer implements Indexer {
         logger.warn("SG NearRealTimeIndexer - Removing index -" + indexName);
         try {
             closeIndex();
-            FSDirectory delegate = (FSDirectory) directory.getDelegate();
-            FileUtils.deleteRecursive(delegate.getDirectory());
+            FileUtils.deleteRecursive(file);
             directory.close();
         } catch (IOException e) {
             throw new RuntimeException(e);

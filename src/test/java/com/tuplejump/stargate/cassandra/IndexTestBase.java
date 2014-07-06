@@ -68,14 +68,16 @@ public class IndexTestBase {
         double taken = (after - before) / 1000000;
 
         Iterator<Row> iter = result.iterator();
+        int count1 = 0;
         if (log)
             logger.warn("Search for -" + query + " - results -");
-        int count1 = 0;
         while (iter.hasNext()) {
             Row row = iter.next();
-            System.out.println(row.toString());
+            if (log)
+                logger.warn(row.toString());
             count1++;
         }
+
         System.out.println("Search query[" + query + "] in [" + taken + "] ms - count [" + count1 + "]");
         return count1;
     }

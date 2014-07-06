@@ -30,6 +30,15 @@ public abstract class RowIndexSupport {
     protected Options options;
     protected Indexer indexer;
     protected ColumnFamilyStore table;
+    FieldType tsFieldType;
+
+    public RowIndexSupport(Options options, Indexer indexer, ColumnFamilyStore table) {
+        this.options = options;
+        this.indexer = indexer;
+        this.table = table;
+        tsFieldType = Properties.fieldType(Properties.ID_FIELD, CQL3Type.Native.BIGINT.getType());
+    }
+
 
     protected static final Logger logger = LoggerFactory.getLogger(RowIndexSupport.class);
 
@@ -73,12 +82,12 @@ public abstract class RowIndexSupport {
         return fields;
     }
 
-    protected List<Field> idFields(ByteBuffer pk, AbstractType rkValValidator) {
-        return Arrays.asList(Fields.idDocValues(rkValValidator, pk));
+    protected List<Field> idFields(String pkName, ByteBuffer pk, AbstractType rkValValidator) {
+        Field idField = Fields.idField(pkName);
+        return Arrays.asList(Fields.idDocValues(rkValValidator, pk), idField);
     }
 
     protected List<Field> tsFields(long ts) {
-        FieldType tsFieldType = Properties.fieldType(Properties.ID_FIELD, CQL3Type.Native.BIGINT.getType());
         Field tsField = Fields.tsField(ts, tsFieldType);
         return Arrays.asList(Fields.tsDocValues(ts), tsField);
     }

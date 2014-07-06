@@ -26,23 +26,21 @@ import java.util.List;
 public class SimpleRowIndexSupport extends RowIndexSupport {
 
     public SimpleRowIndexSupport(Options options, Indexer indexer, ColumnFamilyStore table) {
-        this.options = options;
-        this.indexer = indexer;
-        this.table = table;
+        super(options, indexer, table);
     }
 
     @Override
     public void indexRow(ByteBuffer rowKey, ColumnFamily cf) {
+        AbstractType rkValValidator = table.metadata.getKeyValidator();
         DecoratedKey dk = table.partitioner.decorateKey(rowKey);
+        Term term = Fields.idTerm(rkValValidator.getString(rowKey));
         if (cf.isMarkedForDelete()) {
-            Term term = Fields.idTerm(rowKey);
             if (logger.isDebugEnabled()) {
                 logger.debug("Column family marked for delete -" + dk);
                 logger.debug(String.format("PerRowIndex delete - Key [%s]", term));
             }
             indexer.delete(term);
         } else {
-            AbstractType rkValValidator = table.metadata.getKeyValidator();
             Iterator<Column> cols = cf.iterator();
             List<Field> fields = new LinkedList<>();
             while (cols.hasNext()) {
@@ -58,9 +56,9 @@ public class SimpleRowIndexSupport extends RowIndexSupport {
             }
             if (logger.isDebugEnabled())
                 logger.debug("Column family update -" + dk);
-            fields.addAll(idFields(rowKey, rkValValidator));
+            fields.addAll(idFields(rkValValidator.getString(rowKey), rowKey, rkValValidator));
             fields.addAll(tsFields(cf.maxTimestamp()));
-            indexer.insert(fields);
+            indexer.upsert(fields, term);
         }
     }
 
