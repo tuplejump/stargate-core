@@ -1,5 +1,6 @@
 package com.tuplejump.stargate.cassandra;
 
+import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.lucene.Indexer;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
@@ -27,13 +28,13 @@ import java.util.Set;
 /**
  * User: satya
  * <p/>
- * A searcher which is used for searching on a PerRowIndex
+ * A searcher which is used for searching on a RowIndex
  */
 public class PerRowSearchSupport extends SearchSupport {
 
     protected Set<String> fieldNames;
 
-    public PerRowSearchSupport(SecondaryIndexManager indexManager, PerRowIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
+    public PerRowSearchSupport(SecondaryIndexManager indexManager, RowIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
         super(indexManager, currentIndex, indexer, columns, primaryColName, options);
         this.fieldNames = options.fieldTypes.keySet();
     }
@@ -61,7 +62,7 @@ public class PerRowSearchSupport extends SearchSupport {
             //we only support Equal - Operators should be a part of the lucene query
             if (fieldNames.contains(colName) && expression.op == IndexOperator.EQ) {
                 return expression;
-            } else if (colName.equalsIgnoreCase(((PerRowIndex) this.currentIndex).primaryColumnName)) {
+            } else if (colName.equalsIgnoreCase(this.currentIndex.getPrimaryColumnName())) {
                 return expression;
             }
         }
@@ -84,7 +85,7 @@ public class PerRowSearchSupport extends SearchSupport {
     public boolean deleteIfNotLatest(long timestamp, String pkString, ColumnFamily cf) throws IOException {
         Column lastColumn = null;
         for (ByteBuffer colKey : cf.getColumnNames()) {
-            String name = currentIndex.rowIndexSupport.getActualColumnName(colKey);
+            String name = currentIndex.getRowIndexSupport().getActualColumnName(colKey);
             Properties option = options.getFields().get(name);
             //if fieldType was not found then the column is not indexed
             if (option != null) {

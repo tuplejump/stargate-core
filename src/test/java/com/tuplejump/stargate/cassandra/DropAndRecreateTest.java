@@ -47,7 +47,7 @@ public class DropAndRecreateTest extends IndexTestBase {
         if (!isRecreate) {
             getSession().execute("CREATE TABLE TAG(key varchar, key1 varchar, state varchar, category varchar,tags varchar, gdp bigint, magic text, PRIMARY KEY((key,key1),state,gdp))");
         }
-        getSession().execute("CREATE CUSTOM INDEX dropcreate ON TAG(magic) USING 'com.tuplejump.stargate.cassandra.PerRowIndex' WITH options ={'sg_options':'" + (isRecreate ? options1 : options) + "'}");
+        getSession().execute("CREATE CUSTOM INDEX dropcreate ON TAG(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + (isRecreate ? options1 : options) + "'}");
         //first insert some data
         getSession().execute("insert into TAG (key,key1,tags,state,category,gdp) values ('1','A','hello1 tag1 lol1', 'CA','first', 1)");
         getSession().execute("insert into TAG (key,key1,tags,state,category,gdp) values ('2','B','hello1 tag1 lol2', 'LA','first', 4)");

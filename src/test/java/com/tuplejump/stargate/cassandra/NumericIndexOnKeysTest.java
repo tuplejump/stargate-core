@@ -77,7 +77,7 @@ public class NumericIndexOnKeysTest extends IndexTestBase {
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('3','C','hello1 tag2 lol1', 'NY','first',2)");
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('4','D','hello1 tag2 lol2', 'TX','first',3)");
         //then create the index. old values should be indexed
-        getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG(magic) USING 'com.tuplejump.stargate.cassandra.PerRowIndex' WITH options ={'sg_options':'" + options + "'}");
+        getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
         //then add some more data and it should be indexed as well
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('5','A','hello2 tag1 lol1', 'CA','second', 1)");
         getSession().execute("insert into " + keyspace + ".TAG (key,key1,tags,state,category,gdp) values ('6','B','hello2 tag1 lol2', 'NY','second', 2)");

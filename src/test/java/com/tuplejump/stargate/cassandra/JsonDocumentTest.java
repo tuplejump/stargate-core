@@ -69,7 +69,7 @@ public class JsonDocumentTest extends IndexTestBase {
         createKS(keyspace);
         getSession().execute("USE " + keyspace + ";");
         getSession().execute("CREATE TABLE JSON_SAMPLE (key int primary key, jsonCol varchar,lucene text)");
-        getSession().execute("CREATE CUSTOM INDEX jsonIndex ON JSON_SAMPLE(lucene) USING 'com.tuplejump.stargate.cassandra.PerRowIndex' WITH options ={'sg_options':'" + mappingStr + "'}");
+        getSession().execute("CREATE CUSTOM INDEX jsonIndex ON JSON_SAMPLE(lucene) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + mappingStr + "'}");
         List<JsonNode> kids = jsonVal.getElements();
         int i = 0;
         for (JsonNode kid : kids) {

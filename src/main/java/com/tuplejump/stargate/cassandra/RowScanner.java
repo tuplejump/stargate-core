@@ -102,7 +102,7 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
     }
 
     private Row getRow(String pkString, IDiskAtomFilter dataFilter, DecoratedKey dk, long ts, Float score) throws IOException {
-        String indexColumnName = searchSupport.currentIndex.primaryColumnName;
+        String indexColumnName = searchSupport.currentIndex.getPrimaryColumnName();
 
         ColumnFamily data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
         if (data == null || searchSupport.deleteIfNotLatest(ts, pkString, data)) {
@@ -113,7 +113,7 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
         Column firstColumn = null;
         for (Column column : data) {
             if (firstColumn == null) firstColumn = column;
-            String thisColName = searchSupport.currentIndex.rowIndexSupport.getActualColumnName(column.name());
+            String thisColName = searchSupport.currentIndex.getRowIndexSupport().getActualColumnName(column.name());
             boolean isIndexColumn = indexColumnName.equals(thisColName);
             if (isIndexColumn) {
                 logger.warn("Primary col name {}", UTF8Type.instance.compose(column.name()));

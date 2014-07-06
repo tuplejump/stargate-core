@@ -1,6 +1,5 @@
 package com.tuplejump.stargate.lucene;
 
-import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.Utils;
 import org.apache.cassandra.cql3.CQL3Type;
@@ -117,9 +116,9 @@ public class Properties {
         if (analyzerObj == null) {
             if (analyzer == null) {
                 if (type != null && !type.canTokenize())
-                    analyzerObj = AnalyzerFactory.getAnalyzer(Constants.Analyzers.KeywordAnalyzer.name(), Properties.luceneVersion);
+                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.KeywordAnalyzer.name(), Properties.luceneVersion);
                 else
-                    analyzerObj = AnalyzerFactory.getAnalyzer(Constants.Analyzers.StandardAnalyzer.name(), Properties.luceneVersion);
+                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.StandardAnalyzer.name(), Properties.luceneVersion);
             } else {
                 analyzerObj = AnalyzerFactory.getAnalyzer(analyzer, Properties.luceneVersion);
             }

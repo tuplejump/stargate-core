@@ -17,10 +17,5 @@ public final class Constants {
     public static final String striped = "striped";
     //lucene options
 
-    public enum Analyzers {
-        StandardAnalyzer, WhitespaceAnalyzer, StopAnalyzer, SimpleAnalyzer, KeywordAnalyzer, JsonAnalyzer
-
-    }
-
 
 }

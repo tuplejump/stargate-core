@@ -40,7 +40,7 @@
     <logger name="com.tuplejump.stargate.lucene.NearRealTimeIndexer">
         <level value="WARN"/>
     </logger>
-    <logger name="com.tuplejump.stargate.cassandra.PerRowIndex">
+    <logger name="com.tuplejump.stargate.RowIndex">
         <level value="WARN"/>
     </logger>
     <logger name="com.tuplejump.stargate.cassandra.PerColIndex">

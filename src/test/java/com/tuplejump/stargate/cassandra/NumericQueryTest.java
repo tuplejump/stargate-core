@@ -51,7 +51,7 @@ public class NumericQueryTest extends IndexTestBase {
         //getSession().execute("CREATE CUSTOM INDEX tagsindex ON TAG(tags) WITH options = { 'class': 'com.tuplejump.stargate.cassandra.PerColIndex'} ");
         //getSession().execute("CREATE CUSTOM INDEX stateindex ON TAG(state) WITH options = { 'class': 'com.tuplejump.stargate.cassandra.PerColIndex'} ");
 
-        getSession().execute("CREATE CUSTOM INDEX gdpindex ON TAG(stargate) USING 'com.tuplejump.stargate.cassandra.PerRowIndex' WITH options ={'sg_options':'" + options + "'}");
+        getSession().execute("CREATE CUSTOM INDEX gdpindex ON TAG(stargate) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
         //then add some more data and it should be indexed as well
         getSession().execute("insert into " + keyspace + ".TAG (key,tags,state,gdp) values ('5','hello2 tag1 lol1', 'CA', 1)");
         getSession().execute("insert into " + keyspace + ".TAG (key,tags,state,gdp) values ('6','hello2 tag1 lol2', 'NY', 2)");

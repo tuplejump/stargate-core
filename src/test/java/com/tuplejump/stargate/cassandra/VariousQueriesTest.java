@@ -49,7 +49,7 @@ public class VariousQueriesTest extends IndexTestBase {
         getSession().execute("USE " + keyspace + ";");
         getSession().execute("CREATE TABLE sample_table (part int,uid int,otherid int,othername varchar,searchName varchar,magic text,PRIMARY KEY (part, uid,otherid,searchName));");
 
-        getSession().execute("CREATE CUSTOM INDEX sample_table_searchName_key ON sample_table(magic) USING 'com.tuplejump.stargate.cassandra.PerRowIndex' WITH options ={'sg_options':'" + options + "'}");
+        getSession().execute("CREATE CUSTOM INDEX sample_table_searchName_key ON sample_table(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
         getSession().execute("INSERT INTO sample_table (part, uid, otherid,othername, searchName) VALUES (0, 1,  1, 'CCTV', 'CCTV')");
         getSession().execute("INSERT INTO sample_table (part, uid, otherid,othername, searchName) VALUES (0, 2,  2, 'CCTV', 'CCTV')");
         getSession().execute("INSERT INTO sample_table (part, uid, otherid,othername, searchName) VALUES (0, 4,  4, 'CCTV', 'CCTV')");

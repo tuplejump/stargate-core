@@ -1,7 +1,6 @@
-package com.tuplejump.stargate.cassandra;
+package com.tuplejump.stargate;
 
-import com.tuplejump.stargate.Constants;
-import com.tuplejump.stargate.Fields;
+import com.tuplejump.stargate.cassandra.*;
 import com.tuplejump.stargate.lucene.Indexer;
 import com.tuplejump.stargate.lucene.NearRealTimeIndexer;
 import com.tuplejump.stargate.lucene.Options;
@@ -31,8 +30,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * A per row lucene index.
  * This index requires Options to be passed as a json using sg_options as key in  the CQL Index options
  */
-public class PerRowIndex extends PerRowSecondaryIndex {
-    protected static final Logger logger = LoggerFactory.getLogger(PerRowIndex.class);
+public class RowIndex extends PerRowSecondaryIndex {
+    protected static final Logger logger = LoggerFactory.getLogger(RowIndex.class);
     Indexer indexer;
     protected ColumnDefinition columnDefinition;
     protected String keyspace;
@@ -43,6 +42,14 @@ public class PerRowIndex extends PerRowSecondaryIndex {
     protected RowIndexSupport rowIndexSupport;
     protected CFDefinition tableDefinition;
     private Lock indexLock = new ReentrantLock();
+
+    public RowIndexSupport getRowIndexSupport() {
+        return rowIndexSupport;
+    }
+
+    public String getPrimaryColumnName() {
+        return primaryColumnName;
+    }
 
     @Override
     public void index(ByteBuffer rowKey, ColumnFamily cf) {
@@ -56,7 +63,7 @@ public class PerRowIndex extends PerRowSecondaryIndex {
         indexer.delete(term);
     }
 
-    protected void delete(String pkString, Long ts) {
+    public void delete(String pkString, Long ts) {
         indexer.delete(Fields.idTerm(pkString), Fields.tsTerm(ts));
     }
 
@@ -218,6 +225,6 @@ public class PerRowIndex extends PerRowSecondaryIndex {
 
     @Override
     public String toString() {
-        return "PerRowIndex [index=" + indexName + ", keyspace=" + keyspace + ", table=" + tableName + ", column=" + primaryColumnName + "]";
+        return "RowIndex [index=" + indexName + ", keyspace=" + keyspace + ", table=" + tableName + ", column=" + primaryColumnName + "]";
     }
 }

@@ -50,7 +50,7 @@ public class CollectionIndexTest extends IndexTestBase {
                 "}";
         getSession().execute("USE " + keyspace + ";");
         getSession().execute("CREATE TABLE TAG2(key int, tags set<text>, tags2 list<text>, phones map<text,varchar>, magic text, PRIMARY KEY (key))");
-        getSession().execute("CREATE CUSTOM INDEX tagsIdx ON TAG2(magic) USING 'com.tuplejump.stargate.cassandra.PerRowIndex' WITH options ={'sg_options':'" + options + "'}");
+        getSession().execute("CREATE CUSTOM INDEX tagsIdx ON TAG2(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
         int i = 0;
         while (i < 40) {
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,tags2,phones) values (" + (i + 1) + ",{'hello1','tag1','lol1'},['ugly','bad','hot'  ],{'patricia':'555-4326','doug':'555-1579'})");

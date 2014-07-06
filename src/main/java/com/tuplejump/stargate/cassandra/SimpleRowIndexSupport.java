@@ -37,7 +37,7 @@ public class SimpleRowIndexSupport extends RowIndexSupport {
         if (cf.isMarkedForDelete()) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Column family marked for delete -" + dk);
-                logger.debug(String.format("PerRowIndex delete - Key [%s]", term));
+                logger.debug(String.format("RowIndex delete - Key [%s]", term));
             }
             indexer.delete(term);
         } else {

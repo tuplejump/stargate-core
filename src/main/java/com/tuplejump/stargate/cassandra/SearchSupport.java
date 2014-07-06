@@ -1,5 +1,6 @@
 package com.tuplejump.stargate.cassandra;
 
+import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.Indexer;
 import com.tuplejump.stargate.lucene.Options;
@@ -39,13 +40,13 @@ public abstract class SearchSupport extends SecondaryIndexSearcher {
 
     protected static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
     Analyzer analyzer;
-    PerRowIndex currentIndex;
+    RowIndex currentIndex;
     Indexer indexer;
     boolean isKeyWordCheck;
     ByteBuffer primaryColName;
     Options options;
 
-    public SearchSupport(SecondaryIndexManager indexManager, PerRowIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
+    public SearchSupport(SecondaryIndexManager indexManager, RowIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
         super(indexManager, columns);
         this.analyzer = indexer.getAnalyzer();
         this.options = options;
