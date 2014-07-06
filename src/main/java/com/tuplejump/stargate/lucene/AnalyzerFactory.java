@@ -13,32 +13,36 @@ import org.apache.lucene.util.Version;
  */
 public class AnalyzerFactory {
     public enum Analyzers {
-        StandardAnalyzer, WhitespaceAnalyzer, StopAnalyzer, SimpleAnalyzer, KeywordAnalyzer, JsonAnalyzer
-
+        StandardAnalyzer, WhitespaceAnalyzer, StopAnalyzer, SimpleAnalyzer, KeywordAnalyzer
     }
 
     public static Analyzer getAnalyzer(String analyzerName, Version luceneV) {
+        try {
+            Analyzers analyzer = Analyzers.valueOf(analyzerName);
+            switch (analyzer) {
+                case SimpleAnalyzer: {
+                    return new SimpleAnalyzer(luceneV);
+                }
+                case StandardAnalyzer: {
+                    return new StandardAnalyzer(luceneV);
+                }
+                case StopAnalyzer: {
+                    return new StopAnalyzer(luceneV);
+                }
+                case WhitespaceAnalyzer: {
+                    return new WhitespaceAnalyzer(luceneV);
+                }
+                case KeywordAnalyzer: {
+                    return new CaseInsensitiveKeywordAnalyzer(luceneV);
+                }
+                default: {
+                    return new StandardAnalyzer(luceneV);
+                }
+            }
+        } catch (IllegalArgumentException e) {
 
-        switch (Analyzers.valueOf(analyzerName)) {
-            case SimpleAnalyzer: {
-                return new SimpleAnalyzer(luceneV);
-            }
-            case StandardAnalyzer: {
-                return new StandardAnalyzer(luceneV);
-            }
-            case StopAnalyzer: {
-                return new StopAnalyzer(luceneV);
-            }
-            case WhitespaceAnalyzer: {
-                return new WhitespaceAnalyzer(luceneV);
-            }
-            case KeywordAnalyzer: {
-                return new CaseInsensitiveKeywordAnalyzer(luceneV);
-            }
-            default: {
-                return new StandardAnalyzer(luceneV);
-            }
         }
+        return null;
     }
 
 

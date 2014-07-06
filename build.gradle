@@ -47,7 +47,7 @@ dependencies {
     provided('org.apache.commons:commons-lang3:3.1')
 
     //provided dependencies
-    provided('org.apache.cassandra:cassandra-all:2.0.8') {
+    provided('org.apache.cassandra:cassandra-all:2.0.9') {
         exclude group: 'asm'
         exclude group: 'org.apache.mina'
         exclude group: 'com.google.guava'
