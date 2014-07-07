@@ -2,7 +2,6 @@ package com.tuplejump.stargate.lucene;
 
 import com.tuplejump.stargate.Utils;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
@@ -18,9 +17,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
 
 /**
  * User: satya
@@ -105,12 +101,25 @@ public class NearRealTimeIndexer implements Indexer {
     }
 
     @Override
-    public void upsert(Iterable<Field> doc,Term idTerm) {
+    public void upsert(Iterable<Field> doc, Term idTerm) {
         if (logger.isDebugEnabled())
             logger.debug(indexName + " Indexing fields" + doc);
 
         try {
-            latest = indexWriter.updateDocument(idTerm,doc);
+            latest = indexWriter.updateDocument(idTerm, doc);
+            indexSearcherReferenceManager.maybeRefresh();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void insert(Iterable<Field> doc) {
+        if (logger.isDebugEnabled())
+            logger.debug(indexName + " Indexing fields" + doc);
+
+        try {
+            latest = indexWriter.addDocument(doc);
             indexSearcherReferenceManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);

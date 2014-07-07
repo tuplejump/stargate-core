@@ -63,7 +63,7 @@ public class WideRowIndexSupport extends RowIndexSupport {
                     logger.debug("Column family update -" + dk);
                 fields.addAll(idFields(pkName, pk, rkValValidator));
                 fields.addAll(tsFields(timestamps.get(pk)));
-                indexer.upsert(fields, term);
+                indexer.insert(fields);
             }
         }
     }

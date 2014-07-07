@@ -20,6 +20,8 @@ public interface Indexer {
 
     public void close();
 
+    void insert(Iterable<Field> doc);
+
     public void delete(Term... idTerm);
 
     public Analyzer getAnalyzer();

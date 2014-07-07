@@ -58,7 +58,7 @@ public class SimpleRowIndexSupport extends RowIndexSupport {
                 logger.debug("Column family update -" + dk);
             fields.addAll(idFields(rkValValidator.getString(rowKey), rowKey, rkValValidator));
             fields.addAll(tsFields(cf.maxTimestamp()));
-            indexer.upsert(fields, term);
+            indexer.insert(fields);
         }
     }
 
