@@ -118,7 +118,7 @@ task copyJar(type: Copy) {
 jar { dependsOn ([copyLibs,copySamples]) }
 
 task dist(type: Tar) {
-    baseName 'stargate'
+    baseName 'stargate-core'
     extension 'tar.gz'
     compression 'GZIP'
     dependsOn copyJar
@@ -126,6 +126,7 @@ task dist(type: Tar) {
 }
 
 task distZip(type: Zip) {
+    baseName 'stargate-core'
     dependsOn jar
     from('build/dist')
 }
