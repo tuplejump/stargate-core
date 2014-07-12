@@ -1,7 +1,7 @@
 Lucene based indexing in Cassandra
 
 Documentation at  
-http://tuplejump.github.io/stargate/
+http://stargate-core.readthedocs.org
  
 We use github issues for feature and bug tracking.
 Issues may be reported at https://github.com/tuplejump/stargate-core/issues
