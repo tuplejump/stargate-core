@@ -17,10 +17,13 @@ import os
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
+# do not import theme if on rtd
 if on_rtd:
 	import os
 else:
 	import sphinx_rtd_theme
+
+
 
 
 # If extensions (or modules to document with autodoc) are in another directory,
