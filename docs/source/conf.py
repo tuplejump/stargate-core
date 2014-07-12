@@ -113,7 +113,7 @@ pygments_style = 'sphinx'
 # a list of builtin themes.
 html_theme = "sphinx_rtd_theme"
 
-if on_rtd:
+if not on_rtd:
 	html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # "<project> v<release> documentation".
