@@ -1,5 +1,9 @@
 Lucene based indexing in Cassandra
 
+Downloads
+
+http://downloads.tuplejump.com/stargate-core-0.9.5.tar.gz
+
 Documentation at  
 http://stargate-core.readthedocs.org
  
