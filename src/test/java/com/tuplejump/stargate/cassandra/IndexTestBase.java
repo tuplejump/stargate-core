@@ -59,6 +59,12 @@ public class IndexTestBase {
         return countResults(tName, where, true, log);
     }
 
+    protected ResultSet getResults(String tName, String where, boolean hasWhr) {
+        String select = "select * from ";
+        String query = select + tName + (hasWhr ? (" where " + where) : "") + " ";
+        return getSession().execute(query);
+    }
+
     protected int countResults(String tName, String where, boolean hasWhr, boolean log) {
         long before = System.nanoTime();
         String select = "select * from ";
@@ -66,15 +72,15 @@ public class IndexTestBase {
         ResultSet result = getSession().execute(query);
         long after = System.nanoTime();
         double taken = (after - before) / 1000000;
+        if (log)
+            logger.warn("Search for -" + query + " - results -");
 
         Iterator<Row> iter = result.iterator();
         int count1 = 0;
-        if (log)
-            logger.warn("Search for -" + query + " - results -");
         while (iter.hasNext()) {
             Row row = iter.next();
             if (log)
-                logger.warn(row.toString());
+                System.out.println(row.toString());
             count1++;
         }
 
@@ -124,7 +130,7 @@ public class IndexTestBase {
     }
 
     protected String fq(int maxEdits, String field, String value) {
-        String query1 = "{ query:{ type:\"fuzzy\", field:\"%s\", value:\"%s\",max_edits:" + maxEdits + " }}";
+        String query1 = "{ query:{ type:\"fuzzy\", field:\"%s\", value:\"%s\",maxEdits:" + maxEdits + " }}";
         return String.format(query1, field, value);
     }
 
@@ -161,7 +167,7 @@ public class IndexTestBase {
     }
 
     protected String ltEq(String field, String value) {
-        String query1 = "{ query:{ type:\"range\", field:\"%s\", upper:\"%s\",include_upper : true  }}";
+        String query1 = "{ query:{ type:\"range\", field:\"%s\", upper:\"%s\",includeUpper : true  }}";
         return String.format(query1, field, value);
     }
 

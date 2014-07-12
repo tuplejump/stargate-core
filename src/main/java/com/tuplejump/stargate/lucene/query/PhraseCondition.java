@@ -116,29 +116,24 @@ public class PhraseCondition extends Condition {
             throw new IllegalArgumentException("Slop must be positive");
         }
         Properties properties = schema.getProperties(field);
-        if (properties != null) {
-            Properties.Type fieldType = properties.getType();
-            if (fieldType.isCharSeq()) {
-                Analyzer analyzer = schema.analyzer;
-                PhraseQuery query = new PhraseQuery();
-                query.setSlop(slop);
-                query.setBoost(boost);
-                int count = 0;
-                for (String value : values) {
-                    if (value != null) {
-                        String analyzedValue = analyze(field, value, analyzer);
-                        if (analyzedValue != null) {
-                            Term term = new Term(field, analyzedValue);
-                            query.add(term, count);
-                        }
+        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+        if (fieldType.isCharSeq()) {
+            Analyzer analyzer = schema.analyzer;
+            PhraseQuery query = new PhraseQuery();
+            query.setSlop(slop);
+            query.setBoost(boost);
+            int count = 0;
+            for (String value : values) {
+                if (value != null) {
+                    String analyzedValue = analyze(field, value, analyzer);
+                    if (analyzedValue != null) {
+                        Term term = new Term(field, analyzedValue);
+                        query.add(term, count);
                     }
-                    count++;
                 }
-                return query;
-            } else {
-                String message = String.format("Unsupported query %s for mapper %s", this, fieldType);
-                throw new UnsupportedOperationException(message);
+                count++;
             }
+            return query;
         }
         String message = String.format("Phrase queries cannot be supported until mapping is defined");
         throw new UnsupportedOperationException(message);

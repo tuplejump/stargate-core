@@ -25,14 +25,15 @@ import java.util.List;
 public class JsonDocumentTest extends IndexTestBase {
 
     String keyspace = "dummyksJSON";
-    private final JsonFormatter.FieldSorter fieldSorter = new JsonFormatter.FieldSorter() {
+    private static final JsonFormatter.FieldSorter fieldSorter = new JsonFormatter.FieldSorter() {
         public List<JsonField> sort(List<JsonField> unsorted) {
             return unsorted;
         }
     };
 
     private static final JdomParser JDOM_PARSER = new JdomParser();
-    private static InputStream is = JsonDocumentTest.class.getClassLoader().getResourceAsStream("sample.json");
+    private static InputStream is = JsonDocumentTest.class.getClassLoader().getResourceAsStream("samples/sample.json");
+
     private static JsonRootNode jsonVal;
 
     static {
@@ -167,7 +168,7 @@ public class JsonDocumentTest extends IndexTestBase {
     }
 
 
-    private void formatJsonNode(final JsonNode jsonNode, PrintWriter writer, int indent) throws IOException {
+    public static void formatJsonNode(final JsonNode jsonNode, PrintWriter writer, int indent) throws IOException {
         switch (jsonNode.getType()) {
             case ARRAY:
                 writer.append('[');
@@ -241,10 +242,11 @@ public class JsonDocumentTest extends IndexTestBase {
     }
 
 
-    private void addTabs(final PrintWriter writer, final int tabs) {
+    private static void addTabs(final PrintWriter writer, final int tabs) {
         for (int i = 0; i < tabs; i++) {
             writer.write('\t');
         }
     }
+
 
 }

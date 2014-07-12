@@ -56,7 +56,7 @@ import java.io.IOException;
         @JsonSubTypes.Type(value = RangeCondition.class, name = "range"),
         @JsonSubTypes.Type(value = PhraseCondition.class, name = "phrase"),
         @JsonSubTypes.Type(value = PrefixCondition.class, name = "prefix"),
-        @JsonSubTypes.Type(value = RegexpCondition.class, name = "regexp"),
+        @JsonSubTypes.Type(value = RegexpCondition.class, name = "regex"),
         @JsonSubTypes.Type(value = WildcardCondition.class, name = "wildcard"),})
 public abstract class Condition {
 

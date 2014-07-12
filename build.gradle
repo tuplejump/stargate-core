@@ -101,21 +101,33 @@ eclipse {
 
 task copyLibs(type: Copy) {
     from configurations.compile
-    into 'build/libs'
+    into 'build/dist/stargate/libs'
 }
 
-jar { dependsOn copyLibs }
-
-task dist(type: Zip) {
-    dependsOn jar
-    from('build/libs/')
-    include '*.*'
+task copySamples(type: Copy) {
+    from 'src/test/resources/samples'
+    into 'build/dist/stargate/samples'
 }
 
-task distTar(type: Tar) {
+task copyJar(type: Copy) {
     dependsOn jar
-    from('build/libs/')
-    include '*.*'
+    from 'build/libs'
+    into 'build/dist/stargate/libs'
+}
+
+jar { dependsOn ([copyLibs,copySamples]) }
+
+task dist(type: Tar) {
+    baseName 'stargate'
+    extension 'tar.gz'
+    compression 'GZIP'
+    dependsOn copyJar
+    from('build/dist')
+}
+
+task distZip(type: Zip) {
+    dependsOn jar
+    from('build/dist')
 }
 
 install {

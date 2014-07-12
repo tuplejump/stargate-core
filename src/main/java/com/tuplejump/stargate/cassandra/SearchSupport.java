@@ -57,35 +57,6 @@ public abstract class SearchSupport extends SecondaryIndexSearcher {
     }
 
 
-    protected List<Row> getRows(final ExtendedFilter filter, final Pair<Query, Sort> query, final boolean needsFiltering) {
-        final SearchSupport searchSupport = this;
-        SearcherCallback<List<Row>> sc = new SearcherCallback<List<Row>>() {
-            @Override
-            public List<Row> doWithSearcher(org.apache.lucene.search.IndexSearcher searcher) throws IOException {
-                Utils.SimpleTimer timer = Utils.getStartedTimer(logger);
-                List<Row> results;
-                if (query == null) {
-                    results = new ArrayList<>();
-                } else {
-                    Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
-                    int maxResults = filter.maxRows();
-                    TopDocs topDocs = searcher.searchAfter(null, query.left, null, maxResults, query.right, true, false);
-                    timer2.endLogTime("For TopDocs search for -" + topDocs.totalHits + " results");
-                    if (SearchSupport.logger.isDebugEnabled()) {
-                        SearchSupport.logger.debug(String.format("Search results [%s]", topDocs.totalHits));
-                    }
-                    ColumnFamilyStore.AbstractScanIterator iter = searchResultsIterator(searchSupport, baseCfs, searcher, filter, topDocs, needsFiltering);
-                    //takes care of paging.
-                    results = baseCfs.filter(iter, filter);
-                }
-                timer.endLogTime("SGIndex Search with results [" + results.size() + "]over all took -");
-                return results;
-
-            }
-        };
-        return indexer.search(sc);
-    }
-
     protected Pair<Query, Sort> getQuery(IndexExpression predicate) throws Exception {
         ColumnDefinition cd = baseCfs.metadata.getColumnDefinition(predicate.column_name);
         String predicateValue = cd.getValidator().getString(predicate.bufferForValue());

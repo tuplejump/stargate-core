@@ -72,9 +72,9 @@ public class FuzzyCondition extends Condition {
     public FuzzyCondition(@JsonProperty("boost") Float boost,
                           @JsonProperty("field") String field,
                           @JsonProperty("value") String value,
-                          @JsonProperty("max_edits") Integer maxEdits,
-                          @JsonProperty("prefix_length") Integer prefixLength,
-                          @JsonProperty("max_expansions") Integer maxExpansions,
+                          @JsonProperty("maxEdits") Integer maxEdits,
+                          @JsonProperty("prefixLength") Integer prefixLength,
+                          @JsonProperty("maxExpansions") Integer maxExpansions,
                           @JsonProperty("transpositions") Boolean transpositions) {
         super(boost);
 
@@ -164,20 +164,15 @@ public class FuzzyCondition extends Condition {
 
         Properties properties = schema.getProperties(field);
         String message;
-        if (properties != null) {
-            Properties.Type fieldType = properties.getType();
-            if (fieldType == Properties.Type.string || fieldType == Properties.Type.text) {
-                String analyzedValue = analyze(field, value, schema.analyzer);
-                Term term = new Term(field, analyzedValue);
-                Query query = new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
-                query.setBoost(boost);
-                return query;
-            }
-            message = String.format("Fuzzy queries cannot be supported for field type %s", fieldType);
-        } else {
-
-            message = String.format("Fuzzy queries cannot be supported until mapping is defined");
+        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+        if (fieldType == Properties.Type.string || fieldType == Properties.Type.text) {
+            String analyzedValue = analyze(field, value, schema.analyzer);
+            Term term = new Term(field, analyzedValue);
+            Query query = new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
+            query.setBoost(boost);
+            return query;
         }
+        message = String.format("Fuzzy queries cannot be supported for field type %s", fieldType);
         throw new UnsupportedOperationException(message);
     }
 

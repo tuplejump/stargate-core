@@ -90,22 +90,16 @@ public class PrefixCondition extends Condition {
 
         Query query;
         Properties properties = schema.getProperties(field);
-        if (properties != null) {
-            Properties.Type fieldType = properties.getType();
-
-            if (fieldType.isCharSeq()) {
-                Term term = new Term(field, value);
-                query = new PrefixQuery(term);
-            } else {
-                String message = String.format("Prefix queries are not supported by %s mapper", fieldType);
-                throw new UnsupportedOperationException(message);
-            }
-            query.setBoost(boost);
-            return query;
+        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+        if (fieldType.isCharSeq()) {
+            Term term = new Term(field, value);
+            query = new PrefixQuery(term);
+        } else {
+            String message = String.format("Prefix queries are not supported by %s mapper", fieldType);
+            throw new UnsupportedOperationException(message);
         }
-        String message = String.format("Prefix queries cannot be supported until mapping is defined");
-        throw new UnsupportedOperationException(message);
-
+        query.setBoost(boost);
+        return query;
     }
 
     /**

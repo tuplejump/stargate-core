@@ -90,41 +90,37 @@ public class MatchCondition extends Condition {
         }
         NumericConfig numericConfig = schema.numericFieldOptions.get(field);
         Properties properties = schema.getProperties(field);
-        if (properties != null) {
-            Properties.Type fieldType = properties.getType();
-            Query query;
-            if (fieldType.isCharSeq()) {
-                String analyzedValue = analyze(field, value.toString(), schema.analyzer);
-                if (analyzedValue == null) {
-                    throw new IllegalArgumentException("Value discarded by analyzer");
-                }
-                Term term = new Term(field, analyzedValue);
-                query = new TermQuery(term);
-            } else if (fieldType == Properties.Type.integer) {
-                assert numericConfig != null;
-                Integer value = (Integer) numericConfig.getNumberFormat().parse(this.value.toString());
-                query = NumericRangeQuery.newIntRange(field, value, value, true, true);
-            } else if (fieldType == Properties.Type.bigint || fieldType == Properties.Type.date) {
-                assert numericConfig != null;
-                Long value = (Long) numericConfig.getNumberFormat().parse(this.value.toString());
-                query = NumericRangeQuery.newLongRange(field, value, value, true, true);
-            } else if (fieldType == Properties.Type.decimal) {
-                assert numericConfig != null;
-                Float value = (Float) numericConfig.getNumberFormat().parse(this.value.toString());
-                query = NumericRangeQuery.newFloatRange(field, value, value, true, true);
-            } else if (fieldType == Properties.Type.bigdecimal) {
-                assert numericConfig != null;
-                Double value = (Double) numericConfig.getNumberFormat().parse(this.value.toString());
-                query = NumericRangeQuery.newDoubleRange(field, value, value, true, true);
-            } else {
-                String message = String.format("Match queries are not supported by %s field type", fieldType);
-                throw new UnsupportedOperationException(message);
+        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+        Query query;
+        if (fieldType.isCharSeq()) {
+            String analyzedValue = analyze(field, value.toString(), schema.analyzer);
+            if (analyzedValue == null) {
+                throw new IllegalArgumentException("Value discarded by analyzer");
             }
-            query.setBoost(boost);
-            return query;
+            Term term = new Term(field, analyzedValue);
+            query = new TermQuery(term);
+        } else if (fieldType == Properties.Type.integer) {
+            assert numericConfig != null;
+            Integer value = numericConfig.getNumberFormat().parse(this.value.toString()).intValue();
+            query = NumericRangeQuery.newIntRange(field, value, value, true, true);
+        } else if (fieldType == Properties.Type.bigint || fieldType == Properties.Type.date) {
+            assert numericConfig != null;
+            Long value = numericConfig.getNumberFormat().parse(this.value.toString()).longValue();
+            query = NumericRangeQuery.newLongRange(field, value, value, true, true);
+        } else if (fieldType == Properties.Type.decimal) {
+            assert numericConfig != null;
+            Float value = numericConfig.getNumberFormat().parse(this.value.toString()).floatValue();
+            query = NumericRangeQuery.newFloatRange(field, value, value, true, true);
+        } else if (fieldType == Properties.Type.bigdecimal) {
+            assert numericConfig != null;
+            Double value = numericConfig.getNumberFormat().parse(this.value.toString()).doubleValue();
+            query = NumericRangeQuery.newDoubleRange(field, value, value, true, true);
+        } else {
+            String message = String.format("Match queries are not supported by %s field type", fieldType);
+            throw new UnsupportedOperationException(message);
         }
-        String message = String.format("Match queries cannot be supported until mapping is defined");
-        throw new UnsupportedOperationException(message);
+        query.setBoost(boost);
+        return query;
     }
 
     /**

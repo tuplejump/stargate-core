@@ -1,11 +1,13 @@
 package com.tuplejump.stargate.cassandra;
 
-import com.tuplejump.stargate.Utils;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import com.tuplejump.stargate.util.CQLUnitD;
+import junit.framework.Assert;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
+import java.util.List;
+
 
 /**
  * User: satya
@@ -18,26 +20,42 @@ public class WideRowTest extends IndexTestBase {
     }
 
     @Test
+    public void shouldReportErrorRow() throws Exception {
+        //hack to always create new Index during testing
+        try {
+            createKS(keyspace);
+            createTableAndIndexForRow();
+            ResultSet rs = getResults("TAG2", "magic = '" + mq("tags", "tags:hello* AND state:CA") + "'", true);
+            List<Row> rows = rs.all();
+            Assert.assertEquals(1, rows.size());
+            Assert.assertEquals(true, rows.toString().contains("error"));
+        } finally {
+            dropTable(keyspace, "TAG2");
+            dropKS(keyspace);
+        }
+    }
+
+    @Test
     public void shouldIndexPerRow() throws Exception {
         //hack to always create new Index during testing
         try {
             createKS(keyspace);
             createTableAndIndexForRow();
             countResults("TAG2", "", false, true);
-            assertThat(countResults("TAG2", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true), is(12));
-            assertThat(countResults("TAG2", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true), is(12));
-            assertThat(countResults("TAG2", "magic = '" + q("tags", "tags:hello2 AND state:CA") + "'", true), is(8));
-            assertThat(countResults("TAG2", "magic = '" + q("tags", "tag2") + "'", true), is(16));
+            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true));
+            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
+            Assert.assertEquals(8, countResults("TAG2", "magic = '" + q("tags", "tags:hello2 AND state:CA") + "'", true));
+            Assert.assertEquals(16, countResults("TAG2", "magic = '" + mq("tags", "tag2") + "'", true));
 
             for (int i = 0; i < 40; i = i + 10) {
                 updateTagData("TAG2", (i + 1) + " AND segment =" + i);
             }
-            assertThat(countResults("TAG2", "magic = '" + q("tags", "h*") + "'", true), is(40));
-            assertThat(countResults("TAG2", "magic = '" + q("tags", "hello1") + "'", true), is(12));
+            Assert.assertEquals(40, countResults("TAG2", "magic = '" + q("tags", "h*") + "'", true));
+            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "hello1") + "'", true));
             for (int i = 0; i < 20; i++) {
                 deleteTagData("TAG2", false, i);
             }
-            assertThat(countResults("TAG2", "magic = '" + q("tags", "hello*") + "'", true), is(16));
+            Assert.assertEquals(16, countResults("TAG2", "magic = '" + q("tags", "hello*") + "'", true));
         } finally {
             dropTable(keyspace, "TAG2");
             dropKS(keyspace);
@@ -46,8 +64,9 @@ public class WideRowTest extends IndexTestBase {
 
     private void createTableAndIndexForRow() {
         String options = "{\n" +
+                "\t\"metaColumn\":true,\n" +
                 "\t\"fields\":{\n" +
-                "\t\t\"tags\":{},\n" +
+                "\t\t\"tags\":{\"type\":\"text\"},\n" +
                 "\t\t\"state\":{}\n" +
                 "\t}\n" +
                 "}\n";
@@ -70,6 +89,5 @@ public class WideRowTest extends IndexTestBase {
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 10) + ",'hllo3 tag3 lol3', 'TX'," + i + ")");
             i = i + 10;
         }
-        Utils.threadSleep(3000);
     }
 }

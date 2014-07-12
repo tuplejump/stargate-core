@@ -17,14 +17,13 @@ package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
-import org.apache.lucene.search.SortField;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
 /**
- * A sorting for a field of a search.
+ * A per field sort order by.
  */
-public class SortingField {
+public class SortField {
 
     private static final boolean DEFAULT_REVERSE = false;
 
@@ -39,44 +38,45 @@ public class SortingField {
     private boolean reverse;
 
     /**
-     * Returns a new {@link SortingField}.
+     * Returns a new {@link SortField}.
      *
      * @param field   The name of field to sort by.
      * @param reverse {@code true} if natural order should be reversed.
      */
     @JsonCreator
-    public SortingField(@JsonProperty("field") String field, @JsonProperty("reverse") Boolean reverse) {
+    public SortField(@JsonProperty("field") String field, @JsonProperty("reverse") Boolean reverse) {
         this.field = field != null ? field.toLowerCase() : null;
         this.reverse = reverse == null ? DEFAULT_REVERSE : reverse;
     }
 
     /**
-     * Returns the Lucene's {@link SortField} representing this {@link SortingField}.
+     * Returns the Lucene's {@link org.apache.lucene.search.SortField} representing this {@link SortField}.
      *
      * @param schema
-     * @return the Lucene's {@link SortField} representing this {@link SortingField}.
+     * @return the Lucene's {@link org.apache.lucene.search.SortField} representing this {@link SortField}.
      */
-    public SortField sortField(Options schema) {
+    public org.apache.lucene.search.SortField sortField(Options schema) {
         if (field == null || field.trim().isEmpty()) {
             throw new IllegalArgumentException("Field name required");
         }
         Properties properties = schema.getProperties(field);
+        if (properties == null) properties = Properties.ID_FIELD;
         return sortField(field, properties, reverse);
     }
 
 
-    public static SortField sortField(String name, Properties properties, boolean reverse) {
+    public static org.apache.lucene.search.SortField sortField(String name, Properties properties, boolean reverse) {
         Properties.Type cqlType = properties.getType();
         if (cqlType == Properties.Type.integer) {
-            return new SortField(name, SortField.Type.INT, reverse);
+            return new org.apache.lucene.search.SortField(name, org.apache.lucene.search.SortField.Type.INT, reverse);
         } else if (cqlType == Properties.Type.bigint) {
-            return new SortField(name, SortField.Type.LONG, reverse);
+            return new org.apache.lucene.search.SortField(name, org.apache.lucene.search.SortField.Type.LONG, reverse);
         } else if (cqlType == Properties.Type.bigdecimal) {
-            return new SortField(name, SortField.Type.DOUBLE, reverse);
+            return new org.apache.lucene.search.SortField(name, org.apache.lucene.search.SortField.Type.DOUBLE, reverse);
         } else if (cqlType == Properties.Type.decimal) {
-            return new SortField(name, SortField.Type.FLOAT, reverse);
+            return new org.apache.lucene.search.SortField(name, org.apache.lucene.search.SortField.Type.FLOAT, reverse);
         } else {
-            return new SortField(name, SortField.Type.STRING, reverse);
+            return new org.apache.lucene.search.SortField(name, org.apache.lucene.search.SortField.Type.STRING, reverse);
         }
     }
 

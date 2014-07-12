@@ -1,10 +1,8 @@
 package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.util.CQLUnitD;
+import junit.framework.Assert;
 import org.junit.Test;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
 
 /**
  * User: satya
@@ -22,23 +20,24 @@ public class VariousQueriesTest extends IndexTestBase {
         createKS(keyspace);
         createTableAndIndexForRow();
 
-        assertThat(countResults("sample_table", "part=0 AND uid > 4 AND magic='" + q("searchName", "/.*?AT.*/") + "' ALLOW FILTERING", true), is(4));
-        assertThat(countResults("sample_table", "part=0 AND uid < 4 AND magic='" + q("searchName", "/.*?AT.*/") + "'  ALLOW FILTERING", true), is(1));
-        assertThat(countResults("sample_table", "magic = '" + q("searchName", "/.*?CT.*/") + "'", true), is(5));
-        assertThat(countResults("sample_table", "magic = '" + pfq("searchName", "ca") + "'", true), is(5));
-        assertThat(countResults("sample_table", "magic = '" + mq("searchName", "CATV") + "'", true), is(5));
-        assertThat(countResults("sample_table", "magic = '" + fq(1, "searchName", "CATA") + "'", true), is(5));
-        assertThat(countResults("sample_table", "magic = '" + fq(0, "searchName", "CCTA") + "'", true), is(0));
-        assertThat(countResults("sample_table", "magic = '" + fq(1, "searchName", "CZTV") + "'", true), is(10));
-        assertThat(countResults("sample_table", "magic = '" + q("searchName", "CATV CCTV") + "'", true), is(10));
-        assertThat(countResults("sample_table", "magic = '" + phq(0, "searchName", "aaaa", "BBBB") + "'", true), is(1));
-        assertThat(countResults("sample_table", "magic = '" + gtq("searchName", "CATV") + "'", true), is(6));
-        assertThat(countResults("sample_table", "magic = '" + gtq("otherid", "9") + "'", true), is(3));
+        Assert.assertEquals(4, countResults("sample_table", "part=0 AND uid > 4 AND magic='" + q("searchName", "/.*?AT.*/") + "' ALLOW FILTERING", true));
+        Assert.assertEquals(1, countResults("sample_table", "part=0 AND uid < 4 AND magic='" + q("searchName", "/.*?AT.*/") + "'  ALLOW FILTERING", true));
+        Assert.assertEquals(5, countResults("sample_table", "magic = '" + q("searchName", "/.*?CT.*/") + "'", true));
+        Assert.assertEquals(5, countResults("sample_table", "magic = '" + pfq("searchName", "ca") + "'", true));
+        Assert.assertEquals(5, countResults("sample_table", "magic = '" + mq("searchName", "CATV") + "'", true));
+        Assert.assertEquals(5, countResults("sample_table", "magic = '" + fq(1, "searchName", "CATA") + "'", true));
+        Assert.assertEquals(0, countResults("sample_table", "magic = '" + fq(0, "searchName", "CCTA") + "'", true));
+        Assert.assertEquals(10, countResults("sample_table", "magic = '" + fq(1, "searchName", "CZTV") + "'", true));
+        Assert.assertEquals(10, countResults("sample_table", "magic = '" + q("searchName", "CATV CCTV") + "'", true));
+        Assert.assertEquals(1, countResults("sample_table", "magic = '" + phq(0, "searchName", "aaaa", "BBBB") + "'", true));
+        Assert.assertEquals(6, countResults("sample_table", "magic = '" + gtq("searchName", "CATV") + "'", true));
+        Assert.assertEquals(3, countResults("sample_table", "magic = '" + gtq("otherid", "9") + "'", true));
     }
 
     private void createTableAndIndexForRow() {
         //add idx options with DOCS_AND_FREQS_AND_POSITIONS for phrase queries.
         String options = "{\n" +
+                "\t\"metaColumn\":true,\n" +
                 "\t\"fields\":{\n" +
                 "\t\t\"searchName\":{\"indexOptions\":\"DOCS_AND_FREQS_AND_POSITIONS\"},\n" +
                 "\t\t\"otherName\":{},\n" +

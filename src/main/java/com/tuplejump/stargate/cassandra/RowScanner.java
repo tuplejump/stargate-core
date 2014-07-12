@@ -2,11 +2,13 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.Fields;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -102,33 +104,37 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
     }
 
     private Row getRow(String pkString, IDiskAtomFilter dataFilter, DecoratedKey dk, long ts, Float score) throws IOException {
-        String indexColumnName = searchSupport.currentIndex.getPrimaryColumnName();
 
         ColumnFamily data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
         if (data == null || searchSupport.deleteIfNotLatest(ts, pkString, data)) {
             return null;
         }
-        ColumnFamily cleanColumnFamily = TreeMapBackedSortedColumns.factory.create(table.metadata);
-        boolean metaColAdded = false;
-        Column firstColumn = null;
-        for (Column column : data) {
-            if (firstColumn == null) firstColumn = column;
-            String thisColName = searchSupport.currentIndex.getRowIndexSupport().getActualColumnName(column.name());
-            boolean isIndexColumn = indexColumnName.equals(thisColName);
-            if (isIndexColumn) {
-                logger.warn("Primary col name {}", UTF8Type.instance.compose(column.name()));
-                Column scoreColumn = new Column(column.name(), UTF8Type.instance.decompose("{\"score\":" + score.toString() + "}"));
-                cleanColumnFamily.addColumn(scoreColumn);
-                metaColAdded = true;
-            } else {
-                cleanColumnFamily.addColumn(column);
+        ColumnFamily cleanColumnFamily = data;
+        if (searchSupport.currentIndex.isMetaColumn()) {
+            String indexColumnName = searchSupport.currentIndex.getPrimaryColumnName();
+            cleanColumnFamily = TreeMapBackedSortedColumns.factory.create(table.metadata);
+            boolean metaColAdded = false;
+            Column firstColumn = null;
+            for (Column column : data) {
+                if (firstColumn == null) firstColumn = column;
+                String thisColName = searchSupport.currentIndex.getRowIndexSupport().getActualColumnName(column.name());
+                boolean isIndexColumn = indexColumnName.equals(thisColName);
+                if (isIndexColumn) {
+                    logger.warn("Primary col name {}", UTF8Type.instance.compose(column.name()));
+                    Column scoreColumn = new Column(column.name(), UTF8Type.instance.decompose("{\"score\":" + score.toString() + "}"));
+                    cleanColumnFamily.addColumn(scoreColumn);
+                    metaColAdded = true;
+                } else {
+                    cleanColumnFamily.addColumn(column);
+                }
             }
-        }
-        if (!metaColAdded && firstColumn != null) {
-            addMetaColumn(firstColumn, indexColumnName, score, cleanColumnFamily);
+            if (!metaColAdded && firstColumn != null) {
+                addMetaColumn(firstColumn, indexColumnName, score, cleanColumnFamily);
+            }
         }
         return new Row(dk, cleanColumnFamily);
     }
+
 
     protected abstract void addMetaColumn(Column firstColumn, String colName, Float score, ColumnFamily cleanColumnFamily);
 

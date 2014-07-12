@@ -8,6 +8,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
+import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.Version;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -59,6 +60,9 @@ public class Properties {
     }
 
     @JsonProperty
+    boolean metaColumn = true;
+
+    @JsonProperty
     Type type;
 
     @JsonProperty
@@ -96,10 +100,10 @@ public class Properties {
     FieldInfo.IndexOptions indexOptions = FieldInfo.IndexOptions.DOCS_ONLY;
 
     @JsonProperty
-    int numericPrecisionStep = 2;
+    int numericPrecisionStep = NumericUtils.PRECISION_STEP_DEFAULT;
 
     @JsonProperty
-    Map<String, Properties> fields;
+    Map<String, Properties> fields = new HashMap<>();
 
     boolean lowerCased;
 
@@ -186,6 +190,10 @@ public class Properties {
         return tokenized;
     }
 
+    public boolean isMetaColumn() {
+        return metaColumn;
+    }
+
     public int getMaxFieldLength() {
         return maxFieldLength;
     }
@@ -233,7 +241,7 @@ public class Properties {
             this.type = Type.bigdecimal;
         } else if (cqlType == CQL3Type.Native.FLOAT) {
             this.type = Type.decimal;
-        } else if (cqlType == CQL3Type.Native.TEXT) {
+        } else if (cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.ASCII) {
             this.type = Type.text;
         } else if (cqlType == CQL3Type.Native.VARCHAR) {
             this.type = Type.string;

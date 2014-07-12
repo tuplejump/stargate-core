@@ -23,7 +23,8 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * User: satya
@@ -41,7 +42,9 @@ public class RowIndex extends PerRowSecondaryIndex {
     protected Options options;
     protected RowIndexSupport rowIndexSupport;
     protected CFDefinition tableDefinition;
-    private Lock indexLock = new ReentrantLock();
+    private ReadWriteLock indexLock = new ReentrantReadWriteLock();
+    private final Lock readLock = indexLock.readLock();
+    private final Lock writeLock = indexLock.writeLock();
 
     public RowIndexSupport getRowIndexSupport() {
         return rowIndexSupport;
@@ -51,31 +54,60 @@ public class RowIndex extends PerRowSecondaryIndex {
         return primaryColumnName;
     }
 
+    public boolean isMetaColumn() {
+        return options.primary.isMetaColumn();
+    }
+
     @Override
     public void index(ByteBuffer rowKey, ColumnFamily cf) {
-        rowIndexSupport.indexRow(rowKey, cf);
+        readLock.lock();
+        try {
+            rowIndexSupport.indexRow(rowKey, cf);
+        } finally {
+            readLock.unlock();
+        }
+
     }
 
     @Override
     public void delete(DecoratedKey key) {
-        AbstractType<?> rkValValidator = baseCfs.metadata.getKeyValidator();
-        Term term = Fields.rkTerm(rkValValidator.getString(key.key));
-        indexer.delete(term);
+        readLock.lock();
+        try {
+            AbstractType<?> rkValValidator = baseCfs.metadata.getKeyValidator();
+            Term term = Fields.rkTerm(rkValValidator.getString(key.key));
+            indexer.delete(term);
+        } finally {
+            readLock.unlock();
+        }
     }
 
     public void delete(String pkString, Long ts) {
-        indexer.delete(Fields.idTerm(pkString), Fields.tsTerm(ts));
+        readLock.lock();
+        try {
+            indexer.delete(Fields.idTerm(pkString), Fields.tsTerm(ts));
+        } finally {
+            readLock.unlock();
+        }
     }
 
 
     @Override
     public SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns) {
+        readLock.lock();
+        try {
+            waitForIndexBuilt();
+            return new PerRowSearchSupport(baseCfs.indexManager, this, indexer, columns, columnDefinition.name, this.options);
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    private void waitForIndexBuilt() {
         while (true) {
             //spin busy
             //don't give the searcher out till this happens
             if (isIndexBuilt(columnDefinition.name)) break;
         }
-        return new PerRowSearchSupport(baseCfs.indexManager, this, indexer, columns, columnDefinition.name, this.options);
     }
 
     public ColumnFamilyStore.AbstractScanIterator getScanIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean addlFilter) {
@@ -94,23 +126,31 @@ public class RowIndex extends PerRowSecondaryIndex {
 
     @Override
     public void init() {
-        assert baseCfs != null;
-        assert columnDefs != null;
-        assert columnDefs.size() > 0;
-        columnDefinition = columnDefs.iterator().next();
-        //null comparator since this is a custom index.
-        keyspace = baseCfs.metadata.ksName;
-        indexName = columnDefinition.getIndexName();
-        tableName = baseCfs.name;
-        tableDefinition = baseCfs.metadata.getCfDef();
-        primaryColumnName = CFDefinition.definitionType.getString(columnDefinition.name).toLowerCase();
-        String optionsJson = columnDefinition.getIndexOptions().get(Constants.INDEX_OPTIONS_JSON);
-        this.options = Options.getOptions(primaryColumnName, baseCfs, optionsJson);
-        lockSwapIndexer(true);
-        if (tableDefinition.isComposite) {
-            rowIndexSupport = new WideRowIndexSupport(options, indexer, baseCfs);
-        } else {
-            rowIndexSupport = new SimpleRowIndexSupport(options, indexer, baseCfs);
+        writeLock.lock();
+        try {
+            assert baseCfs != null;
+            assert columnDefs != null;
+            assert columnDefs.size() > 0;
+            columnDefinition = columnDefs.iterator().next();
+            //null comparator since this is a custom index.
+            keyspace = baseCfs.metadata.ksName;
+            indexName = columnDefinition.getIndexName();
+            tableName = baseCfs.name;
+            tableDefinition = baseCfs.metadata.getCfDef();
+            primaryColumnName = CFDefinition.definitionType.getString(columnDefinition.name).toLowerCase();
+            String optionsJson = columnDefinition.getIndexOptions().get(Constants.INDEX_OPTIONS_JSON);
+            this.options = Options.getOptions(primaryColumnName, baseCfs, optionsJson);
+
+            logger.warn("Creating new NRT Indexer for {}", indexName);
+            indexer = new NearRealTimeIndexer(this.options.analyzer, keyspace, baseCfs.name, indexName);
+            if (tableDefinition.isComposite) {
+                rowIndexSupport = new WideRowIndexSupport(options, indexer, baseCfs);
+            } else {
+                rowIndexSupport = new SimpleRowIndexSupport(options, indexer, baseCfs);
+            }
+
+        } finally {
+            writeLock.unlock();
         }
     }
 
@@ -180,46 +220,31 @@ public class RowIndex extends PerRowSecondaryIndex {
     }
 
 
-    private void lockSwapIndexer(boolean createAnother) {
+    @Override
+    public void invalidate() {
+        writeLock.lock();
         try {
-            boolean locked = indexLock.tryLock();
-            if (locked) {
-                if (indexer != null) {
-                    indexer.removeIndex();
-                    indexer = null;
-                }
-                if (createAnother)
-                    indexer = new NearRealTimeIndexer(this.options.analyzer, keyspace, baseCfs.name, indexName);
-
-            } else {
-                throw new RuntimeException(String.format("Unable to acquire reload lock for Index %s of %s on %s of %s. Another thread is already reloading it", indexName, primaryColumnName, baseCfs.name, keyspace));
+            if (indexer != null) {
+                logger.warn("Removing NRT Indexer for {}", indexName);
+                indexer.removeIndex();
+                indexer = null;
             }
+            setIndexRemoved();
         } finally {
-            indexLock.unlock();
+            writeLock.unlock();
         }
     }
 
     @Override
-    public void invalidate() {
-        lockSwapIndexer(false);
-        setIndexRemoved();
-    }
-
-    @Override
     public void truncateBlocking(long l) {
+        readLock.lock();
         try {
-            boolean locked = indexLock.tryLock();
-            if (locked) {
-                if (indexer != null) {
-                    indexer.truncate(l);
-                    logger.warn(indexName + " Truncated index {}.", indexName);
-                }
-
-            } else {
-                throw new RuntimeException(String.format("Unable to acquire reload lock for Index %s of %s on %s of %s. Another thread is already modifying it", indexName, primaryColumnName, tableName, keyspace));
+            if (indexer != null) {
+                indexer.truncate(l);
+                logger.warn(indexName + " Truncated index {}.", indexName);
             }
         } finally {
-            indexLock.unlock();
+            readLock.unlock();
         }
     }
 

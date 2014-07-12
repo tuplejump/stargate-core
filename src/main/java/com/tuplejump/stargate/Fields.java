@@ -3,7 +3,9 @@ package com.tuplejump.stargate;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
@@ -15,6 +17,7 @@ import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 import static com.tuplejump.stargate.Constants.*;
 
@@ -110,7 +113,7 @@ public class Fields {
             return new DoubleField(name, ((Number) type.compose(byteBufferValue)).doubleValue(), fieldType);
         } else if (cqlType == CQL3Type.Native.FLOAT) {
             return new FloatField(name, ((Number) type.compose(byteBufferValue)).floatValue(), fieldType);
-        } else if (cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.VARCHAR) {
+        } else if (cqlType == CQL3Type.Native.ASCII || cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.VARCHAR) {
             return new Field(name, type.getString(byteBufferValue), fieldType);
         } else if (cqlType == CQL3Type.Native.UUID) {
             return new Field(name, type.getString(byteBufferValue), fieldType);
@@ -124,6 +127,31 @@ public class Fields {
             return new Field(name, val.toString(), fieldType);
         } else {
             return new Field(name, toString(byteBufferValue, type), fieldType);
+        }
+    }
+
+    public static ByteBuffer defaultValue(AbstractType type) {
+        CQL3Type cqlType = type.asCQL3Type();
+        if (cqlType == CQL3Type.Native.INT) {
+            return ByteBufferUtil.bytes(0);
+        } else if (cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER) {
+            return ByteBufferUtil.bytes(0L);
+        } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
+            return ByteBufferUtil.bytes(0D);
+        } else if (cqlType == CQL3Type.Native.FLOAT) {
+            return ByteBufferUtil.bytes(0F);
+        } else if (cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.VARCHAR) {
+            return ByteBufferUtil.bytes("");
+        } else if (cqlType == CQL3Type.Native.UUID) {
+            return ByteBufferUtil.bytes(UUID.randomUUID());
+        } else if (cqlType == CQL3Type.Native.TIMEUUID) {
+            return ByteBufferUtil.bytes(UUID.randomUUID());
+        } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
+            return ByteBufferUtil.bytes(0L);
+        } else if (cqlType == CQL3Type.Native.BOOLEAN) {
+            return BooleanType.instance.decompose(false);
+        } else {
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         }
     }
 

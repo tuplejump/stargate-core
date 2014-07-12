@@ -41,9 +41,9 @@ public class Search {
 
 
     /**
-     * The sorting to apply
+     * The sort to apply
      */
-    private final Sorting sorting;
+    private final Sort sort;
 
     /**
      * Returns a new {@link Search} composed by the specified querying and filtering conditions.
@@ -54,10 +54,10 @@ public class Search {
     @JsonCreator
     public Search(@JsonProperty("query") Condition queryCondition,
                   @JsonProperty("filter") Condition filterCondition,
-                  @JsonProperty("sort") Sorting sorting) {
+                  @JsonProperty("sort") Sort sort) {
         this.queryCondition = queryCondition;
         this.filterCondition = filterCondition;
-        this.sorting = sorting;
+        this.sort = sort;
     }
 
     /**
@@ -71,7 +71,7 @@ public class Search {
      * sorted by the natural Cassandra's order.
      */
     public boolean usesSorting() {
-        return queryCondition != null || sorting != null;
+        return queryCondition != null || sort != null;
     }
 
     /**
@@ -95,8 +95,8 @@ public class Search {
         }
     }
 
-    public Sort sort(Options schema) {
-        return sorting == null ? null : sorting.sort(schema);
+    public org.apache.lucene.search.Sort sort(Options schema) {
+        return sort == null ? null : sort.sort(schema);
     }
 
     /**

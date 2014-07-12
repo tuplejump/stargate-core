@@ -20,11 +20,11 @@ public class DropAndRecreateTest extends IndexTestBase {
         createKS(keyspace);
         createTableAndIndex(false);
         Assert.assertEquals(8, countResults("TAG", "", false, false));
-        Assert.assertEquals(3, countResults("TAG", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
+        Assert.assertEquals(3, countResults("TAG", "category = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
         getSession().execute("DROP INDEX dropcreate;");
         createTableAndIndex(true);
         Assert.assertEquals(8, countResults("TAG", "", false, false));
-        Assert.assertEquals(3, countResults("TAG", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
+        Assert.assertEquals(3, countResults("TAG", "category = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
     }
 
     private void createTableAndIndex(boolean isRecreate) {
@@ -45,9 +45,9 @@ public class DropAndRecreateTest extends IndexTestBase {
                 "}\n";
         getSession().execute("USE " + keyspace + ";");
         if (!isRecreate) {
-            getSession().execute("CREATE TABLE TAG(key varchar, key1 varchar, state varchar, category varchar,tags varchar, gdp bigint, magic text, PRIMARY KEY((key,key1),state,gdp))");
+            getSession().execute("CREATE TABLE TAG(key varchar, key1 varchar, state varchar, category varchar,tags varchar, gdp bigint, PRIMARY KEY((key,key1),state,gdp))");
         }
-        getSession().execute("CREATE CUSTOM INDEX dropcreate ON TAG(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + (isRecreate ? options1 : options) + "'}");
+        getSession().execute("CREATE CUSTOM INDEX dropcreate ON TAG(category) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + (isRecreate ? options1 : options) + "'}");
         if (!isRecreate) {
             //first insert some data
             getSession().execute("insert into TAG (key,key1,tags,state,category,gdp) values ('1','A','hello1 tag1 lol1', 'CA','first', 1)");

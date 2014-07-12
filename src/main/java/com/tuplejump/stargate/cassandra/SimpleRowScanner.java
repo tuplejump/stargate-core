@@ -1,17 +1,19 @@
 package com.tuplejump.stargate.cassandra;
 
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
+import com.tuplejump.stargate.Fields;
+import com.tuplejump.stargate.RowIndex;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
