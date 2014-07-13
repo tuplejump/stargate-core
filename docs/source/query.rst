@@ -77,7 +77,7 @@ Fuzzy
 ------
 Fuzzy searches based on the Levenshtein Distance.
 
-..note :: 
+.. note :: 
 	
 	* For fuzzy queries the index needs to store term vectors with position.
 	* Hence while creating the index, Index options need to be specified as DOCS_AND_FREQS_AND_POSITIONS
