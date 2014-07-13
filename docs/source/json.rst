@@ -17,7 +17,7 @@ Change into you keyspace::
 
 	USE MY_KEYSPACE;
 
-Let us create a table named PERSON like so::
+Let us create a table named PERSON_JSON like so::
 	
 	CREATE TABLE PERSON_JSON (
 	    id int primary key,
@@ -41,7 +41,9 @@ The above table has just one column 'json' which is of CQL type text. We can pus
 	        }'
 	};
 
-**Points of note here:**
+
+.. note::
+	
 	* You create an index on a meta column of CQL type text. The column name can be anything.
 	* The JSON column should be of CQL type text. 
 	* In sg_options, you specify the type of the column as 'object'. This indicates that the object is a json.
@@ -184,7 +186,8 @@ Suppose you insert data into the table like so ::
 		]
 	}');
 
-**More points of note:**
+.. note::
+
 	* In the above data all json fields become searchable as top level index fields. For example 'age' in the json becomes searchable 'age' in the index.
 	* Nested fields become searchable top level fields with a 'parent.child' notation.
 	* For example 'name' in 'friends' becomes searchable as 'friends.name'

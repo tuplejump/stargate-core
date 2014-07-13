@@ -55,7 +55,8 @@ A row index with name 'person_idx' can be created on a table named 'PERSON' is c
 	        }'
 	};
 
-Points of note here:
+.. note::
+
 	* You create an index on a meta column of CQL type text. The column name can be anything.
 	* The meta column should be left empty. While inserting data, it is left out in the values list.
 	* The meta column is used to return any meta information about the search such as score(relevance), positions for highlighting etc.

@@ -1,10 +1,10 @@
-Welcome to Stargate documentation!
-====================================
+Stargate documentation
+======================
 
 Contents:
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 4
 
    intro
    install
