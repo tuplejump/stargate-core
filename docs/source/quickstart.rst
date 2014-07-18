@@ -30,7 +30,7 @@ Let us create a table named PERSON like so::
 	    email varchar,
 	    phone varchar,
 	    address text,
-	    meta text
+	    stargate text
 	);
 
 

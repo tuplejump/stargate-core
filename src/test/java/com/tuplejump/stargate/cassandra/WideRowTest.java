@@ -64,6 +64,7 @@ public class WideRowTest extends IndexTestBase {
 
     private void createTableAndIndexForRow() {
         String options = "{\n" +
+                "\t\"numShards\":1024,\n" +
                 "\t\"metaColumn\":true,\n" +
                 "\t\"fields\":{\n" +
                 "\t\t\"tags\":{\"type\":\"text\"},\n" +

@@ -31,13 +31,10 @@ import java.util.List;
  */
 public class BooleanCondition extends Condition {
 
-    @JsonProperty("must")
     private List<Condition> must;
 
-    @JsonProperty("should")
     private List<Condition> should;
 
-    @JsonProperty("not")
     private List<Condition> not;
 
     /**

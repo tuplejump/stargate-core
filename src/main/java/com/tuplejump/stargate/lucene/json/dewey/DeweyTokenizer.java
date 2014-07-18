@@ -1,6 +1,6 @@
 package com.tuplejump.stargate.lucene.json.dewey;
 
-import com.tuplejump.stargate.lucene.Options;
+import com.tuplejump.stargate.lucene.json.JsonDocument;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
@@ -17,6 +17,7 @@ import java.util.Stack;
  * User: satya
  */
 public class DeweyTokenizer extends Tokenizer {
+
     public static final String FIELD = "FIELD";
     public static final String STRING = "STRING";
     public static final String NUMBER = "NUMBER";
@@ -35,14 +36,14 @@ public class DeweyTokenizer extends Tokenizer {
      */
     public DeweyTokenizer(Reader input) throws IOException {
         super(input);
-        js = Options.f.createJsonParser(input);
+        js = JsonDocument.jsonFactory.createJsonParser(input);
         levelStack = new Stack<>();
     }
 
     @Override
     public void reset() throws IOException {
         super.reset();
-        js = Options.f.createJsonParser(input);
+        js = JsonDocument.jsonFactory.createJsonParser(input);
         levelStack = new Stack<>();
     }
 

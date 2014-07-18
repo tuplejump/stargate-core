@@ -15,7 +15,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
-import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.map.*;
 import org.codehaus.jackson.map.module.SimpleModule;
@@ -37,12 +36,13 @@ public class Options {
     public static final String DUMMY_DIR = "_DUMMY_";
     public static String defaultIndexesDir = System.getProperty("sg.index.dir", DUMMY_DIR);
     public static final ObjectMapper jsonMapper = new ObjectMapper();
-    public static final JsonFactory f = new MappingJsonFactory();
 
 
     static {
-        f.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
         jsonMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+        jsonMapper.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+        jsonMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
+        jsonMapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         jsonMapper.configure(SerializationConfig.Feature.AUTO_DETECT_IS_GETTERS, false);
         SimpleModule module = new SimpleModule("LowerCaseKeyDeserializer",
                 new org.codehaus.jackson.Version(1, 9, 0, null));
@@ -115,8 +115,7 @@ public class Options {
 
     public static Options getOptions(String columnName, ColumnFamilyStore baseCfs, String json) {
         try {
-            JsonParser jp = f.createJsonParser(json);
-            Properties mapping = jp.readValueAs(Properties.class);
+            Properties mapping = jsonMapper.readValue(json, Properties.class);
             return new Options(mapping, baseCfs, columnName);
 
         } catch (IOException e) {

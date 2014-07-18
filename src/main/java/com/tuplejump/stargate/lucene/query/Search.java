@@ -17,7 +17,6 @@ package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.lucene.search.*;
-import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 import org.slf4j.Logger;
@@ -107,8 +106,7 @@ public class Search {
      */
     public static Search fromJson(String json) {
         try {
-            JsonParser jp = Options.f.createJsonParser(json);
-            return jp.readValueAs(Search.class);
+            return Options.jsonMapper.readValue(json, Search.class);
         } catch (Exception e) {
             String message = "Cannot parse JSON index expression: " + json;
             logger.error(message, e);
