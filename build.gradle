@@ -2,8 +2,10 @@ apply plugin: 'java'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 apply plugin: 'maven'
+apply plugin: 'signing'
 
 version = '0.9.5'
+group = 'com.tuplejump'
 
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
@@ -13,53 +15,38 @@ repositories {
     mavenLocal()
 }
 
-configurations {
-    provided
-}
-
-sourceSets {
-    main.compileClasspath += configurations.provided
-    test.compileClasspath += configurations.provided
-    test.runtimeClasspath += configurations.provided
-}
-
 
 dependencies {
 
     //lucene dependencies
     compile group: 'org.apache.lucene', name: 'lucene-core', version: '4.8.1'
+    compile group: 'org.apache.lucene', name: 'lucene-spatial', version: '4.8.1'
     compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: '4.8.1'
     compile('org.apache.lucene:lucene-queryparser:4.8.1') {
         exclude group: 'org.apache.lucene', module: 'lucene-sandbox'
     }
     compile('org.apache.lucene:lucene-join:4.8.1')
-
     compile('joda-time:joda-time:2.3')
-
-    //additional libraries
-    compile('org.codehaus.jackson:jackson-mapper-asl:1.9.13')
-    compile('org.codehaus.jackson:jackson-core-asl:1.9.13')
-
     compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
 
-    provided group: 'com.google.guava', name: 'guava', version: '15.0'
+    //provided dependencies - do not copy into dist
+    compile('org.codehaus.jackson:jackson-mapper-asl:1.9.2')
+    compile('org.codehaus.jackson:jackson-core-asl:1.9.2')
+    compile('com.google.guava:guava:15.0')
+    compile('org.apache.commons:commons-lang3:3.1')
+    compile('org.slf4j:slf4j-api:1.7.2')
+    compile('org.slf4j:slf4j-log4j12:1.7.2')
 
-    provided('org.apache.commons:commons-lang3:3.1')
-
-    //provided dependencies
-    provided('org.apache.cassandra:cassandra-all:2.0.9') {
+    compile('org.apache.cassandra:cassandra-all:2.0.9') {
         exclude group: 'asm'
         exclude group: 'org.apache.mina'
         exclude group: 'com.google.guava'
     }
-    provided('org.slf4j:slf4j-api:1.7.2')
-    provided('org.slf4j:slf4j-log4j12:1.7.2')
-
 
     //testing dependencies
     testCompile group: 'junit', name: 'junit', version: '4.11+'
 
-    testCompile('com.datastax.cassandra:cassandra-driver-core:2.0.1') {
+    testCompile('com.datastax.cassandra:cassandra-driver-core:2.0.3') {
         exclude group: 'org.apache.cassandra', module: 'cassandra-all'
         exclude group: 'log4j'
         exclude group: 'io.netty'
@@ -87,21 +74,22 @@ task perfTest(type: Test) << {
     include 'com/tuplejump/perf/**'
 }
 
-idea {
-    module {
-        scopes.PROVIDED.plus += configurations.provided
-    }
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
 }
 
-eclipse {
-    classpath {
-        plusConfigurations += configurations.provided
-    }
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
 }
 
 task copyLibs(type: Copy) {
     from configurations.compile
     into 'build/dist/stargate/libs'
+    include 'lucene-*.jar'
+    include 'joda-*.jar'
+    include 'commons-collections-*.jar'
 }
 
 task copySamples(type: Copy) {
@@ -125,16 +113,65 @@ task dist(type: Tar) {
     from('build/dist')
 }
 
-task distZip(type: Zip) {
-    baseName 'stargate-core'
-    dependsOn jar
-    from('build/dist')
-}
-
 install {
     repositories.mavenInstaller {
         pom.version = '0.9.5'
         pom.groupId = 'com.tuplejump'
         pom.artifactId = 'stargate-core'
+    }
+}
+
+artifacts {
+    archives javadocJar, sourcesJar
+}
+
+signing {
+    sign configurations.archives
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            pom.artifactId = 'stargate-core'
+
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            pom.project {
+                name 'stargate core'
+                packaging 'jar'
+                // optionally artifactId can be defined here
+                description 'Lucene based secondary indices for Cassandra'
+                url 'http://tuplejump.github.io/stargate/'
+
+                scm {
+                    connection 'scm:git:git@github.com:tuplejump/stargate-core.git'
+                    developerConnection 'scm:git:git@github.com:tuplejump/stargate-core.git'
+                    url 'https://github.com/tuplejump/stargate-core'
+                }
+
+                licenses {
+                    license {
+                        name 'The Apache Software License, Version 2.0'
+                        url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id 'trulite'
+                        name 'trulite'
+                        email 'satya@tuplejump.com'
+                    }
+                }
+            }
+        }
     }
 }

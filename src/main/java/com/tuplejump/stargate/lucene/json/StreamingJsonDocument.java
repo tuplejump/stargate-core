@@ -2,7 +2,6 @@ package com.tuplejump.stargate.lucene.json;
 
 import com.google.common.base.Joiner;
 import com.tuplejump.stargate.Fields;
-import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.document.FieldType;
 import org.codehaus.jackson.JsonParser;
@@ -27,7 +26,7 @@ public class StreamingJsonDocument extends JsonDocument {
     public StreamingJsonDocument(String json, Properties properties, String jsonColName) {
         super(properties, jsonColName);
         try {
-            JsonParser jp = Options.f.createJsonParser(json);
+            JsonParser jp = jsonFactory.createJsonParser(json);
             List<String> fieldName = new ArrayList<>();
             String levelFieldName = null;
             JsonToken current = jp.nextToken();
