@@ -8,7 +8,7 @@ A query is given as follows ::
 A query has 3 parts. Query, filter and sort ::
 	
 	{
-		query:	{<query-options},
+		query:	{<query-options>},
 		filter:	{<query-options>},
 		sort:	{<sort-options>}
 	}
@@ -41,7 +41,7 @@ A query using the lucene standard query parser syntax.
 .. topic:: Properties
 
 	* *type :lucene*
-	* *field*: The default value on which this lucene query is being made
+	* *field*: The default value on which this lucene query is being made.
 	* *value*: The lucene query using query parser syntax.
 
 Match
@@ -71,7 +71,7 @@ Various values forming a phrase with a slop.
 	* *type :phrase*
 	* *field*: The field name for the value has to match.
 	* *value*: The list of values of the phrase.
-	* *slop*: How many words can be skipped between thewords in the phrase.
+	* *slop*: How many words can be skipped between the words in the phrase.
 
 Fuzzy
 ------
@@ -79,8 +79,8 @@ Fuzzy searches based on the Levenshtein Distance.
 
 .. note :: 
 	
-	* For fuzzy queries the index needs to store term vectors with position.
-	* Hence while creating the index, Index options need to be specified as DOCS_AND_FREQS_AND_POSITIONS
+	* For fuzzy queries, the index needs to store term vectors with position.
+	* Hence while creating the index, Index options need to be specified as DOCS_AND_FREQS_AND_POSITIONS.
 
 .. topic:: Datatypes supported
 	
@@ -94,7 +94,7 @@ Fuzzy searches based on the Levenshtein Distance.
 	* *value*: The value of the field to match.
 	* *maxEdits*: **(default = 2)** Value between 0 and 2 (the Levenshtein automaton maximum supported distance).
 	* *prefixLength*: **(default = 0)** Integer representing the length of common non-fuzzy prefix.
-	* *maxExpansions*: **(default = 50)**: an integer for the maximum number of terms to match.
+	* *maxExpansions*: **(default = 50)**: An integer for the maximum number of terms to match.
 
 
 Prefix
@@ -125,7 +125,7 @@ A range of values to match.
 	* *type :range*
 	* *field*: The field name for which the range is being specified.
 	* *lower*: lower bound of the range. Defaults to lower value of the data type.
-	* *includeLower*: **(default = false)** if the left value is included in the results (>=)
+	* *includeLower*: **(default = false)** if the left value is included in the results (>=).
 	* *upper*: upper bound of the range. Defaults to upper value of the data type.
 	* *includeUpper*: **(default = false)** if the right value is included in the results (<=).
 
@@ -172,9 +172,9 @@ A Boolean query can have a must,should and not conditions.
 .. topic:: Properties
 
 	* *type :match*
-	* *must*: a list of conditions that must occur in the value. Each condition is a query.
-	* *should*: a list of conditions that should occur. Each condition is a query.
-	* *not*: a list of conditions that should not occur. Each condition is a query
+	* *must*: A list of conditions that must occur in the value. Each condition is a query.
+	* *should*: A list of conditions that should occur. Each condition is a query.
+	* *not*: A list of conditions that should not occur. Each condition is a query.
 
 
 As a reference the table below lists the queries that are possible and along with the properties that are available for each type of query
