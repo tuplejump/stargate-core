@@ -38,7 +38,7 @@ Creating a Row Index
 ^^^^^^^^^^^^^^^^^^^^^
 A row index with name 'person_idx' can be created on a table named 'PERSON' is created like so::
 	
-	CREATE CUSTOM INDEX person_idx ON PERSON(meta) USING
+	CREATE CUSTOM INDEX person_idx ON PERSON(stargate) USING
 	'com.tuplejump.stargate.RowIndex' WITH options =
 	{
 	        'sg_options':'{
