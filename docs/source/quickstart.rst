@@ -13,7 +13,7 @@ Open cassandra/bin/cqlsh and optionally create a keyspace::
 	 'replication_factor' : 1 
 	};
 
-Change into you keyspace::
+Change into your keyspace::
 
 	USE MY_KEYSPACE;
 
@@ -36,7 +36,7 @@ Let us create a table named PERSON like so::
 
 Creating a Row Index
 ^^^^^^^^^^^^^^^^^^^^^
-A row index with name 'person_idx' can be created on a table named 'PERSON' is created like so::
+A row index with name 'person_idx' can be created on a table named 'PERSON' like so::
 	
 	CREATE CUSTOM INDEX person_idx ON PERSON(stargate) USING
 	'com.tuplejump.stargate.RowIndex' WITH options =
@@ -47,7 +47,6 @@ A row index with name 'person_idx' can be created on a table named 'PERSON' is c
 	                        "eyeColor":{},
 	                        "name":{},
 	                        "gender":{},
-	                        "eyeColor":{},
 	                        "company":{},
 	                        "phone":{},
 	                        "address":{}
@@ -84,7 +83,7 @@ Once you have done that, you are now ready to query.
 
 Querying a Row Index
 ^^^^^^^^^^^^^^^^^^^^^
-Here is a list of quick queries that can be made using the default options. For more information on queries read the Queries section ::
+Here is a list of quick queries that can be made using the default options. For more information on queries, read the Queries section ::
 
 	-- select all people with age more than 30
 	SELECT * FROM PERSON WHERE stargate ='{
