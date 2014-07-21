@@ -3,7 +3,6 @@ package com.tuplejump.stargate.cassandra;
 import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.lucene.Indexer;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.lucene.SearcherCallback;
@@ -18,6 +17,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -39,22 +39,20 @@ public class PerRowSearchSupport extends SearchSupport {
 
     protected Set<String> fieldNames;
 
-    public PerRowSearchSupport(SecondaryIndexManager indexManager, RowIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
-        super(indexManager, currentIndex, indexer, columns, primaryColName, options);
+    public PerRowSearchSupport(SecondaryIndexManager indexManager, RowIndex currentIndex, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
+        super(indexManager, currentIndex, columns, primaryColName, options);
         this.fieldNames = options.fieldTypes.keySet();
     }
 
     @Override
     public List<Row> search(ExtendedFilter mainFilter) {
         try {
-            assert currentIndex.isIndexBuilt(primaryColName);
             List<IndexExpression> clause = mainFilter.getClause();
             if (logger.isDebugEnabled())
                 logger.debug("All IndexExprs {}", clause);
             Pair<Query, Sort> queryAndSort = getQuery(matchThisIndex(clause));
             //This is mainly to allow data ranges to occur on searches with range and data together.
-            ExtendedFilter filter = ExtendedFilter.create(baseCfs, mainFilter.dataRange, null, mainFilter.maxRows(), false, mainFilter.timestamp);
-            return getRows(filter, queryAndSort, false);
+            return getRows(mainFilter, queryAndSort, false);
         } catch (Exception e) {
             if (currentIndex.isMetaColumn()) {
                 logger.error("Exception occurred while querying", e);
@@ -96,7 +94,7 @@ public class PerRowSearchSupport extends SearchSupport {
 
             }
         };
-        return indexer.search(sc);
+        return currentIndex.search(filter, sc);
     }
 
     protected IndexExpression matchThisIndex(List<IndexExpression> clause) {
@@ -126,7 +124,8 @@ public class PerRowSearchSupport extends SearchSupport {
     }
 
     @Override
-    public boolean deleteIfNotLatest(long timestamp, String pkString, ColumnFamily cf) throws IOException {
+    public boolean deleteIfNotLatest(DecoratedKey decoratedKey, long timestamp, String pkString, ColumnFamily cf) throws IOException {
+        if (deleteRowIfNotLatest(decoratedKey, cf)) return true;
         Column lastColumn = null;
         for (ByteBuffer colKey : cf.getColumnNames()) {
             String name = currentIndex.getRowIndexSupport().getActualColumnName(colKey);
@@ -137,7 +136,17 @@ public class PerRowSearchSupport extends SearchSupport {
             }
         }
         if (lastColumn != null && lastColumn.maxTimestamp() > timestamp) {
-            currentIndex.delete(pkString, timestamp);
+            currentIndex.delete(decoratedKey, pkString, timestamp);
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean deleteRowIfNotLatest(DecoratedKey decoratedKey, ColumnFamily cf) {
+        if (!cf.getColumnNames().iterator().hasNext()) {
+            if (currentIndex.getBaseCfs().metadata.getCfDef().iterator().hasNext())
+                currentIndex.delete(decoratedKey);
             return true;
         }
         return false;
@@ -203,7 +212,7 @@ public class PerRowSearchSupport extends SearchSupport {
             builder.add(Fields.defaultValue(baseComparator.types.get(i)));
         builder.add(UTF8Type.instance.decompose(colName));
         ByteBuffer finalColumnName = builder.build();
-        Column scoreColumn = new Column(finalColumnName, UTF8Type.instance.decompose("{\"error\":" + errorMsg + "}"));
+        Column scoreColumn = new Column(finalColumnName, UTF8Type.instance.decompose("{\"error\":\"" + StringEscapeUtils.escapeEcmaScript(errorMsg) + "\"}"));
         cleanColumnFamily.addColumn(scoreColumn);
     }
 }

@@ -66,6 +66,7 @@ dependencies {
 }
 
 test {
+    systemProperty "cluster", System.getProperty("cluster")
     jvmArgs '-javaagent:ext/jamm-0.2.5.jar'
 }
 
@@ -103,7 +104,7 @@ task copyJar(type: Copy) {
     into 'build/dist/stargate/libs'
 }
 
-jar { dependsOn ([copyLibs,copySamples]) }
+jar { dependsOn([copyLibs, copySamples]) }
 
 task dist(type: Tar) {
     baseName 'stargate-core'

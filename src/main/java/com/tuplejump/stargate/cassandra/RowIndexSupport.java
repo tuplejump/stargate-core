@@ -11,6 +11,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -28,13 +29,11 @@ import java.util.List;
  */
 public abstract class RowIndexSupport {
     protected Options options;
-    protected Indexer indexer;
     protected ColumnFamilyStore table;
     FieldType tsFieldType;
 
-    public RowIndexSupport(Options options, Indexer indexer, ColumnFamilyStore table) {
+    public RowIndexSupport(Options options, ColumnFamilyStore table) {
         this.options = options;
-        this.indexer = indexer;
         this.table = table;
         tsFieldType = Properties.fieldType(Properties.ID_FIELD, CQL3Type.Native.BIGINT.getType());
     }
@@ -48,7 +47,7 @@ public abstract class RowIndexSupport {
      * @param rowKey The shard key for this row.
      * @param cf     the row to write.
      */
-    public abstract void indexRow(ByteBuffer rowKey, ColumnFamily cf);
+    public abstract void indexRow(Indexer indexer, ByteBuffer rowKey, ColumnFamily cf);
 
     /**
      * This is used to derive the actual column name from the byte buffer column name for a single column.
@@ -82,9 +81,8 @@ public abstract class RowIndexSupport {
         return fields;
     }
 
-    protected List<Field> idFields(String pkName, ByteBuffer pk, AbstractType rkValValidator) {
-        Field idField = Fields.idField(pkName);
-        return Arrays.asList(Fields.idDocValues(rkValValidator, pk), idField);
+    protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pk, AbstractType rkValValidator) {
+        return Arrays.asList(Fields.idDocValues(rkValValidator, pk), Fields.primaryKeyStored(pkName), Fields.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
     }
 
     protected List<Field> tsFields(long ts) {

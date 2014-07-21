@@ -3,6 +3,7 @@ package com.tuplejump.stargate.lucene;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 
 /**
  * User: satya
@@ -25,6 +26,10 @@ public interface Indexer {
     public void delete(Term... idTerm);
 
     public Analyzer getAnalyzer();
+
+    void release(IndexSearcher searcher);
+
+    IndexSearcher acquire();
 
     public <T> T search(SearcherCallback<T> searcherCallback);
 

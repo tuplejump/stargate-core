@@ -8,6 +8,7 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -27,7 +28,7 @@ import static com.tuplejump.stargate.Constants.*;
  * Utility methods to deal in fields.
  */
 public class Fields {
-    public static SortedDocValues getPKDocValues(IndexSearcher searcher) throws IOException {
+    public static SortedDocValues getRKDocValues(IndexSearcher searcher) throws IOException {
         AtomicReader wrapper = SlowCompositeReaderWrapper.wrap(searcher.getIndexReader());
         return wrapper.getSortedDocValues(PK_NAME_DOC_VAL);
     }
@@ -37,7 +38,7 @@ public class Fields {
         return wrapper.getNumericDocValues(CF_TS_DOC_VAL);
     }
 
-    public static ByteBuffer primaryKey(BinaryDocValues rowKeyValues, int docId) throws IOException {
+    public static ByteBuffer rowKey(BinaryDocValues rowKeyValues, int docId) throws IOException {
         BytesRef ref = new BytesRef();
         rowKeyValues.get(docId, ref);
         return ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
@@ -53,8 +54,11 @@ public class Fields {
         };
     }
 
-    public static Field idField(String pkValue) {
-        return new StringField(PK_NAME_INDEXED, pkValue, Field.Store.YES);
+    public static Field primaryKeyStored(String pkValue) {
+        return new StringField(PK_NAME_STORED, pkValue, Field.Store.YES);
+    }
+    public static Field rowKeyIndexed(String rkValue) {
+        return new StringField(RK_NAME_INDEXED, rkValue, Field.Store.NO);
     }
 
     public static Field textField(String name, String value) {
@@ -87,7 +91,7 @@ public class Fields {
     }
 
     public static Term idTerm(String pkString) {
-        return new Term(PK_NAME_INDEXED, pkString);
+        return new Term(PK_NAME_STORED, pkString);
     }
 
     public static Term rkTerm(String rkString) {

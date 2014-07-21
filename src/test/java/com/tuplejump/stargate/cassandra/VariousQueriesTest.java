@@ -2,6 +2,7 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.util.CQLUnitD;
 import junit.framework.Assert;
+import org.apache.cassandra.service.StorageService;
 import org.junit.Test;
 
 /**
@@ -19,19 +20,30 @@ public class VariousQueriesTest extends IndexTestBase {
         //hack to always create new Index during testing
         createKS(keyspace);
         createTableAndIndexForRow();
-
-        Assert.assertEquals(4, countResults("sample_table", "part=0 AND uid > 4 AND magic='" + q("searchName", "/.*?AT.*/") + "' ALLOW FILTERING", true));
-        Assert.assertEquals(1, countResults("sample_table", "part=0 AND uid < 4 AND magic='" + q("searchName", "/.*?AT.*/") + "'  ALLOW FILTERING", true));
-        Assert.assertEquals(5, countResults("sample_table", "magic = '" + q("searchName", "/.*?CT.*/") + "'", true));
-        Assert.assertEquals(5, countResults("sample_table", "magic = '" + pfq("searchName", "ca") + "'", true));
-        Assert.assertEquals(5, countResults("sample_table", "magic = '" + mq("searchName", "CATV") + "'", true));
-        Assert.assertEquals(5, countResults("sample_table", "magic = '" + fq(1, "searchName", "CATA") + "'", true));
-        Assert.assertEquals(0, countResults("sample_table", "magic = '" + fq(0, "searchName", "CCTA") + "'", true));
-        Assert.assertEquals(10, countResults("sample_table", "magic = '" + fq(1, "searchName", "CZTV") + "'", true));
-        Assert.assertEquals(10, countResults("sample_table", "magic = '" + q("searchName", "CATV CCTV") + "'", true));
-        Assert.assertEquals(1, countResults("sample_table", "magic = '" + phq(0, "searchName", "aaaa", "BBBB") + "'", true));
-        Assert.assertEquals(6, countResults("sample_table", "magic = '" + gtq("searchName", "CATV") + "'", true));
-        Assert.assertEquals(3, countResults("sample_table", "magic = '" + gtq("otherid", "9") + "'", true));
+        try {
+            Assert.assertEquals(4, countResults("sample_table", "part=0 AND uid > 4 AND magic='" + q("searchName", "/.*?AT.*/") + "' ALLOW FILTERING", true));
+            Assert.assertEquals(1, countResults("sample_table", "part=0 AND uid < 4 AND magic='" + q("searchName", "/.*?AT.*/") + "'  ALLOW FILTERING", true));
+            Assert.assertEquals(5, countResults("sample_table", "part=0 AND magic = '" + q("searchName", "/.*?CT.*/") + "'", true));
+            Assert.assertEquals(5, countResults("sample_table", "part=0 AND magic = '" + pfq("searchName", "ca") + "'", true));
+            Assert.assertEquals(5, countResults("sample_table", "part=0 AND magic = '" + mq("searchName", "CATV") + "'", true));
+            Assert.assertEquals(5, countResults("sample_table", "part=0 AND magic = '" + fq(1, "searchName", "CATA") + "'", true));
+            Assert.assertEquals(0, countResults("sample_table", "part=0 AND magic = '" + fq(0, "searchName", "CCTA") + "'", true));
+            Assert.assertEquals(10, countResults("sample_table", "part=0 AND magic = '" + fq(1, "searchName", "CZTV") + "'", true));
+            Assert.assertEquals(10, countResults("sample_table", "part=0 AND magic = '" + q("searchName", "CATV CCTV") + "'", true));
+            Assert.assertEquals(1, countResults("sample_table", "part=0 AND magic = '" + phq(0, "searchName", "aaaa", "BBBB") + "'", true));
+            Assert.assertEquals(6, countResults("sample_table", "part=0 AND magic = '" + gtq("searchName", "CATV") + "'", true));
+            Assert.assertEquals(3, countResults("sample_table", "part=0 AND magic = '" + gtq("otherid", "9") + "'", true));
+            getSession().execute("DELETE FROM sample_table where part=0");
+            Assert.assertEquals(0, countResults("sample_table", "part=0", true));
+            //this should write things from memory to SStable.
+            StorageService.instance.forceKeyspaceFlush(keyspace.toLowerCase(), "sample_table");
+            StorageService.instance.forceKeyspaceCleanup(keyspace.toLowerCase(), "sample_table");
+            StorageService.instance.forceKeyspaceCompaction(keyspace.toLowerCase(), "sample_table");
+            Assert.assertEquals(0, countResults("sample_table", "part=0 AND magic = '" + fq(1, "searchName", "CZTV") + "'", true));
+            Assert.assertEquals(0, countResults("sample_table", "part=0 AND magic = '" + q("searchName", "CATV CCTV") + "'", true));
+        } finally {
+            dropKS(keyspace);
+        }
     }
 
     private void createTableAndIndexForRow() {

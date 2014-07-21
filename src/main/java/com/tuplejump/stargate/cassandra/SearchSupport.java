@@ -2,21 +2,17 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.lucene.Indexer;
 import com.tuplejump.stargate.lucene.Options;
-import com.tuplejump.stargate.lucene.SearcherCallback;
 import com.tuplejump.stargate.lucene.query.Search;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.Pair;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -26,8 +22,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -39,21 +33,13 @@ import java.util.Set;
 public abstract class SearchSupport extends SecondaryIndexSearcher {
 
     protected static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
-    Analyzer analyzer;
     RowIndex currentIndex;
-    Indexer indexer;
-    boolean isKeyWordCheck;
-    ByteBuffer primaryColName;
     Options options;
 
-    public SearchSupport(SecondaryIndexManager indexManager, RowIndex currentIndex, Indexer indexer, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
+    public SearchSupport(SecondaryIndexManager indexManager, RowIndex currentIndex, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
         super(indexManager, columns);
-        this.analyzer = indexer.getAnalyzer();
         this.options = options;
         this.currentIndex = currentIndex;
-        this.indexer = indexer;
-        isKeyWordCheck = indexer.getAnalyzer() instanceof KeywordAnalyzer;
-        this.primaryColName = primaryColName;
     }
 
 
@@ -74,5 +60,7 @@ public abstract class SearchSupport extends SecondaryIndexSearcher {
 
     protected abstract ColumnFamilyStore.AbstractScanIterator searchResultsIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean needsFiltering) throws IOException;
 
-    public abstract boolean deleteIfNotLatest(long ts, String pkString, ColumnFamily cf) throws IOException;
+    public abstract boolean deleteIfNotLatest(DecoratedKey decoratedKey,long ts, String pkString, ColumnFamily cf) throws IOException;
+
+    public abstract boolean deleteRowIfNotLatest(DecoratedKey decoratedKey, ColumnFamily cf);
 }

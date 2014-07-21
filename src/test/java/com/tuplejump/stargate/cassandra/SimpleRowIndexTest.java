@@ -39,7 +39,7 @@ public class SimpleRowIndexTest extends IndexTestBase {
             assertThat(countResults("TAG2", "magic = '" + q("tags", "tags:h*") + "'", true), is(40));
             assertThat(countResults("TAG2", "magic = '" + q("tags", "tags:hello1") + "'", true), is(12));
             for (int i = 0; i < 20; i++) {
-                deleteTagData("TAG2", false, i);
+                deleteTagData("TAG2", "key", false, i);
             }
             assertThat(countResults("TAG2", "magic = '" + q("tags", "tags:hello*") + "'", true), is(16));
         } finally {

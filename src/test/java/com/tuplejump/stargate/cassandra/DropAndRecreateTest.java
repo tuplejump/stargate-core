@@ -19,12 +19,17 @@ public class DropAndRecreateTest extends IndexTestBase {
     public void shouldAllowToRecreateIndex() throws InterruptedException {
         createKS(keyspace);
         createTableAndIndex(false);
-        Assert.assertEquals(8, countResults("TAG", "", false, false));
-        Assert.assertEquals(3, countResults("TAG", "category = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
-        getSession().execute("DROP INDEX dropcreate;");
-        createTableAndIndex(true);
-        Assert.assertEquals(8, countResults("TAG", "", false, false));
-        Assert.assertEquals(3, countResults("TAG", "category = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
+        try {
+            Assert.assertEquals(8, countResults("TAG", "", false, false));
+            Assert.assertEquals(3, countResults("TAG", "category = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
+            getSession().execute("DROP INDEX dropcreate;");
+            createTableAndIndex(true);
+            Assert.assertEquals(8, countResults("TAG", "", false, false));
+            Assert.assertEquals(3, countResults("TAG", "category = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
+        } finally {
+            dropKS(keyspace);
+        }
+
     }
 
     private void createTableAndIndex(boolean isRecreate) {

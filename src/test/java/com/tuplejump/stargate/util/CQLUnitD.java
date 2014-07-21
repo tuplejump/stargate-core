@@ -90,7 +90,7 @@ public class CQLUnitD extends ExternalResource {
 
     public static CQLUnitD getCQLUnit(com.tuplejump.stargate.util.CQLDataSet ds) {
         CQLUnitD cassandraCQLUnit = null;
-        logger.debug("Env prop - cluster - " + System.getProperty("cluster", "false"));
+        logger.error("Env prop - cluster - " + System.getProperty("cluster", "false"));
         boolean cluster = Boolean.parseBoolean(System.getProperty("cluster", "false"));
         if (cluster) {
             Properties props = new Properties();

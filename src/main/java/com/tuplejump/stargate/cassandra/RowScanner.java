@@ -2,13 +2,11 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.Fields;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -47,7 +45,7 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
         this.searcher = searcher;
         this.filter = filter;
         this.needsFiltering = needsFiltering;
-        this.rowKeyValues = Fields.getPKDocValues(searcher);
+        this.rowKeyValues = Fields.getRKDocValues(searcher);
         this.tsValues = Fields.getTSDocValues(searcher);
         indexIterator = new ArrayIterator(topDocs.scoreDocs);
 
@@ -66,11 +64,11 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
             try {
                 ScoreDoc scoreDoc = (ScoreDoc) indexIterator.next();
                 Document document = searcher.doc(scoreDoc.doc);
-                IndexableField stringField = document.getField(Constants.PK_NAME_INDEXED);
+                IndexableField stringField = document.getField(Constants.PK_NAME_STORED);
                 String pkNameString = stringField.stringValue();
-                ByteBuffer primaryKey = Fields.primaryKey(rowKeyValues, scoreDoc.doc);
+                ByteBuffer rowKey = Fields.rowKey(rowKeyValues, scoreDoc.doc);
 
-                Pair<DecoratedKey, IDiskAtomFilter> keyAndFilter = getFilterAndKey(primaryKey, sliceQueryFilter);
+                Pair<DecoratedKey, IDiskAtomFilter> keyAndFilter = getFilterAndKey(rowKey, sliceQueryFilter);
                 if (keyAndFilter == null) {
                     continue;
                 }
@@ -106,37 +104,39 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
     private Row getRow(String pkString, IDiskAtomFilter dataFilter, DecoratedKey dk, long ts, Float score) throws IOException {
 
         ColumnFamily data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
-        if (data == null || searchSupport.deleteIfNotLatest(ts, pkString, data)) {
+        if (data == null || searchSupport.deleteIfNotLatest(dk, ts, pkString, data)) {
             return null;
         }
         ColumnFamily cleanColumnFamily = data;
         if (searchSupport.currentIndex.isMetaColumn()) {
             String indexColumnName = searchSupport.currentIndex.getPrimaryColumnName();
             cleanColumnFamily = TreeMapBackedSortedColumns.factory.create(table.metadata);
-            boolean metaColAdded = false;
+            boolean metaColReplaced = false;
             Column firstColumn = null;
             for (Column column : data) {
                 if (firstColumn == null) firstColumn = column;
                 String thisColName = searchSupport.currentIndex.getRowIndexSupport().getActualColumnName(column.name());
                 boolean isIndexColumn = indexColumnName.equals(thisColName);
                 if (isIndexColumn) {
-                    logger.warn("Primary col name {}", UTF8Type.instance.compose(column.name()));
+                    if (logger.isDebugEnabled())
+                        logger.debug("Primary col name {}", UTF8Type.instance.compose(column.name()));
                     Column scoreColumn = new Column(column.name(), UTF8Type.instance.decompose("{\"score\":" + score.toString() + "}"));
                     cleanColumnFamily.addColumn(scoreColumn);
-                    metaColAdded = true;
+                    metaColReplaced = true;
                 } else {
                     cleanColumnFamily.addColumn(column);
                 }
             }
-            if (!metaColAdded && firstColumn != null) {
-                addMetaColumn(firstColumn, indexColumnName, score, cleanColumnFamily);
+            if (!metaColReplaced && firstColumn != null) {
+                Column newColumn = getMetaColumn(firstColumn, indexColumnName, score);
+                cleanColumnFamily.addColumn(newColumn);
             }
         }
         return new Row(dk, cleanColumnFamily);
     }
 
 
-    protected abstract void addMetaColumn(Column firstColumn, String colName, Float score, ColumnFamily cleanColumnFamily);
+    protected abstract Column getMetaColumn(Column firstColumn, String colName, Float score);
 
     protected abstract Pair<DecoratedKey, IDiskAtomFilter> getFilterAndKey(ByteBuffer primaryKey, SliceQueryFilter sliceQueryFilter);
 

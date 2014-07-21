@@ -89,15 +89,9 @@ public class IndexTestBase {
     }
 
 
-    protected void deleteTagsData(String tName, boolean isString) {
-        for (int i = 1; i < 5; i++) {
-            deleteTagData(tName, isString, i);
-        }
-    }
-
-    protected void deleteTagData(String tName, boolean isString, int i) {
+    protected void deleteTagData(String tName, String key, boolean isString, int i) {
         String val = isString ? "'" + i + "'" : i + "";
-        getSession().execute("delete from " + tName + " where key = " + val);
+        getSession().execute("delete from " + tName + " where " + key + " = " + val);
     }
 
     protected void updateTagData(String tName, String key) {

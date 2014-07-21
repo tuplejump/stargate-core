@@ -29,7 +29,7 @@ public class CollectionIndexTest extends IndexTestBase {
             Assert.assertEquals(20, countResults("TAG2", "magic = '" + mq("phones.value", "555-4326") + "'", true));
             Assert.assertEquals(40, countResults("TAG2", "magic = '" + pfq("phones.value", "555") + "'", true));
             for (int i = 0; i < 20; i++) {
-                deleteTagData("TAG2", false, i + 1);
+                deleteTagData("TAG2", "key", false, i + 1);
             }
             Assert.assertEquals(8, countResults("TAG2", "magic = '" + q("tags2", "hot") + "'", true));
             Assert.assertEquals(14, countResults("TAG2", "magic = '" + q("tags2", "bad") + "'", true));

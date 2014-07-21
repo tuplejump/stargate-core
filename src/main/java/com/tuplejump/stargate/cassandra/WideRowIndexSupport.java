@@ -27,12 +27,12 @@ import java.util.*;
  */
 public class WideRowIndexSupport extends RowIndexSupport {
 
-    public WideRowIndexSupport(Options options, Indexer indexer, ColumnFamilyStore table) {
-        super(options, indexer, table);
+    public WideRowIndexSupport(Options options, ColumnFamilyStore table) {
+        super(options, table);
     }
 
     @Override
-    public void indexRow(ByteBuffer rowKey, ColumnFamily cf) {
+    public void indexRow(Indexer indexer, ByteBuffer rowKey, ColumnFamily cf) {
         Map<ByteBuffer, List<Field>> primaryKeysVsFields = new HashMap<>();
         DecoratedKey dk = table.partitioner.decorateKey(rowKey);
         Map<ByteBuffer, Long> timestamps = new HashMap<>();
@@ -43,15 +43,16 @@ public class WideRowIndexSupport extends RowIndexSupport {
             Column column = cols.next();
             addColumn(rowKey, pkNames, primaryKeysVsFields, timestamps, column);
         }
-        addToIndex(cf, dk, pkNames, primaryKeysVsFields, timestamps, rowKeyValidator);
+        addToIndex(indexer, cf, dk, pkNames, primaryKeysVsFields, timestamps, rowKeyValidator);
     }
 
-    private void addToIndex(ColumnFamily cf, DecoratedKey dk, Map<ByteBuffer, String> pkNames, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, AbstractType rkValValidator) {
+    private void addToIndex(Indexer indexer, ColumnFamily cf, DecoratedKey dk, Map<ByteBuffer, String> pkNames, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, AbstractType rkValValidator) {
         for (Map.Entry<ByteBuffer, List<Field>> entry : primaryKeysVsFields.entrySet()) {
             ByteBuffer pk = entry.getKey();
             String pkName = pkNames.get(pk);
             List<Field> fields = entry.getValue();
             Term term = Fields.idTerm(pkName);
+
             if (cf.isMarkedForDelete() && options.collectionFieldTypes.isEmpty()) {
                 if (logger.isDebugEnabled())
                     logger.debug("Column family marked for delete -" + dk);
@@ -61,7 +62,7 @@ public class WideRowIndexSupport extends RowIndexSupport {
             } else {
                 if (logger.isDebugEnabled())
                     logger.debug("Column family update -" + dk);
-                fields.addAll(idFields(pkName, pk, rkValValidator));
+                fields.addAll(idFields(dk, pkName, pk, rkValValidator));
                 fields.addAll(tsFields(timestamps.get(pk)));
                 indexer.insert(fields);
             }

@@ -50,49 +50,53 @@ public class JsonDocumentTest extends IndexTestBase {
 
     @Test
     public void shouldIndexJson() throws Exception {
-        String mappingStr = "{\n" +
-                "\t\"fields\":{\n" +
-                "\t\t\"jsonCol\":{\n" +
-                "\t\t\t\"type\":\"object\",\n" +
-                "\t\t\t\"fields\":{\n" +
-                "\t\t\t\t\"name\":{\"type\":\"text\"},\n" +
-                "\t\t\t\t\"age\":{\"type\":\"integer\"},\n" +
-                "\t\t\t\t\"address\":{\"type\":\"text\",\"indexOptions\":\"DOCS_AND_FREQS_AND_POSITIONS\"},\n" +
-                "\t\t\t\t\"friends\":{\n" +
-                "\t\t\t\t\t\"fields\":{\n" +
-                "\t\t\t\t\t\t\"name\":{\"type\":\"string\"}\n" +
-                "\t\t\t\t\t}\n" +
-                "\t\t\t\t}\n" +
-                "\t\t\t}\n" +
-                "\t\t}\n" +
-                "\t}\n" +
-                "}";
-        createKS(keyspace);
-        getSession().execute("USE " + keyspace + ";");
-        getSession().execute("CREATE TABLE JSON_SAMPLE (key int primary key, jsonCol varchar,lucene text)");
-        getSession().execute("CREATE CUSTOM INDEX jsonIndex ON JSON_SAMPLE(lucene) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + mappingStr + "'}");
-        List<JsonNode> kids = jsonVal.getElements();
-        int i = 0;
-        for (JsonNode kid : kids) {
-            StringWriter sw = new StringWriter();
-            PrintWriter writer = new PrintWriter(sw);
-            formatJsonNode(kid, writer, 0);
-            writer.flush();
-            String json = sw.toString();
-            getSession().execute("insert into JSON_SAMPLE (key,jsonCol) values (" + (i++ + 1) + ",'" + json + "')");
+        try {
+            String mappingStr = "{\n" +
+                    "\t\"fields\":{\n" +
+                    "\t\t\"jsonCol\":{\n" +
+                    "\t\t\t\"type\":\"object\",\n" +
+                    "\t\t\t\"fields\":{\n" +
+                    "\t\t\t\t\"name\":{\"type\":\"text\"},\n" +
+                    "\t\t\t\t\"age\":{\"type\":\"integer\"},\n" +
+                    "\t\t\t\t\"address\":{\"type\":\"text\",\"indexOptions\":\"DOCS_AND_FREQS_AND_POSITIONS\"},\n" +
+                    "\t\t\t\t\"friends\":{\n" +
+                    "\t\t\t\t\t\"fields\":{\n" +
+                    "\t\t\t\t\t\t\"name\":{\"type\":\"string\"}\n" +
+                    "\t\t\t\t\t}\n" +
+                    "\t\t\t\t}\n" +
+                    "\t\t\t}\n" +
+                    "\t\t}\n" +
+                    "\t}\n" +
+                    "}";
+            createKS(keyspace);
+            getSession().execute("USE " + keyspace + ";");
+            getSession().execute("CREATE TABLE JSON_SAMPLE (key int primary key, jsonCol varchar,lucene text)");
+            getSession().execute("CREATE CUSTOM INDEX jsonIndex ON JSON_SAMPLE(lucene) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + mappingStr + "'}");
+            List<JsonNode> kids = jsonVal.getElements();
+            int i = 0;
+            for (JsonNode kid : kids) {
+                StringWriter sw = new StringWriter();
+                PrintWriter writer = new PrintWriter(sw);
+                formatJsonNode(kid, writer, 0);
+                writer.flush();
+                String json = sw.toString();
+                getSession().execute("insert into JSON_SAMPLE (key,jsonCol) values (" + (i++ + 1) + ",'" + json + "')");
+            }
+            Assert.assertEquals(5, countResults("JSON_SAMPLE", "", false, false));
+            Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + q("age", "40") + "'", true));
+            Assert.assertEquals(2, countResults("JSON_SAMPLE", "lucene = '" + q("tags", "good") + "'", true));
+            Assert.assertEquals(3, countResults("JSON_SAMPLE", "lucene = '" + q("tags", "bad") + "'", true));
+            Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + q("name", "casey*") + "'", true));
+            Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + wq("name", "casey*") + "'", true));
+            Assert.assertEquals(4, countResults("JSON_SAMPLE", "lucene = '" + q("friends.name", "casey*") + "'", true));
+            Assert.assertEquals(4, countResults("JSON_SAMPLE", "lucene = '" + mq("friends.name", "Casey Stone") + "'", true));
+            Assert.assertEquals(5, countResults("JSON_SAMPLE", "lucene = '" + pfq("friends.name", "ca") + "'", true));
+            Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + mq("friends.name", "robyn wynn") + "'", true));
+            Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + fq(1, "friends.name", "robin wynn") + "'", true));
+            Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + phq(1, "address", "Court", "Hawaii") + "'", true));
+        } finally {
+            dropKS(keyspace);
         }
-        Assert.assertEquals(5, countResults("JSON_SAMPLE", "", false, false));
-        Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + q("age", "40") + "'", true));
-        Assert.assertEquals(2, countResults("JSON_SAMPLE", "lucene = '" + q("tags", "good") + "'", true));
-        Assert.assertEquals(3, countResults("JSON_SAMPLE", "lucene = '" + q("tags", "bad") + "'", true));
-        Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + q("name", "casey*") + "'", true));
-        Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + wq("name", "casey*") + "'", true));
-        Assert.assertEquals(4, countResults("JSON_SAMPLE", "lucene = '" + q("friends.name", "casey*") + "'", true));
-        Assert.assertEquals(4, countResults("JSON_SAMPLE", "lucene = '" + mq("friends.name", "Casey Stone") + "'", true));
-        Assert.assertEquals(5, countResults("JSON_SAMPLE", "lucene = '" + pfq("friends.name", "ca") + "'", true));
-        Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + mq("friends.name", "robyn wynn") + "'", true));
-        Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + fq(1, "friends.name", "robin wynn") + "'", true));
-        Assert.assertEquals(1, countResults("JSON_SAMPLE", "lucene = '" + phq(1, "address", "Court", "Hawaii") + "'", true));
     }
 
 

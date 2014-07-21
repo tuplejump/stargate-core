@@ -3,8 +3,6 @@ package com.tuplejump.stargate;
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
@@ -58,10 +56,10 @@ public class Utils {
     }
 
 
-    public static File getDirectory(String ksName, String cfName, String indexName) throws IOException {
+    public static File getDirectory(String ksName, String cfName, String indexName, String vNodeName) throws IOException {
         String fileName = indexName;
         String dirName = Options.defaultIndexesDir;
-        dirName = dirName + File.separator + ksName + File.separator + cfName;
+        dirName = dirName + File.separator + ksName + File.separator + cfName + File.separator + vNodeName;
         logger.debug("SGIndex - INDEX_FILE_NAME -" + fileName);
         logger.debug("SGIndex - INDEX_DIR_NAME -" + dirName);
         //will only create parent if not existing.

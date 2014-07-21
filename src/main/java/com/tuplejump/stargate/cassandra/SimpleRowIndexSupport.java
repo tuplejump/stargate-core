@@ -25,16 +25,16 @@ import java.util.List;
  */
 public class SimpleRowIndexSupport extends RowIndexSupport {
 
-    public SimpleRowIndexSupport(Options options, Indexer indexer, ColumnFamilyStore table) {
-        super(options, indexer, table);
+    public SimpleRowIndexSupport(Options options, ColumnFamilyStore table) {
+        super(options, table);
     }
 
     @Override
-    public void indexRow(ByteBuffer rowKey, ColumnFamily cf) {
+    public void indexRow(Indexer indexer, ByteBuffer rowKey, ColumnFamily cf) {
         AbstractType rkValValidator = table.metadata.getKeyValidator();
         DecoratedKey dk = table.partitioner.decorateKey(rowKey);
-        Term term = Fields.idTerm(rkValValidator.getString(rowKey));
         if (cf.isMarkedForDelete()) {
+            Term term = Fields.idTerm(rkValValidator.getString(rowKey));
             if (logger.isDebugEnabled()) {
                 logger.debug("Column family marked for delete -" + dk);
                 logger.debug(String.format("RowIndex delete - Key [%s]", term));
@@ -56,7 +56,7 @@ public class SimpleRowIndexSupport extends RowIndexSupport {
             }
             if (logger.isDebugEnabled())
                 logger.debug("Column family update -" + dk);
-            fields.addAll(idFields(rkValValidator.getString(rowKey), rowKey, rkValValidator));
+            fields.addAll(idFields(dk, rkValValidator.getString(rowKey), rowKey, rkValValidator));
             fields.addAll(tsFields(cf.maxTimestamp()));
             indexer.insert(fields);
         }
