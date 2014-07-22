@@ -12,10 +12,10 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TopDocs;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
  * User: satya
@@ -23,7 +23,7 @@ import java.util.ArrayList;
  */
 public class WideRowScanner extends RowScanner {
 
-    public WideRowScanner(SearchSupport searchSupport, ColumnFamilyStore table, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean needsFiltering) throws Exception {
+    public WideRowScanner(SearchSupport searchSupport, ColumnFamilyStore table, IndexSearcher searcher, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> topDocs, boolean needsFiltering) throws Exception {
         super(searchSupport, table, searcher, filter, topDocs, needsFiltering);
     }
 

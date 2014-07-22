@@ -82,7 +82,7 @@ public abstract class RowIndexSupport {
     }
 
     protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pk, AbstractType rkValValidator) {
-        return Arrays.asList(Fields.idDocValues(rkValValidator, pk), Fields.primaryKeyStored(pkName), Fields.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
+        return Arrays.asList(Fields.idDocValues(rkValValidator, pk), Fields.pkNameDocValues(pkName), Fields.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
     }
 
     protected List<Field> tsFields(long ts) {

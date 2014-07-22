@@ -15,13 +15,12 @@ import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TopDocs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -43,7 +42,7 @@ public abstract class SearchSupport extends SecondaryIndexSearcher {
     }
 
 
-    protected Pair<Query, Sort> getQuery(IndexExpression predicate) throws Exception {
+    protected Pair<Query, org.apache.lucene.search.SortField[]> getQuery(IndexExpression predicate) throws Exception {
         ColumnDefinition cd = baseCfs.metadata.getColumnDefinition(predicate.column_name);
         String predicateValue = cd.getValidator().getString(predicate.bufferForValue());
         String columnName = Utils.getColumnName(cd);
@@ -52,15 +51,14 @@ public abstract class SearchSupport extends SecondaryIndexSearcher {
         logger.debug("Column name is {}", columnName);
         Search search = Search.fromJson(predicateValue);
         Query query = search.query(options);
-        Sort sort = search.usesSorting() ? search.sort(options) : null;
-        sort = sort == null ? Sort.RELEVANCE : sort;
+        org.apache.lucene.search.SortField[] sort = search.usesSorting() ? search.sort(options) : null;
         return Pair.create(query, sort);
     }
 
 
-    protected abstract ColumnFamilyStore.AbstractScanIterator searchResultsIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean needsFiltering) throws IOException;
+    protected abstract ColumnFamilyStore.AbstractScanIterator searchResultsIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> topDocs, boolean needsFiltering) throws IOException;
 
-    public abstract boolean deleteIfNotLatest(DecoratedKey decoratedKey,long ts, String pkString, ColumnFamily cf) throws IOException;
+    public abstract boolean deleteIfNotLatest(DecoratedKey decoratedKey, long ts, String pkString, ColumnFamily cf) throws IOException;
 
     public abstract boolean deleteRowIfNotLatest(DecoratedKey decoratedKey, ColumnFamily cf);
 }

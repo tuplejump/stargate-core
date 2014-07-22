@@ -94,7 +94,7 @@ public class Search {
         }
     }
 
-    public org.apache.lucene.search.Sort sort(Options schema) {
+    public org.apache.lucene.search.SortField[] sort(Options schema) {
         return sort == null ? null : sort.sort(schema);
     }
 

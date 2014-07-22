@@ -1,7 +1,5 @@
 package com.tuplejump.stargate.cassandra;
 
-import com.tuplejump.stargate.Constants;
-import com.tuplejump.stargate.Fields;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
@@ -10,19 +8,13 @@ import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.collections.iterators.ArrayIterator;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 
 /**
  * User: satya
@@ -33,22 +25,17 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
     ColumnFamilyStore table;
     org.apache.lucene.search.IndexSearcher searcher;
     ExtendedFilter filter;
-    ArrayIterator indexIterator;
+    Iterator<IndexEntryCollector.IndexEntry> indexIterator;
     boolean needsFiltering;
-    SortedDocValues rowKeyValues;
-    NumericDocValues tsValues;
     SearchSupport searchSupport;
 
-    public RowScanner(SearchSupport searchSupport, ColumnFamilyStore table, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean needsFiltering) throws Exception {
+    public RowScanner(SearchSupport searchSupport, ColumnFamilyStore table, IndexSearcher searcher, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> indexIterator, boolean needsFiltering) throws Exception {
         this.searchSupport = searchSupport;
         this.table = table;
         this.searcher = searcher;
         this.filter = filter;
         this.needsFiltering = needsFiltering;
-        this.rowKeyValues = Fields.getRKDocValues(searcher);
-        this.tsValues = Fields.getTSDocValues(searcher);
-        indexIterator = new ArrayIterator(topDocs.scoreDocs);
-
+        this.indexIterator = indexIterator;
     }
 
     @Override
@@ -62,11 +49,11 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
         SliceQueryFilter sliceQueryFilter = (SliceQueryFilter) filter.dataRange.columnFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER);
         while (indexIterator.hasNext()) {
             try {
-                ScoreDoc scoreDoc = (ScoreDoc) indexIterator.next();
-                Document document = searcher.doc(scoreDoc.doc);
-                IndexableField stringField = document.getField(Constants.PK_NAME_STORED);
-                String pkNameString = stringField.stringValue();
-                ByteBuffer rowKey = Fields.rowKey(rowKeyValues, scoreDoc.doc);
+                IndexEntryCollector.IndexEntry entry = indexIterator.next();
+                String pkNameString = entry.pkName;
+                ByteBuffer rowKey = entry.rowKey;
+                long ts = entry.timestamp;
+                float score = entry.score;
 
                 Pair<DecoratedKey, IDiskAtomFilter> keyAndFilter = getFilterAndKey(rowKey, sliceQueryFilter);
                 if (keyAndFilter == null) {
@@ -84,10 +71,9 @@ public abstract class RowScanner extends ColumnFamilyStore.AbstractScanIterator 
                 if (SearchSupport.logger.isTraceEnabled()) {
                     SearchSupport.logger.trace("Returning index hit for {}", dk);
                 }
-                long ts = tsValues.get(scoreDoc.doc);
 
 
-                Row row = getRow(pkNameString, keyAndFilter.right, dk, ts, scoreDoc.score);
+                Row row = getRow(pkNameString, keyAndFilter.right, dk, ts, score);
                 if (row == null) {
                     if (SearchSupport.logger.isTraceEnabled())
                         SearchSupport.logger.trace("Returned Row is null");

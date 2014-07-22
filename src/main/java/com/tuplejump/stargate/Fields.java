@@ -8,13 +8,12 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.FieldCache;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -28,20 +27,29 @@ import static com.tuplejump.stargate.Constants.*;
  * Utility methods to deal in fields.
  */
 public class Fields {
-    public static SortedDocValues getRKDocValues(IndexSearcher searcher) throws IOException {
-        AtomicReader wrapper = SlowCompositeReaderWrapper.wrap(searcher.getIndexReader());
-        return wrapper.getSortedDocValues(PK_NAME_DOC_VAL);
+
+    public static SortedDocValues getRKDocValues(AtomicReader atomicReader) throws IOException {
+        return atomicReader.getSortedDocValues(PK_NAME_DOC_VAL);
     }
 
-    public static NumericDocValues getTSDocValues(IndexSearcher searcher) throws IOException {
-        AtomicReader wrapper = SlowCompositeReaderWrapper.wrap(searcher.getIndexReader());
-        return wrapper.getNumericDocValues(CF_TS_DOC_VAL);
+    public static SortedDocValues getPKDocValues(AtomicReader atomicReader) throws IOException {
+        return atomicReader.getSortedDocValues(PK_NAME_STORED);
+    }
+
+    public static NumericDocValues getTSDocValues(AtomicReader atomicReader) throws IOException {
+        return atomicReader.getNumericDocValues(CF_TS_DOC_VAL);
     }
 
     public static ByteBuffer rowKey(BinaryDocValues rowKeyValues, int docId) throws IOException {
         BytesRef ref = new BytesRef();
         rowKeyValues.get(docId, ref);
         return ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
+    }
+
+    public static String primaryKeyName(BinaryDocValues primaryKeyNames, int docId) throws IOException {
+        BytesRef ref = new BytesRef();
+        primaryKeyNames.get(docId, ref);
+        return new String(ref.bytes, ref.offset, ref.length, StandardCharsets.UTF_8);
     }
 
     public static Field idDocValues(final AbstractType abstractType, final ByteBuffer byteBufferValue) {
@@ -54,9 +62,17 @@ public class Fields {
         };
     }
 
-    public static Field primaryKeyStored(String pkValue) {
-        return new StringField(PK_NAME_STORED, pkValue, Field.Store.YES);
+    public static Field pkNameDocValues(final String pkName) {
+        BytesRef bytesRef = new BytesRef(pkName.getBytes(StandardCharsets.UTF_8));
+        return new SortedDocValuesField(PK_NAME_STORED, bytesRef) {
+            @Override
+            public String toString() {
+                return String.format("PK Name String->BinaryDocValuesField<%s>", pkName);
+            }
+        };
     }
+
+
     public static Field rowKeyIndexed(String rkValue) {
         return new StringField(RK_NAME_INDEXED, rkValue, Field.Store.NO);
     }
@@ -227,6 +243,5 @@ public class Fields {
             return type.compose(byteBuffer).toString();
         }
     }
-
 
 }

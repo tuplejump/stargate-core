@@ -17,18 +17,14 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * User: satya
@@ -50,7 +46,7 @@ public class PerRowSearchSupport extends SearchSupport {
             List<IndexExpression> clause = mainFilter.getClause();
             if (logger.isDebugEnabled())
                 logger.debug("All IndexExprs {}", clause);
-            Pair<Query, Sort> queryAndSort = getQuery(matchThisIndex(clause));
+            Pair<Query, org.apache.lucene.search.SortField[]> queryAndSort = getQuery(matchThisIndex(clause));
             //This is mainly to allow data ranges to occur on searches with range and data together.
             return getRows(mainFilter, queryAndSort, false);
         } catch (Exception e) {
@@ -68,7 +64,7 @@ public class PerRowSearchSupport extends SearchSupport {
         }
     }
 
-    protected List<Row> getRows(final ExtendedFilter filter, final Pair<Query, Sort> query, final boolean needsFiltering) {
+    protected List<Row> getRows(final ExtendedFilter filter, final Pair<Query, org.apache.lucene.search.SortField[]> query, final boolean needsFiltering) {
         final SearchSupport searchSupport = this;
         SearcherCallback<List<Row>> sc = new SearcherCallback<List<Row>>() {
             @Override
@@ -80,12 +76,21 @@ public class PerRowSearchSupport extends SearchSupport {
                 } else {
                     Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
                     int maxResults = filter.maxRows();
-                    TopDocs topDocs = searcher.searchAfter(null, query.left, null, maxResults, query.right, true, false);
-                    timer2.endLogTime("For TopDocs search for -" + topDocs.totalHits + " results");
-                    if (SearchSupport.logger.isDebugEnabled()) {
-                        SearchSupport.logger.debug(String.format("Search results [%s]", topDocs.totalHits));
+                    int limit = searcher.getIndexReader().maxDoc();
+                    if (limit == 0) {
+                        limit = 1;
                     }
-                    ColumnFamilyStore.AbstractScanIterator iter = searchResultsIterator(searchSupport, baseCfs, searcher, filter, topDocs, needsFiltering);
+                    maxResults = Math.min(maxResults, limit);
+
+                    //TopDocs topDocs = searcher.searchAfter(null, query.left, null, maxResults, new Sort(query.right), true, false);
+                    IndexEntryCollector collector = new IndexEntryCollector(query.right, maxResults);
+                    searcher.search(query.left, collector);
+                    timer2.endLogTime("For TopDocs search for -" + collector.totalHits + " results");
+                    if (SearchSupport.logger.isDebugEnabled()) {
+                        SearchSupport.logger.debug(String.format("Search results [%s]", collector.totalHits));
+                    }
+
+                    ColumnFamilyStore.AbstractScanIterator iter = searchResultsIterator(searchSupport, baseCfs, searcher, filter, collector.docs().iterator(), needsFiltering);
                     //takes care of paging.
                     results = baseCfs.filter(iter, filter);
                 }
@@ -119,7 +124,7 @@ public class PerRowSearchSupport extends SearchSupport {
     }
 
     @Override
-    protected ColumnFamilyStore.AbstractScanIterator searchResultsIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, TopDocs topDocs, boolean needsFiltering) throws IOException {
+    protected ColumnFamilyStore.AbstractScanIterator searchResultsIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> topDocs, boolean needsFiltering) throws IOException {
         return currentIndex.getScanIterator(searchSupport, baseCfs, searcher, filter, topDocs, needsFiltering);
     }
 
