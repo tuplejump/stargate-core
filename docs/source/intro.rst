@@ -3,8 +3,8 @@ What is Stargate
 
 Stargate is made of 2 components.
 
-* Stargate-core - To add Lucene indexing support in Cassandra. (See installation)
-* Stargate-search - A search server like Solr/ElasticSearch (Work in progress)
+* Stargate-core - To add Lucene indexing support in Cassandra. (See installation.)
+* Stargate-search - A search server like Solr/ElasticSearch (Work in progress.)
 
 Stargate-core Features
 ^^^^^^^^^^^^^^^^^^^^^^
