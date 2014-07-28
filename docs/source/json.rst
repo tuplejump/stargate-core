@@ -1,7 +1,7 @@
 Indexing and querying JSON 
 ===========================
 
-Pre-requisites
+Prerequisites
 ^^^^^^^^^^^^^^^
 Install Stargate as instructed in the installation.
 
@@ -13,7 +13,7 @@ Open cassandra/bin/cqlsh and optionally create a keyspace::
 	 'replication_factor' : 1 
 	};
 
-Change into you keyspace::
+Change into your keyspace::
 
 	USE MY_KEYSPACE;
 
@@ -25,9 +25,9 @@ Let us create a table named PERSON_JSON like so::
 	    stargate text
 	);
 
-Creating a index on JSON fields
+Creating an index on JSON fields
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The above table has just one column 'json' which is of CQL type text. We can push valid JSON into this column. To index this JSON we create an index on the 'stargate' meta column like so ::
+The above table has just one column 'json' which is of CQL type text. We can push valid JSON into this column. To index this JSON, we create an index on the 'stargate' meta column like so ::
 
 	CREATE CUSTOM INDEX json_idx ON PERSON_JSON(stargate) USING
 	'com.tuplejump.stargate.RowIndex' WITH options =
@@ -188,9 +188,9 @@ Suppose you insert data into the table like so ::
 
 .. note::
 
-	* In the above data all json fields become searchable as top level index fields. For example 'age' in the json becomes searchable 'age' in the index.
+	* In the above data all json fields become searchable as top level index fields. For example, 'age' in the json becomes searchable 'age' in the index.
 	* Nested fields become searchable top level fields with a 'parent.child' notation.
-	* For example 'name' in 'friends' becomes searchable as 'friends.name'
+	* For example, 'name' in 'friends' becomes searchable as 'friends.name'.
 
 Querying JSON
 ^^^^^^^^^^^^^^
@@ -223,7 +223,7 @@ With the index created and with the data inserted as above you can make basic qu
 	    }
 	}';
 
-However if you do the following query it would not work! ::
+However, if you do the following query, it would not work! ::
 
 	-- find people with age 30
 	-- this wont work until you change the mapping.
@@ -235,7 +235,7 @@ However if you do the following query it would not work! ::
 	    }
 	}';
 
-This is because although Stargate indexes numeric fields as numeric, while querying it would not understand that it needs to query it numerically. So you change the mapping as follows ::
+This is because, although Stargate indexes numeric fields as numeric, while querying, it would not understand that it needs to query it numerically. So, you change the mapping as follows ::
 	
 	DROP INDEX json_idx;
 
@@ -254,9 +254,9 @@ This is because although Stargate indexes numeric fields as numeric, while query
 	        }'
 	};
 
-This mapping tells Stargate that the field needs to be queried a an integer. Now the above query will work as expected.
+This mapping tells Stargate that the field needs to be queried as an integer. Now the above query will work as expected.
 
-For more details on configuration read the Index Options section.
+For more details on configuration, read the Index Options section.
 
 
 
