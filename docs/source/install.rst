@@ -30,6 +30,8 @@ Important Note on Shutdown procedure
 	Alternately, request a flush from nodetool and then shutdown Cassandra using kill -9.
 
 	Cassandra can be shutdown with kill -9 *cassandra-pid* but, some writes to the index may not be flushed when using this method. 
+	
+	This is usually fine when the node fails by itself. When a node fails it is simpler to purge it and replace it back into the cluster.
 
 Stargate flushes indexes periodically or when you request a flush, and also with a Shutdown hook. All the writes to the index are guaranteed to be flushed only when you explicitly call flush or shutdown using the kill -15 (since kill -9 does not call Shutdown hooks on the JVM). Otherwise, some writes to the index will be lost. 
 
