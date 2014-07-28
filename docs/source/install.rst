@@ -31,7 +31,7 @@ Important Note on Shutdown procedure
 
 	Cassandra can be shutdown with kill -9 *cassandra-pid* but, some writes to the index may not be flushed when using this method. 
 
-Stargate flushes indexes periodically or when you request a flush, and also with a Shutdown hook. All the writes to the index are guaranteed to be flushed only when you explicitly call flush or shutdown using the kill -15 (since kill -9 does not called Shutdown hooks on the JVM). Otherwise, some writes to the index will be lost. 
+Stargate flushes indexes periodically or when you request a flush, and also with a Shutdown hook. All the writes to the index are guaranteed to be flushed only when you explicitly call flush or shutdown using the kill -15 (since kill -9 does not call Shutdown hooks on the JVM). Otherwise, some writes to the index will be lost. 
 
 Development usage
 ^^^^^^^^^^^^^^^^^^
