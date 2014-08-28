@@ -22,6 +22,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
@@ -181,7 +182,7 @@ public class Fields {
         } else if (cqlType == CQL3Type.Native.UUID) {
             return ByteBufferUtil.bytes(UUID.randomUUID());
         } else if (cqlType == CQL3Type.Native.TIMEUUID) {
-            return ByteBufferUtil.bytes(UUID.randomUUID());
+            return ByteBufferUtil.bytes(UUIDGen.getTimeUUID(0));
         } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
             return ByteBufferUtil.bytes(0L);
         } else if (cqlType == CQL3Type.Native.BOOLEAN) {
