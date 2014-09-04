@@ -88,7 +88,7 @@ public class WideRowIndexSupport extends RowIndexSupport {
 
     private void addColumn(ByteBuffer rowKey, Map<ByteBuffer, String> pkNames, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, Column column) {
         ByteBuffer columnNameBuf = column.name();
-        Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndName = primaryKeyAndActualColumnName(true, table, rowKey, column);
+        Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndName = primaryKeyAndActualColumnName(true, rowKey, column);
         String actualColName = primaryKeyAndName.right;
         if (logger.isTraceEnabled())
             logger.trace("Got column name {} from CF", actualColName);
@@ -104,8 +104,13 @@ public class WideRowIndexSupport extends RowIndexSupport {
             fields = new LinkedList<>();
             primaryKeysVsFields.put(primaryKey, fields);
             timestamps.put(primaryKey, 0l);
-            //first fields for clustering key columns need to be added.
-            addClusteringKeyFields(primaryKey, fields, timestamps, column, builders.left);
+            CFDefinition cfDef = table.metadata.getCfDef();
+
+            //fields for partition key columns need to be added.
+            addPartitionKeyFields(rowKey, timestamps, column, primaryKey, fields, cfDef);
+
+            //fields for clustering key columns need to be added.
+            addClusteringKeyFields(options.clusteringKeysIndexed, primaryKey, fields, timestamps, column, builders.left);
         }
         ColumnDefinition columnDefinition = table.metadata.getColumnDefinitionFromColumnName(columnNameBuf);
         if (options.shouldIndex(actualColName)) {
@@ -115,24 +120,35 @@ public class WideRowIndexSupport extends RowIndexSupport {
         }
     }
 
-
-    private void addClusteringKeyFields(ByteBuffer primaryKey, List<Field> fields, Map<ByteBuffer, Long> timestamps, Column column, CompositeType.Builder builder) {
-        for (Map.Entry<Integer, Pair<String, ByteBuffer>> entry : options.clusteringKeysIndexed.entrySet()) {
-            ByteBuffer value = builder.get(entry.getKey());
-            ByteBuffer keyColumn = entry.getValue().right;
-            ColumnDefinition columnDefinition = table.metadata.getColumnDefinition(keyColumn);
-            String keyColumnName = entry.getValue().left;
-            FieldType fieldType = options.fieldTypes.get(keyColumnName);
-            long existingTS = timestamps.get(primaryKey);
-            timestamps.put(primaryKey, Math.max(existingTS, column.maxTimestamp()));
-            addField(fields, columnDefinition, keyColumnName, fieldType, value);
+    private void addPartitionKeyFields(ByteBuffer rowKey, Map<ByteBuffer, Long> timestamps, Column column, ByteBuffer primaryKey, List<Field> fields, CFDefinition cfDef) {
+        ByteBuffer[] keyComponents = cfDef.hasCompositeKey ? ((CompositeType) table.metadata.getKeyValidator()).split(rowKey) : new ByteBuffer[]{rowKey};
+        for (Map.Entry<Integer, Pair<String, ByteBuffer>> entry : options.partitionKeysIndexed.entrySet()) {
+            ByteBuffer value = keyComponents[entry.getKey()];
+            addKeyField(primaryKey, fields, timestamps, column, entry, value);
         }
     }
 
-    public Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndActualColumnName(boolean withPkBuilder, ColumnFamilyStore baseCfs, ByteBuffer rowKey, Column column) {
-        AbstractType<?> rowKeyComparator = baseCfs.metadata.getKeyValidator();
-        CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
-        CFDefinition cfDef = baseCfs.metadata.getCfDef();
+    private void addClusteringKeyFields(Map<Integer, Pair<String, ByteBuffer>> keyFields, ByteBuffer primaryKey, List<Field> fields, Map<ByteBuffer, Long> timestamps, Column column, CompositeType.Builder builder) {
+        for (Map.Entry<Integer, Pair<String, ByteBuffer>> entry : keyFields.entrySet()) {
+            ByteBuffer value = builder.get(entry.getKey());
+            addKeyField(primaryKey, fields, timestamps, column, entry, value);
+        }
+    }
+
+    private void addKeyField(ByteBuffer primaryKey, List<Field> fields, Map<ByteBuffer, Long> timestamps, Column column, Map.Entry<Integer, Pair<String, ByteBuffer>> entry, ByteBuffer value) {
+        ByteBuffer keyColumn = entry.getValue().right;
+        ColumnDefinition columnDefinition = table.metadata.getColumnDefinition(keyColumn);
+        String keyColumnName = entry.getValue().left;
+        FieldType fieldType = options.fieldTypes.get(keyColumnName);
+        long existingTS = timestamps.get(primaryKey);
+        timestamps.put(primaryKey, Math.max(existingTS, column.maxTimestamp()));
+        addField(fields, columnDefinition, keyColumnName, fieldType, value);
+    }
+
+    public Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndActualColumnName(boolean withPkBuilder, ByteBuffer rowKey, Column column) {
+        AbstractType<?> rowKeyComparator = table.metadata.getKeyValidator();
+        CompositeType baseComparator = (CompositeType) table.getComparator();
+        CFDefinition cfDef = table.metadata.getCfDef();
         int prefixSize = baseComparator.types.size() - (cfDef.hasCollections ? 2 : 1);
         List<AbstractType<?>> types = baseComparator.types;
         int idx = types.get(types.size() - 1) instanceof ColumnToCollectionType ? types.size() - 2 : types.size() - 1;

@@ -97,6 +97,7 @@ public class Options {
     public final Map<String, FieldType[]> collectionFieldTypes;
     public final Map<String, AbstractType> validators;
     public final Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed;
+    public final Map<Integer, Pair<String, ByteBuffer>> partitionKeysIndexed;
     public final Map<String, Analyzer> perFieldAnalyzers;
     public final Set<String> indexedColumnNames;
     public final Analyzer analyzer;
@@ -148,12 +149,30 @@ public class Options {
         indexedColumnNames.addAll(mapping.getFields().keySet());
 
         clusteringKeysIndexed = new LinkedHashMap<>();
+        partitionKeysIndexed  = new LinkedHashMap<>();
         Set<String> added = new HashSet<>(indexedColumnNames.size());
+        List<ColumnDefinition> partitionKeys = baseCfs.metadata.partitionKeyColumns();
         List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
         fieldTypes = new TreeMap<>();
         validators = new TreeMap<>();
         collectionFieldTypes = new TreeMap<>();
         numericFieldOptions = new HashMap<>();
+
+        for (ColumnDefinition colDef : partitionKeys) {
+            String columnName = CFDefinition.definitionType.getString(colDef.name);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Partition key name is {} and index is {}", colName, colDef.componentIndex);
+            }
+            if (indexedColumnNames.contains(columnName)) {
+                partitionKeysIndexed.put(colDef.componentIndex, Pair.create(columnName, colDef.name));
+                validators.put(columnName, colDef.getValidator());
+                Properties properties = mapping.getFields().get(columnName.toLowerCase());
+                addFieldType(columnName, colDef.getValidator(), numericFieldOptions, properties, fieldTypes, collectionFieldTypes);
+                added.add(columnName.toLowerCase());
+            }
+        }
+
+
         for (ColumnDefinition colDef : clusteringKeys) {
             String columnName = CFDefinition.definitionType.getString(colDef.name);
             if (logger.isDebugEnabled()) {
