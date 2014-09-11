@@ -55,7 +55,7 @@
     <logger name="com.tuplejump">
         <level value="ERROR"/>
     </logger>
-    <logger name="com.tuplejump.stargate.cassandra.WideRowTest">
+    <logger name="com.tuplejump.stargate.cassandra.BasicIndexTest">
         <level value="WARN"/>
     </logger>
 

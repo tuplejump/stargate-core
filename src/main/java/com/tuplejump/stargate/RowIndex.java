@@ -176,7 +176,7 @@ public class RowIndex extends PerRowSecondaryIndex {
         readLock.lock();
         try {
             waitForIndexBuilt();
-            return new PerRowSearchSupport(baseCfs.indexManager, this, columns, columnDefinition.name, this.options);
+            return new SearchSupport(baseCfs.indexManager, this, columns, columnDefinition.name, this.options);
         } finally {
             readLock.unlock();
         }
@@ -188,19 +188,6 @@ public class RowIndex extends PerRowSecondaryIndex {
             //don't give the searcher out till this happens
             if (isIndexBuilt(columnDefinition.name)) break;
         }
-    }
-
-    public ColumnFamilyStore.AbstractScanIterator getScanIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> topDocs, boolean addlFilter) {
-        try {
-            if (tableDefinition.isComposite) {
-                return new WideRowScanner(searchSupport, baseCfs, searcher, filter, topDocs, addlFilter);
-            } else {
-                return new SimpleRowScanner(searchSupport, baseCfs, searcher, filter, topDocs, addlFilter);
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
     }
 
 
@@ -229,11 +216,7 @@ public class RowIndex extends PerRowSecondaryIndex {
                 Indexer indexer = new NearRealTimeIndexer(this.options.analyzer, keyspace, baseCfs.name, indexName, range.left.toString());
                 indexers.put(range, indexer);
             }
-            if (tableDefinition.isComposite) {
-                rowIndexSupport = new WideRowIndexSupport(options, baseCfs);
-            } else {
-                rowIndexSupport = new SimpleRowIndexSupport(options, baseCfs);
-            }
+            rowIndexSupport = new RowIndexSupport(options, baseCfs);
 
         } finally {
             writeLock.unlock();

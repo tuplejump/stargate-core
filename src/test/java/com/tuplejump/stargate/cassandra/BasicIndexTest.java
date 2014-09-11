@@ -28,10 +28,10 @@ import java.util.List;
 /**
  * User: satya
  */
-public class WideRowTest extends IndexTestBase {
+public class BasicIndexTest extends IndexTestBase {
     String keyspace = "dummyks4";
 
-    public WideRowTest() {
+    public BasicIndexTest() {
         cassandraCQLUnit = CQLUnitD.getCQLUnit(null);
     }
 
@@ -73,6 +73,7 @@ public class WideRowTest extends IndexTestBase {
                 deleteTagData("TAG2", "segment", false, i);
             }
             Assert.assertEquals(16, countResults("TAG2", "magic = '" + q("tags", "hello*") + "'", true));
+            Assert.assertEquals(5, countResults("TAG2", "magic = '" + q("tags", "hello*") + "' limit 5", true));
             Assert.assertEquals(1, countResults("TAG2", "segment=30 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
             Assert.assertEquals(0, countResults("TAG2", "segment=20 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
 
