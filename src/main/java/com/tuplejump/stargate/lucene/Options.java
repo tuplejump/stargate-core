@@ -1,3 +1,19 @@
+/*
+ * Copyright 2014, Tuplejump Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.tuplejump.stargate.lucene;
 
 import com.google.common.base.Splitter;
@@ -81,6 +97,7 @@ public class Options {
     public final Map<String, FieldType[]> collectionFieldTypes;
     public final Map<String, AbstractType> validators;
     public final Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed;
+    public final Map<Integer, Pair<String, ByteBuffer>> partitionKeysIndexed;
     public final Map<String, Analyzer> perFieldAnalyzers;
     public final Set<String> indexedColumnNames;
     public final Analyzer analyzer;
@@ -132,12 +149,30 @@ public class Options {
         indexedColumnNames.addAll(mapping.getFields().keySet());
 
         clusteringKeysIndexed = new LinkedHashMap<>();
+        partitionKeysIndexed  = new LinkedHashMap<>();
         Set<String> added = new HashSet<>(indexedColumnNames.size());
+        List<ColumnDefinition> partitionKeys = baseCfs.metadata.partitionKeyColumns();
         List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
         fieldTypes = new TreeMap<>();
         validators = new TreeMap<>();
         collectionFieldTypes = new TreeMap<>();
         numericFieldOptions = new HashMap<>();
+
+        for (ColumnDefinition colDef : partitionKeys) {
+            String columnName = CFDefinition.definitionType.getString(colDef.name);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Partition key name is {} and index is {}", colName, colDef.componentIndex);
+            }
+            if (indexedColumnNames.contains(columnName)) {
+                partitionKeysIndexed.put(colDef.componentIndex, Pair.create(columnName, colDef.name));
+                validators.put(columnName, colDef.getValidator());
+                Properties properties = mapping.getFields().get(columnName.toLowerCase());
+                addFieldType(columnName, colDef.getValidator(), numericFieldOptions, properties, fieldTypes, collectionFieldTypes);
+                added.add(columnName.toLowerCase());
+            }
+        }
+
+
         for (ColumnDefinition colDef : clusteringKeys) {
             String columnName = CFDefinition.definitionType.getString(colDef.name);
             if (logger.isDebugEnabled()) {

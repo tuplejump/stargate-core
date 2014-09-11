@@ -1,3 +1,19 @@
+/*
+ * Copyright 2014, Tuplejump Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.tuplejump.stargate.cassandra;
 
 import com.datastax.driver.core.ResultSet;
@@ -12,10 +28,10 @@ import java.util.List;
 /**
  * User: satya
  */
-public class WideRowTest extends IndexTestBase {
+public class BasicIndexTest extends IndexTestBase {
     String keyspace = "dummyks4";
 
-    public WideRowTest() {
+    public BasicIndexTest() {
         cassandraCQLUnit = CQLUnitD.getCQLUnit(null);
     }
 
@@ -27,7 +43,6 @@ public class WideRowTest extends IndexTestBase {
             createTableAndIndexForRow();
             ResultSet rs = getResults("TAG2", "magic = '" + mq("tags", "tags:hello* AND state:CA") + "'", true);
             List<Row> rows = rs.all();
-            Assert.assertEquals(1, rows.size());
             Assert.assertEquals(true, rows.toString().contains("error"));
         } finally {
             dropTable(keyspace, "TAG2");
@@ -52,10 +67,16 @@ public class WideRowTest extends IndexTestBase {
             }
             Assert.assertEquals(40, countResults("TAG2", "magic = '" + q("tags", "h*") + "'", true));
             Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "hello1") + "'", true));
-            for (int i = 0; i < 20; i++) {
-                deleteTagData("TAG2", false, i);
+            int i = 0;
+            while (i < 20) {
+                i = i + 10;
+                deleteTagData("TAG2", "segment", false, i);
             }
             Assert.assertEquals(16, countResults("TAG2", "magic = '" + q("tags", "hello*") + "'", true));
+            Assert.assertEquals(5, countResults("TAG2", "magic = '" + q("tags", "hello*") + "' limit 5", true));
+            Assert.assertEquals(1, countResults("TAG2", "segment=30 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
+            Assert.assertEquals(0, countResults("TAG2", "segment=20 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
+
         } finally {
             dropTable(keyspace, "TAG2");
             dropKS(keyspace);
@@ -72,7 +93,7 @@ public class WideRowTest extends IndexTestBase {
                 "\t}\n" +
                 "}\n";
         getSession().execute("USE " + keyspace + ";");
-        getSession().execute("CREATE TABLE TAG2(key int, tags varchar, state varchar, segment int, magic text, PRIMARY KEY(key, segment))");
+        getSession().execute("CREATE TABLE TAG2(key int, tags varchar, state varchar, segment int, magic text, PRIMARY KEY(segment, key))");
         int i = 0;
         while (i < 40) {
             if (i == 20) {

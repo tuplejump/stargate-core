@@ -1,10 +1,24 @@
+/*
+ * Copyright 2014, Tuplejump Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.tuplejump.stargate;
 
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
@@ -58,10 +72,10 @@ public class Utils {
     }
 
 
-    public static File getDirectory(String ksName, String cfName, String indexName) throws IOException {
+    public static File getDirectory(String ksName, String cfName, String indexName, String vNodeName) throws IOException {
         String fileName = indexName;
         String dirName = Options.defaultIndexesDir;
-        dirName = dirName + File.separator + ksName + File.separator + cfName;
+        dirName = dirName + File.separator + ksName + File.separator + cfName + File.separator + vNodeName;
         logger.debug("SGIndex - INDEX_FILE_NAME -" + fileName);
         logger.debug("SGIndex - INDEX_DIR_NAME -" + dirName);
         //will only create parent if not existing.

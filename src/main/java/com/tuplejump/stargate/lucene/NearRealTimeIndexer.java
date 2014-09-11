@@ -1,3 +1,19 @@
+/*
+ * Copyright 2014, Tuplejump Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.tuplejump.stargate.lucene;
 
 import com.tuplejump.stargate.Utils;
@@ -47,20 +63,23 @@ public class NearRealTimeIndexer implements Indexer {
 
     protected ControlledRealTimeReopenThread<IndexSearcher> reopenThread;
 
-    public NearRealTimeIndexer(Analyzer analyzer, String keyspaceName, String cfName, String indexName) {
+    protected String vNodeName;
+
+    public NearRealTimeIndexer(Analyzer analyzer, String keyspaceName, String cfName, String indexName, String vNodeName) {
         try {
-            init(analyzer, keyspaceName, cfName, indexName);
+            init(analyzer, keyspaceName, cfName, indexName, vNodeName);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
     }
 
-    private void init(Analyzer analyzer, String keyspaceName, String cfName, String indexName) throws IOException {
+    private void init(Analyzer analyzer, String keyspaceName, String cfName, String indexName, String vNodeName) throws IOException {
         this.indexName = indexName;
         this.keyspaceName = keyspaceName;
         this.cfName = cfName;
         this.analyzer = analyzer;
+        this.vNodeName = vNodeName;
         logger.debug(indexName + " Lucene analyzer -" + analyzer);
         logger.debug(indexName + " Lucene version -" + Properties.luceneVersion);
         IndexWriter delegate = getIndexWriter(Properties.luceneVersion);
@@ -72,7 +91,7 @@ public class NearRealTimeIndexer implements Indexer {
 
 
     private IndexWriter getIndexWriter(Version luceneV) throws IOException {
-        file = Utils.getDirectory(keyspaceName, cfName, indexName);
+        file = Utils.getDirectory(keyspaceName, cfName, indexName, vNodeName);
         IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
         config.setRAMBufferSizeMB(256);
         config.setOpenMode(OPEN_MODE);
@@ -148,6 +167,27 @@ public class NearRealTimeIndexer implements Indexer {
         return analyzer;
     }
 
+
+    @Override
+    public void release(IndexSearcher searcher) {
+        try {
+            indexSearcherReferenceManager.release(searcher);
+        } catch (IOException e) {
+            logger.error("Unable to release searcher", e);
+            //do nothing
+        }
+    }
+
+    @Override
+    public IndexSearcher acquire() {
+        try {
+            reopenThread.waitForGeneration(latest);
+            return indexSearcherReferenceManager.acquire();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     public <T> T search(SearcherCallback<T> searcherCallback) {
         IndexSearcher searcher = null;
@@ -195,7 +235,13 @@ public class NearRealTimeIndexer implements Indexer {
     @Override
     public long getLiveSize() {
         if (indexWriter != null) {
-            return indexWriter.getIndexWriter().ramSizeInBytes();
+            try {
+                return indexWriter.getIndexWriter().ramSizeInBytes();
+            } catch (Exception e) {
+                //ignore
+                return 0;
+            }
+
         } else {
             return 0;
         }

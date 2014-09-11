@@ -1,5 +1,5 @@
 /*
- * Copyright 2014, Stratio.
+ * Copyright 2014, Tuplejump Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
@@ -58,14 +59,14 @@ public class Sort implements Iterable<SortField> {
      * Returns the Lucene's {@link org.apache.lucene.search.Sort} representing this {@link Sort}.
      *
      * @param schema
-     * @return the Lucene's {@link org.apache.lucene.search.Sort} representing this {@link Sort}.
+     * @return the Lucene's {@link org.apache.lucene.search.SortField[]} representing this {@link Sort}.
      */
-    public org.apache.lucene.search.Sort sort(Options schema) {
+    public org.apache.lucene.search.SortField[] sort(Options schema) {
         org.apache.lucene.search.SortField[] sortFields = new org.apache.lucene.search.SortField[this.sortFields.size()];
         for (int i = 0; i < this.sortFields.size(); i++) {
             sortFields[i] = this.sortFields.get(i).sortField(schema);
         }
-        return new org.apache.lucene.search.Sort(sortFields);
+        return sortFields;
     }
 
     @Override

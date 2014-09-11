@@ -1,3 +1,19 @@
+/*
+ * Copyright 2014, Tuplejump Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.tuplejump.stargate;
 
 import com.tuplejump.stargate.lucene.Properties;
@@ -6,14 +22,15 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -27,20 +44,29 @@ import static com.tuplejump.stargate.Constants.*;
  * Utility methods to deal in fields.
  */
 public class Fields {
-    public static SortedDocValues getPKDocValues(IndexSearcher searcher) throws IOException {
-        AtomicReader wrapper = SlowCompositeReaderWrapper.wrap(searcher.getIndexReader());
-        return wrapper.getSortedDocValues(PK_NAME_DOC_VAL);
+
+    public static SortedDocValues getRKDocValues(AtomicReader atomicReader) throws IOException {
+        return atomicReader.getSortedDocValues(PK_NAME_DOC_VAL);
     }
 
-    public static NumericDocValues getTSDocValues(IndexSearcher searcher) throws IOException {
-        AtomicReader wrapper = SlowCompositeReaderWrapper.wrap(searcher.getIndexReader());
-        return wrapper.getNumericDocValues(CF_TS_DOC_VAL);
+    public static SortedDocValues getPKDocValues(AtomicReader atomicReader) throws IOException {
+        return atomicReader.getSortedDocValues(PK_NAME_STORED);
     }
 
-    public static ByteBuffer primaryKey(BinaryDocValues rowKeyValues, int docId) throws IOException {
+    public static NumericDocValues getTSDocValues(AtomicReader atomicReader) throws IOException {
+        return atomicReader.getNumericDocValues(CF_TS_DOC_VAL);
+    }
+
+    public static ByteBuffer rowKey(BinaryDocValues rowKeyValues, int docId) throws IOException {
         BytesRef ref = new BytesRef();
         rowKeyValues.get(docId, ref);
         return ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
+    }
+
+    public static String primaryKeyName(BinaryDocValues primaryKeyNames, int docId) throws IOException {
+        BytesRef ref = new BytesRef();
+        primaryKeyNames.get(docId, ref);
+        return new String(ref.bytes, ref.offset, ref.length, StandardCharsets.UTF_8);
     }
 
     public static Field idDocValues(final AbstractType abstractType, final ByteBuffer byteBufferValue) {
@@ -53,8 +79,19 @@ public class Fields {
         };
     }
 
-    public static Field idField(String pkValue) {
-        return new StringField(PK_NAME_INDEXED, pkValue, Field.Store.YES);
+    public static Field pkNameDocValues(final String pkName) {
+        BytesRef bytesRef = new BytesRef(pkName.getBytes(StandardCharsets.UTF_8));
+        return new SortedDocValuesField(PK_NAME_STORED, bytesRef) {
+            @Override
+            public String toString() {
+                return String.format("PK Name String->BinaryDocValuesField<%s>", pkName);
+            }
+        };
+    }
+
+
+    public static Field rowKeyIndexed(String rkValue) {
+        return new StringField(RK_NAME_INDEXED, rkValue, Field.Store.NO);
     }
 
     public static Field textField(String name, String value) {
@@ -87,7 +124,7 @@ public class Fields {
     }
 
     public static Term idTerm(String pkString) {
-        return new Term(PK_NAME_INDEXED, pkString);
+        return new Term(PK_NAME_STORED, pkString);
     }
 
     public static Term rkTerm(String rkString) {
@@ -145,7 +182,7 @@ public class Fields {
         } else if (cqlType == CQL3Type.Native.UUID) {
             return ByteBufferUtil.bytes(UUID.randomUUID());
         } else if (cqlType == CQL3Type.Native.TIMEUUID) {
-            return ByteBufferUtil.bytes(UUID.randomUUID());
+            return ByteBufferUtil.bytes(UUIDGen.getTimeUUID(0));
         } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
             return ByteBufferUtil.bytes(0L);
         } else if (cqlType == CQL3Type.Native.BOOLEAN) {
@@ -223,6 +260,5 @@ public class Fields {
             return type.compose(byteBuffer).toString();
         }
     }
-
 
 }
