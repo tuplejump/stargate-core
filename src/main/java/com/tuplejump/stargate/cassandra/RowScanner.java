@@ -38,24 +38,20 @@ import java.util.Iterator;
 public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     protected static final Logger logger = LoggerFactory.getLogger(RowScanner.class);
     ColumnFamilyStore table;
-    org.apache.lucene.search.IndexSearcher searcher;
     ExtendedFilter filter;
     Iterator<IndexEntryCollector.IndexEntry> indexIterator;
-    boolean needsFiltering;
     SearchSupport searchSupport;
 
-    public RowScanner(SearchSupport searchSupport, ColumnFamilyStore table, IndexSearcher searcher, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> indexIterator, boolean needsFiltering) throws Exception {
+    public RowScanner(SearchSupport searchSupport, ColumnFamilyStore table, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> indexIterator) throws Exception {
         this.searchSupport = searchSupport;
         this.table = table;
-        this.searcher = searcher;
         this.filter = filter;
-        this.needsFiltering = needsFiltering;
         this.indexIterator = indexIterator;
     }
 
     @Override
     public boolean needsFiltering() {
-        return needsFiltering;
+        return false;
     }
 
     @Override

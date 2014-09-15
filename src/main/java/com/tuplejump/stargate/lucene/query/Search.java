@@ -17,6 +17,8 @@
 package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
+import com.tuplejump.stargate.lucene.query.function.Function;
+import com.tuplejump.stargate.lucene.query.function.NoOp;
 import org.apache.lucene.search.*;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
@@ -45,6 +47,9 @@ public class Search {
      */
     private final Sort sort;
 
+
+    private final Function function;
+
     /**
      * Returns a new {@link Search} composed by the specified querying and filtering conditions.
      *
@@ -54,10 +59,12 @@ public class Search {
     @JsonCreator
     public Search(@JsonProperty("query") Condition queryCondition,
                   @JsonProperty("filter") Condition filterCondition,
-                  @JsonProperty("sort") Sort sort) {
+                  @JsonProperty("sort") Sort sort, @JsonProperty("function") Function function) {
         this.queryCondition = queryCondition;
         this.filterCondition = filterCondition;
         this.sort = sort;
+        if (function == null) this.function = new NoOp();
+        else this.function = function;
     }
 
     /**
@@ -72,6 +79,10 @@ public class Search {
      */
     public boolean usesSorting() {
         return queryCondition != null || sort != null;
+    }
+
+    public Function function(Options schema) throws Exception {
+        return this.function;
     }
 
     /**

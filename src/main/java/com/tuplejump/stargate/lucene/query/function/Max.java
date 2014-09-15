@@ -16,8 +16,22 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
+import org.codehaus.jackson.annotate.JsonCreator;
+import org.codehaus.jackson.annotate.JsonProperty;
+
 /**
  * User: satya
  */
-public class List implements Function {
+public class Max extends Min {
+    @JsonCreator
+    public Max(@JsonProperty("field") String field, @JsonProperty("name") String name, @JsonProperty("groupBy") String groupBy) {
+        super(field, name,groupBy);
+        this.reverse = true;
+    }
+
+    public  String getFunction(){
+        return "max";
+    }
+
+
 }

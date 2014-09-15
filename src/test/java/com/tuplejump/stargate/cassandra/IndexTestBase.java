@@ -124,6 +124,16 @@ public class IndexTestBase {
         return states[choice];
     }
 
+    protected String fun(String field, String name, String type, boolean distinct) {
+        String query1 = "function:{ type:\"%s\", field:\"%s\", alias:\"%s\", distinct:%b }";
+        return String.format(query1, type, field, name, distinct);
+    }
+
+    protected String funWithFilter(String fun, String field, String value) {
+        String query1 = "{ query:{ type:\"lucene\", field:\"%s\", value:\"%s\" }, %s}";
+        return String.format(query1, field, value, fun);
+    }
+
     protected String q(String field, String value) {
         String query1 = "{ query:{ type:\"lucene\", field:\"%s\", value:\"%s\" }}";
         return String.format(query1, field, value);

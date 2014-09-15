@@ -195,7 +195,6 @@ public class RowIndexSupport {
     /**
      * This is used to derive the actual column name from the byte buffer column name for a single column.
      * For Wide row tables, the column names are actually a concatenation of the Clustering key column names and this column name itself.
-     * We use the valu
      *
      * @param name The CQL name buffer of the column.
      * @return The String name of the column

@@ -39,14 +39,15 @@ import java.io.IOException;
  * <p/>
  * Known subclasses are:
  * <ul>
- * <li> {@link BooleanCondition}
- * <li> {@link LuceneCondition}
  * <li> {@link FuzzyCondition}
+ * <li> {@link LuceneCondition}
  * <li> {@link MatchCondition}
+ * <li> {@link RangeCondition}
  * <li> {@link PhraseCondition}
  * <li> {@link PrefixCondition}
- * <li> {@link RangeCondition}
+ * <li> {@link RegexpCondition}
  * <li> {@link WildcardCondition}
+ * <li> {@link BooleanCondition}
  * </ul>
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")

@@ -20,24 +20,31 @@ import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
-import org.codehaus.jackson.annotate.JsonSubTypes;
-import org.codehaus.jackson.annotate.JsonTypeInfo;
+import org.apache.commons.lang3.StringUtils;
+import org.codehaus.jackson.annotate.JsonCreator;
+import org.codehaus.jackson.annotate.JsonProperty;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
  * User: satya
- * A function which processes results retrieved from an index.
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
-@JsonSubTypes({
-        @JsonSubTypes.Type(value = NoOp.class, name = "noOp"),
-        @JsonSubTypes.Type(value = Sum.class, name = "sum"),
-        @JsonSubTypes.Type(value = Max.class, name = "max"),
-        @JsonSubTypes.Type(value = Min.class, name = "min"),
-        @JsonSubTypes.Type(value = Values.class, name = "values"),
-        @JsonSubTypes.Type(value = Count.class, name = "count")})
-public interface Function {
+public class Values extends Aggregate {
 
-    List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception;
+    @JsonCreator
+    public Values(@JsonProperty("field") String field, @JsonProperty("name") String name, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String groupBy) {
+        super(field, name, distinct, groupBy);
+    }
+
+    public String getFunction() {
+        return "values";
+    }
+
+
+    @Override
+    public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
+        Collection<Object> values = values(rows, table);
+        return singleRow("[" + StringUtils.join(values, ',') + "]", customColumnFactory, table, currentIndex);
+    }
 }

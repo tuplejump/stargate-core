@@ -16,7 +16,8 @@
 
 package com.tuplejump.stargate;
 
-import com.tuplejump.stargate.cassandra.*;
+import com.tuplejump.stargate.cassandra.RowIndexSupport;
+import com.tuplejump.stargate.cassandra.SearchSupport;
 import com.tuplejump.stargate.lucene.Indexer;
 import com.tuplejump.stargate.lucene.NearRealTimeIndexer;
 import com.tuplejump.stargate.lucene.Options;
@@ -140,7 +141,7 @@ public class RowIndex extends PerRowSecondaryIndex {
         IndexSearcher allSearcher = new IndexSearcher(multiReader, executorService);
         try {
             return searcherCallback.doWithSearcher(allSearcher);
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
             try {
@@ -176,7 +177,7 @@ public class RowIndex extends PerRowSecondaryIndex {
         readLock.lock();
         try {
             waitForIndexBuilt();
-            return new SearchSupport(baseCfs.indexManager, this, columns, columnDefinition.name, this.options);
+            return new SearchSupport(baseCfs.indexManager, this, columns, this.options);
         } finally {
             readLock.unlock();
         }
