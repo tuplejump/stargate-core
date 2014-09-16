@@ -26,6 +26,7 @@ import org.codehaus.jackson.annotate.JsonProperty;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: satya
@@ -44,7 +45,24 @@ public class Values extends Aggregate {
 
     @Override
     public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        Collection<Object> values = values(rows, table);
-        return singleRow("[" + StringUtils.join(values, ',') + "]", customColumnFactory, table, currentIndex);
+        Grouped grouped = values(rows, table);
+        if (groupBy == null)
+            return singleRow("[" + StringUtils.join(grouped.values(DEFAULT), ',') + "]", customColumnFactory, table, currentIndex);
+        else {
+            Map<String, Collection<Object>> groupsAndValues = grouped.multiValued;
+            String result = "{";
+            boolean first = true;
+            for (Map.Entry<String, Collection<Object>> group : groupsAndValues.entrySet()) {
+                if (!first)
+                    result += ",";
+                result += "'" + group.getKey() + "':[";
+                result += StringUtils.join(group.getValue(), ',');
+                result += "]";
+                first = false;
+            }
+            result += "}";
+            return singleRow(result, customColumnFactory, table, currentIndex);
+
+        }
     }
 }

@@ -23,7 +23,9 @@ import org.apache.cassandra.db.Row;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: satya
@@ -42,12 +44,33 @@ public class Count extends Aggregate {
 
     @Override
     public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        int count;
-        if (distinct && field != null) {
-            count = values(rows, table).size();
+        Grouped grouped = values(rows, table);
+        if (groupBy == null) {
+            int count;
+            if (distinct && field != null) {
+                count = grouped.values(DEFAULT).size();
+            } else {
+                count = rows.size();
+            }
+            return singleRow("" + count, customColumnFactory, table, currentIndex);
         } else {
-            count = rows.size();
+            return row(customColumnFactory, table, currentIndex, grouped);
         }
-        return singleRow("" + count, customColumnFactory, table, currentIndex);
+    }
+
+    private List<Row> row(CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped) {
+        Map<String, Collection<Object>> groupsAndValues = grouped.multiValued;
+        String result = "{";
+        boolean first = true;
+        for (Map.Entry<String, Collection<Object>> group : groupsAndValues.entrySet()) {
+            if (!first)
+                result += ",";
+            result += "'" + group.getKey() + "':";
+            result += group.getValue().size();
+            result += "";
+            first = false;
+        }
+        result += "}";
+        return singleRow(result, customColumnFactory, table, currentIndex);
     }
 }

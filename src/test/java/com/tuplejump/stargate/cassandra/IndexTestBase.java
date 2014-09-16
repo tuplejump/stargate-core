@@ -129,6 +129,11 @@ public class IndexTestBase {
         return String.format(query1, type, field, name, distinct);
     }
 
+    protected String gFun(String field, String name, String type, boolean distinct, String groupBy) {
+        String query1 = "function:{ type:\"%s\", field:\"%s\", alias:\"%s\", distinct:%b, groupBy:\"%s\" }";
+        return String.format(query1, type, field, name, distinct, groupBy);
+    }
+
     protected String funWithFilter(String fun, String field, String value) {
         String query1 = "{ query:{ type:\"lucene\", field:\"%s\", value:\"%s\" }, %s}";
         return String.format(query1, field, value, fun);

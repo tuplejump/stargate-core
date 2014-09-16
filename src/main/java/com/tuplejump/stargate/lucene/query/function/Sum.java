@@ -32,6 +32,7 @@ import org.codehaus.jackson.annotate.JsonProperty;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: satya
@@ -50,14 +51,20 @@ public class Sum extends Aggregate {
     @Override
     public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
         CompositeType baseComparator = (CompositeType) table.getComparator();
-        double sum = 0;
         boolean numberCheck = false;
+        Grouped grouped = new Grouped(false);
         for (Row row : rows) {
+            String group = DEFAULT;
+            double sum = 0;
             ColumnFamily cf = row.cf;
             Collection<Column> cols = cf.getSortedColumns();
             for (Column column : cols) {
-                if (field.equalsIgnoreCase(Utils.getColumnNameStr(baseComparator, column.name()))) {
-                    AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
+                String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
+                AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
+                if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
+                    group = valueValidator.getString(column.value());
+                }
+                if (field.equalsIgnoreCase(actualColumnName)) {
                     CQL3Type cqlType = valueValidator.asCQL3Type();
                     if (!numberCheck && !isNumber(cqlType)) {
                         throw new UnsupportedOperationException("Sum function is available only on numeric types");
@@ -77,9 +84,30 @@ public class Sum extends Aggregate {
                     }
                 }
             }
-
+            Double singleValue = (Double) grouped.singleValue(group);
+            if (singleValue == null) grouped.singleValue(group, sum);
+            else grouped.singleValue(group, sum + singleValue);
         }
-        return singleRow("" + sum, customColumnFactory, table, currentIndex);
+        if (groupBy == null)
+            return singleRow(grouped.singleValue(DEFAULT).toString(), customColumnFactory, table, currentIndex);
+        else
+            return row(customColumnFactory, table, currentIndex, grouped);
+    }
+
+    private List<Row> row(CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped) {
+        Map<String, Object> groupsAndValues = grouped.singleValued;
+        String result = "{";
+        boolean first = true;
+        for (Map.Entry<String, Object> group : groupsAndValues.entrySet()) {
+            if (!first)
+                result += ",";
+            result += "'" + group.getKey() + "':";
+            result += group.getValue();
+            result += "";
+            first = false;
+        }
+        result += "}";
+        return singleRow(result, customColumnFactory, table, currentIndex);
     }
 
 

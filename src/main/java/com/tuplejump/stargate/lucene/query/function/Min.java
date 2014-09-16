@@ -30,6 +30,7 @@ import org.codehaus.jackson.annotate.JsonProperty;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: satya
@@ -50,25 +51,50 @@ public class Min extends Aggregate {
     @Override
     public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
         CompositeType baseComparator = (CompositeType) table.getComparator();
-        ByteBuffer currentValue = null;
-        String currentValueStr = null;
+        Grouped grouped = new Grouped(false);
+        AbstractType valueType = null;
         for (Row row : rows) {
+            String group = DEFAULT;
+            ByteBuffer colValue = null;
             Collection<Column> cols = row.cf.getSortedColumns();
             for (Column column : cols) {
-                if (field.equalsIgnoreCase(Utils.getColumnNameStr(baseComparator, column.name()))) {
-                    AbstractType<?> type = table.metadata.getValueValidatorFromColumnName(column.name());
-                    if (currentValue == null) {
-                        currentValue = column.value();
-                    } else {
-                        if (reverse) {
-                            currentValue = type.compare(currentValue, column.value()) > 0 ? currentValue : column.value();
-                        } else
-                            currentValue = type.compare(currentValue, column.value()) < 0 ? currentValue : column.value();
-                    }
-                    currentValueStr = type.getString(currentValue);
+                AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
+                String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
+                if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
+                    group = valueValidator.getString(column.value());
+                }
+                if (field.equalsIgnoreCase(actualColumnName)) {
+                    colValue = column.value();
+                    valueType = valueValidator;
                 }
             }
+            ByteBuffer currentValue = (ByteBuffer) grouped.singleValue(group);
+            if (currentValue == null) currentValue = colValue;
+            if (reverse) {
+                grouped.singleValue(group, valueType.compare(currentValue, colValue) > 0 ? currentValue : colValue);
+            } else
+                grouped.singleValue(group, valueType.compare(currentValue, colValue) < 0 ? currentValue : colValue);
+
         }
-        return singleRow(currentValue == null ? null : currentValueStr, customColumnFactory, table, currentIndex);
+        if (groupBy == null)
+            return singleRow(valueType.getString((ByteBuffer) grouped.singleValue(DEFAULT)), customColumnFactory, table, currentIndex);
+        else
+            return row(customColumnFactory, table, currentIndex, grouped, valueType);
+    }
+
+    private List<Row> row(CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped, AbstractType valueType) {
+        Map<String, Object> groupsAndValues = grouped.singleValued;
+        String result = "{";
+        boolean first = true;
+        for (Map.Entry<String, Object> group : groupsAndValues.entrySet()) {
+            if (!first)
+                result += ",";
+            result += "'" + group.getKey() + "':";
+            result += valueType.getString((ByteBuffer) group.getValue());
+            result += "";
+            first = false;
+        }
+        result += "}";
+        return singleRow(result, customColumnFactory, table, currentIndex);
     }
 }

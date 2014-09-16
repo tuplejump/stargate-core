@@ -38,6 +38,7 @@ import java.util.*;
 
 public abstract class Aggregate implements Function {
 
+    public static final String DEFAULT = "~__default__~";
     protected String field;
     protected String alias;
     protected String groupBy;
@@ -52,32 +53,44 @@ public abstract class Aggregate implements Function {
 
     public abstract String getFunction();
 
-    public Collection<Object> values(List<Row> rows, ColumnFamilyStore table) throws Exception {
+    public Grouped values(List<Row> rows, ColumnFamilyStore table) throws Exception {
         CompositeType baseComparator = (CompositeType) table.getComparator();
         if (rows.size() > 0) {
-            Collection<Object> results;
+            Grouped grouped = new Grouped(true);
+            for (Row row : rows) {
+                ColumnFamily cf = row.cf;
+                Collection<Column> cols = cf.getSortedColumns();
+                String group = DEFAULT;
+                Object value = null;
+                for (Column column : cols) {
+                    String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
+                    AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
+                    if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
+                        group = valueValidator.getString(column.value());
+                    }
+                    if (field.equalsIgnoreCase(actualColumnName)) {
+                        value = valueValidator.compose(column.value());
+                    }
+                }
+                values(group, grouped).add(value);
+            }
+            return grouped;
+        } else {
+            return new Grouped(false);
+        }
+    }
+
+    private Collection<Object> values(String group, Grouped grouped) {
+        Collection<Object> results = grouped.values(group);
+        if (results == null) {
             if (distinct) {
                 results = new TreeSet<>();
             } else {
                 results = new ArrayList<>();
             }
-            for (Row row : rows) {
-                ColumnFamily cf = row.cf;
-                Collection<Column> cols = cf.getSortedColumns();
-                for (Column column : cols) {
-                    String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
-                    if (field.equalsIgnoreCase(actualColumnName)) {
-                        AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
-
-                        results.add(valueValidator.compose(column.value()));
-                    }
-                }
-
-            }
-            return results;
-        } else {
-            return Collections.emptyList();
+            grouped.values(group, results);
         }
+        return results;
     }
 
 

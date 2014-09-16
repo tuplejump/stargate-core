@@ -32,7 +32,7 @@ public class AggregatesTest extends IndexTestBase {
     }
 
     @Test
-    public void shouldIndexPerRow() throws Exception {
+    public void shouldCalculateAggregates() throws Exception {
         //hack to always create new Index during testing
         try {
             createKS(keyspace);
@@ -43,9 +43,16 @@ public class AggregatesTest extends IndexTestBase {
             countResults("TAG2", "magic = '" + funWithFilter(fun("state", "state-values", "values", true), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(fun("segment", "segment-values", "values", true), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(fun("segment", "distinct-segment", "count", true), "tags", "tags:hello* AND state:CA") + "'", true);
-            countResults("TAG2", "magic = '" + funWithFilter(fun("segment", "sum-segment", "sum", false), "tags", "tags:hello* AND state:CA") + "'", true);
-            countResults("TAG2", "magic = '" + funWithFilter(fun("segment", "min-segment", "min", false), "tags", "tags:hello* AND state:CA") + "'", true);
-            countResults("TAG2", "magic = '" + funWithFilter(fun("segment", "max-segment", "max", false), "tags", "tags:hello* AND state:CA") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(fun("value", "sum-value", "sum", false), "tags", "tags:hello* AND state:CA") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(fun("value", "min-value", "min", false), "tags", "tags:hello*") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(fun("value", "max-value", "max", false), "tags", "tags:hello*") + "'", true);
+
+
+            countResults("TAG2", "magic = '" + funWithFilter(gFun("state", "distinct-state", "count", true, "segment"), "tags", "tags:hello*") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "values", "values", true, "state"), "tags", "tags:hello*") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "sum-value", "sum", false, "state"), "tags", "tags:hello*") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "min-value", "min", false, "state"), "tags", "tags:hello*") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "max-value", "max", false, "state"), "tags", "tags:hello*") + "'", true);
 
         } finally {
             dropTable(keyspace, "TAG2");
@@ -63,22 +70,22 @@ public class AggregatesTest extends IndexTestBase {
                 "\t}\n" +
                 "}\n";
         getSession().execute("USE " + keyspace + ";");
-        getSession().execute("CREATE TABLE TAG2(key int, tags varchar, state varchar, segment int, magic text, PRIMARY KEY(key))");
+        getSession().execute("CREATE TABLE TAG2(key int, tags varchar, state varchar, segment int, value int, magic text, PRIMARY KEY(key))");
         int i = 0;
         while (i < 40) {
             if (i == 20) {
                 getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG2(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
             }
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 1) + ",'hello1 tag1 lol1', 'CA'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 2) + ",'hello1 tag1 lol2', 'LA'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 3) + ",'hello1 tag2 lol1', 'NY'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 4) + ",'hello1 tag2 lol2', 'TX'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 5) + ",'hllo3 tag3 lol3',  'TX'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 6) + ",'hello2 tag1 lol1', 'CA'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 7) + ",'hello2 tag1 lol2', 'NY'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 8) + ",'hello2 tag2 lol1', 'CA'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 9) + ",'hello2 tag2 lol2', 'TX'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 10) + ",'hllo3 tag3 lol3', 'TX'," + i + ")");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment,value) values (" + (i + 1) + ",'hello1 tag1 lol1', 'CA'," + i + "," + (i * 1) + ")");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment,value) values (" + (i + 2) + ",'hello1 tag1 lol2', 'LA'," + i + "," + (i * 2) + ")");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment,value) values (" + (i + 3) + ",'hello1 tag2 lol1', 'NY'," + i + "," + (i * 3) + ")");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment,value) values (" + (i + 4) + ",'hello1 tag2 lol2', 'TX'," + i + "," + (i * 4) + ")");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment,value) values (" + (i + 5) + ",'hllo3 tag3 lol3',  'TX'," + i + "," + (i * 5) + ")");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment,value) values (" + (i + 6) + ",'hello2 tag1 lol1', 'CA'," + i + "," + (i * 6) + ")");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment,value) values (" + (i + 7) + ",'hello2 tag1 lol2', 'NY'," + i + "," + (i * 7) + ")");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment,value) values (" + (i + 8) + ",'hello2 tag2 lol1', 'CA'," + i + "," + (i * 8) + ")");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment,value) values (" + (i + 9) + ",'hello2 tag2 lol2', 'TX'," + i + "," + (i * 9) + ")");
+            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment,value) values (" + (i + 10) + ",'hllo3 tag3 lol3', 'TX'," + i + "," + (i * 10) + ")");
             i = i + 10;
         }
     }
