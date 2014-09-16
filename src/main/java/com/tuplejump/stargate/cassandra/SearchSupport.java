@@ -21,23 +21,27 @@ import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
 import com.tuplejump.stargate.lucene.query.Search;
+import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.utils.Pair;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 
 /**
  * User: satya
@@ -55,45 +59,43 @@ public class SearchSupport extends SecondaryIndexSearcher {
 
     protected Set<String> fieldNames;
 
-    protected ErrorReporter errorReporter;
+    protected CustomColumnFactory customColumnFactory;
 
-    public SearchSupport(SecondaryIndexManager indexManager, RowIndex currentIndex, Set<ByteBuffer> columns, ByteBuffer primaryColName, Options options) {
+    public SearchSupport(SecondaryIndexManager indexManager, RowIndex currentIndex, Set<ByteBuffer> columns, Options options) {
         super(indexManager, columns);
         this.options = options;
         this.currentIndex = currentIndex;
         this.fieldNames = options.fieldTypes.keySet();
-        this.errorReporter = new ErrorReporter();
+        this.customColumnFactory = new CustomColumnFactory();
 
     }
 
 
-    protected Pair<Query, org.apache.lucene.search.SortField[]> getQuery(IndexExpression predicate) throws Exception {
+    protected Search getQuery(IndexExpression predicate) throws Exception {
         ColumnDefinition cd = baseCfs.metadata.getColumnDefinition(predicate.column_name);
         String predicateValue = cd.getValidator().getString(predicate.bufferForValue());
         String columnName = Utils.getColumnName(cd);
         if (logger.isDebugEnabled())
             logger.debug("Index Searcher - query - predicate value [" + predicateValue + "] column name [" + columnName + "]");
         logger.debug("Column name is {}", columnName);
-        Search search = Search.fromJson(predicateValue);
-        Query query = search.query(options);
-        org.apache.lucene.search.SortField[] sort = search.usesSorting() ? search.sort(options) : null;
-        return Pair.create(query, sort);
+        return Search.fromJson(predicateValue);
     }
 
 
     @Override
     public List<Row> search(ExtendedFilter mainFilter) {
+
+        List<IndexExpression> clause = mainFilter.getClause();
+        if (logger.isDebugEnabled())
+            logger.debug("All IndexExprs {}", clause);
         try {
-            List<IndexExpression> clause = mainFilter.getClause();
-            if (logger.isDebugEnabled())
-                logger.debug("All IndexExprs {}", clause);
-            Pair<Query, org.apache.lucene.search.SortField[]> queryAndSort = getQuery(matchThisIndex(clause));
-            //This is mainly to allow data ranges to occur on searches with range and data together.
-            return getRows(mainFilter, queryAndSort, false);
+            Search search = getQuery(matchThisIndex(clause));
+            return getRows(mainFilter, search);
         } catch (Exception e) {
             if (currentIndex.isMetaColumn()) {
                 logger.error("Exception occurred while querying", e);
-                Row row = errorReporter.getErrorRow(baseCfs, currentIndex, e);
+                ByteBuffer errorMsg = UTF8Type.instance.decompose("{\"error\":\"" + StringEscapeUtils.escapeEcmaScript(e.getMessage()) + "\"}");
+                Row row = customColumnFactory.getRowWithMetaColumn(baseCfs, currentIndex, errorMsg);
                 if (row != null) {
                     return Collections.singletonList(row);
                 } else {
@@ -105,14 +107,14 @@ public class SearchSupport extends SecondaryIndexSearcher {
         }
     }
 
-    protected List<Row> getRows(final ExtendedFilter filter, final Pair<Query, org.apache.lucene.search.SortField[]> query, final boolean needsFiltering) {
+    protected List<Row> getRows(final ExtendedFilter filter, final Search search) {
         final SearchSupport searchSupport = this;
         SearcherCallback<List<Row>> sc = new SearcherCallback<List<Row>>() {
             @Override
-            public List<Row> doWithSearcher(org.apache.lucene.search.IndexSearcher searcher) throws IOException {
+            public List<Row> doWithSearcher(org.apache.lucene.search.IndexSearcher searcher) throws Exception {
                 Utils.SimpleTimer timer = Utils.getStartedTimer(logger);
                 List<Row> results;
-                if (query == null) {
+                if (search == null) {
                     results = new ArrayList<>();
                 } else {
                     Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
@@ -122,17 +124,18 @@ public class SearchSupport extends SecondaryIndexSearcher {
                         limit = 1;
                     }
                     maxResults = Math.min(maxResults, limit);
-
-                    IndexEntryCollector collector = new IndexEntryCollector(query.right, maxResults);
-                    searcher.search(query.left, collector);
+                    Query query = search.query(options);
+                    org.apache.lucene.search.SortField[] sort = search.usesSorting() ? search.sort(options) : null;
+                    IndexEntryCollector collector = new IndexEntryCollector(sort, maxResults);
+                    searcher.search(query, collector);
                     timer2.endLogTime("For TopDocs search for -" + collector.totalHits + " results");
                     if (SearchSupport.logger.isDebugEnabled()) {
                         SearchSupport.logger.debug(String.format("Search results [%s]", collector.totalHits));
                     }
-
-                    ColumnFamilyStore.AbstractScanIterator iter = searchResultsIterator(searchSupport, baseCfs, searcher, filter, collector.docs().iterator(), needsFiltering);
-                    //takes care of paging. does it?
-                    results = baseCfs.filter(iter, filter);
+                    ColumnFamilyStore.AbstractScanIterator iter = new RowScanner(searchSupport, baseCfs, filter, collector.docs().iterator());
+                    List<Row> inputToFunction = baseCfs.filter(iter, filter);
+                    Function function = search.function(options);
+                    return function.process(inputToFunction, customColumnFactory, baseCfs, currentIndex);
                 }
                 timer.endLogTime("SGIndex Search with results [" + results.size() + "]over all took -");
                 return results;
@@ -162,16 +165,6 @@ public class SearchSupport extends SecondaryIndexSearcher {
         IndexExpression expr = matchThisIndex(clause);
         return expr != null;
     }
-
-    protected ColumnFamilyStore.AbstractScanIterator searchResultsIterator(SearchSupport searchSupport, ColumnFamilyStore baseCfs, IndexSearcher searcher, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> topDocs, boolean needsFiltering) throws IOException {
-        try {
-            return new RowScanner(searchSupport, baseCfs, searcher, filter, topDocs, needsFiltering);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-    }
-
 
     public boolean deleteIfNotLatest(DecoratedKey decoratedKey, long timestamp, String pkString, ColumnFamily cf) throws IOException {
         if (deleteRowIfNotLatest(decoratedKey, cf)) return true;

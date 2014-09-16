@@ -19,6 +19,7 @@ package com.tuplejump.stargate;
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
@@ -81,6 +82,12 @@ public class Utils {
         //will only create parent if not existing.
         return new File(dirName, fileName);
     }
+
+    public static String getColumnNameStr(CompositeType validator, ByteBuffer colNameBuf) {
+        ByteBuffer colName = validator.extractLastComponent(colNameBuf);
+        return CFDefinition.definitionType.getString(colName);
+    }
+
 
     public static String getColumnNameStr(ByteBuffer colName) {
         String s = CFDefinition.definitionType.getString(colName);

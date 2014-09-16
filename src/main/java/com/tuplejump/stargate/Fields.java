@@ -168,15 +168,19 @@ public class Fields {
     }
 
     public static ByteBuffer defaultValue(AbstractType type) {
+        return defaultValue(type, true);
+    }
+
+    public static ByteBuffer defaultValue(AbstractType type, boolean min) {
         CQL3Type cqlType = type.asCQL3Type();
-        if (cqlType == CQL3Type.Native.INT) {
-            return ByteBufferUtil.bytes(0);
-        } else if (cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER) {
-            return ByteBufferUtil.bytes(0L);
+        if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT) {
+            return ByteBufferUtil.bytes(min ? Integer.MIN_VALUE : Integer.MAX_VALUE);
+        } else if (cqlType == CQL3Type.Native.BIGINT) {
+            return ByteBufferUtil.bytes(min ? Long.MIN_VALUE : Long.MAX_VALUE);
         } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
-            return ByteBufferUtil.bytes(0D);
+            return ByteBufferUtil.bytes(min ? Double.MIN_VALUE : Double.MAX_VALUE);
         } else if (cqlType == CQL3Type.Native.FLOAT) {
-            return ByteBufferUtil.bytes(0F);
+            return ByteBufferUtil.bytes(min ? Float.MIN_VALUE : Float.MAX_VALUE);
         } else if (cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.VARCHAR) {
             return ByteBufferUtil.bytes("");
         } else if (cqlType == CQL3Type.Native.UUID) {
@@ -184,9 +188,9 @@ public class Fields {
         } else if (cqlType == CQL3Type.Native.TIMEUUID) {
             return ByteBufferUtil.bytes(UUIDGen.getTimeUUID(0));
         } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
-            return ByteBufferUtil.bytes(0L);
+            return ByteBufferUtil.bytes(0);
         } else if (cqlType == CQL3Type.Native.BOOLEAN) {
-            return BooleanType.instance.decompose(false);
+            return BooleanType.instance.decompose(min ? false : true);
         } else {
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         }

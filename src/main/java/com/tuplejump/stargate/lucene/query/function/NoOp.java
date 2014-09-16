@@ -14,19 +14,28 @@
  * limitations under the License.
  */
 
-package com.tuplejump.stargate.lucene;
+package com.tuplejump.stargate.lucene.query.function;
 
-import org.apache.lucene.search.IndexSearcher;
+import com.tuplejump.stargate.RowIndex;
+import com.tuplejump.stargate.cassandra.CustomColumnFactory;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Row;
 
-import java.io.IOException;
+import java.util.List;
 
 /**
- * Interface for a searcher callback.
- * The callback method will be called with the searcher. This callback is in place so that lucene IndexSearcher resources
- * are cleaned up properly
  * User: satya
  */
-public interface SearcherCallback<T> {
+public class NoOp implements Function {
 
-    public T doWithSearcher(IndexSearcher searcher) throws Exception;
+    @Override
+    public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
+        return rows;
+    }
+
+    public String getFunction() {
+        return "no-op";
+    }
+
+
 }
