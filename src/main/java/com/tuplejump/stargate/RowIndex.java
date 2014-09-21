@@ -33,11 +33,10 @@ import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
@@ -213,12 +212,14 @@ public class RowIndex extends PerRowSecondaryIndex {
             logger.warn("Creating new NRT Indexer for {}", indexName);
             indexers = new HashMap<>();
 
-            AbstractReplicationStrategy replicationStrategy = this.baseCfs.keyspace.getReplicationStrategy();
-            Collection<Range<Token>> ranges = replicationStrategy.getAddressRanges().get(FBUtilities.getBroadcastAddress());
-            //Collection<Range<Token>> ranges = Collections.singletonList(new Range<Token>(Murmur3Partitioner.MINIMUM.getToken(), Murmur3Partitioner.MINIMUM.getToken()));
+//            AbstractReplicationStrategy replicationStrategy = this.baseCfs.keyspace.getReplicationStrategy();
+//            Collection<Range<Token>> ranges = replicationStrategy.getAddressRanges().get(FBUtilities.getBroadcastAddress());
+            Collection<Range<Token>> ranges = Collections.singletonList(new Range<Token>(Murmur3Partitioner.MINIMUM.getToken(), Murmur3Partitioner.MINIMUM.getToken()));
+            logger.warn("Adding VNode indexers");
             for (Range<Token> range : ranges) {
                 Indexer indexer = new NearRealTimeIndexer(this.options.analyzer, keyspace, baseCfs.name, indexName, range.left.toString());
                 indexers.put(range, indexer);
+                logger.warn("Added VNode indexers for range {}", range);
             }
             rowIndexSupport = new RowIndexSupport(options, baseCfs);
 
