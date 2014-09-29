@@ -148,8 +148,8 @@ public class Utils {
         }
 
         public void logTime(String prefix) {
-            if (logger.isDebugEnabled())
-                logger.debug(String.format("{} - time taken is [{}] milli seconds"), prefix, time());
+            if (logger.isWarnEnabled())
+                logger.warn(String.format("{} - time taken is [{}] milli seconds"), prefix, time());
         }
 
         public void endLogTime(String prefix) {

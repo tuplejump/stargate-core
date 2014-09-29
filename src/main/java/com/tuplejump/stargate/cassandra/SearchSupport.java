@@ -118,15 +118,15 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     results = new ArrayList<>();
                 } else {
                     Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
-                    int maxResults = filter.maxRows();
+                    int resultsLimit = filter.currentLimit();
                     int limit = searcher.getIndexReader().maxDoc();
                     if (limit == 0) {
                         limit = 1;
                     }
-                    maxResults = Math.min(maxResults, limit);
+                    resultsLimit = Math.min(resultsLimit, limit);
                     Query query = search.query(options);
                     org.apache.lucene.search.SortField[] sort = search.usesSorting() ? search.sort(options) : null;
-                    IndexEntryCollector collector = new IndexEntryCollector(sort, maxResults);
+                    IndexEntryCollector collector = new IndexEntryCollector(sort, resultsLimit);
                     searcher.search(query, collector);
                     timer2.endLogTime("For TopDocs search for -" + collector.totalHits + " results");
                     if (SearchSupport.logger.isDebugEnabled()) {

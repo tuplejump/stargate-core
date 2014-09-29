@@ -22,7 +22,6 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-import org.apache.lucene.search.IndexSearcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,12 +40,17 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     ExtendedFilter filter;
     Iterator<IndexEntryCollector.IndexEntry> indexIterator;
     SearchSupport searchSupport;
+    int limit;
+    int rowsPerQuery = 2;
+    int columnsCount = 0;
 
     public RowScanner(SearchSupport searchSupport, ColumnFamilyStore table, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> indexIterator) throws Exception {
+
         this.searchSupport = searchSupport;
         this.table = table;
         this.filter = filter;
         this.indexIterator = indexIterator;
+        this.limit = filter.currentLimit();
     }
 
     @Override
@@ -58,7 +62,7 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     protected Row computeNext() {
         DataRange range = filter.dataRange;
         SliceQueryFilter sliceQueryFilter = (SliceQueryFilter) filter.dataRange.columnFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-        while (indexIterator.hasNext()) {
+        while (indexIterator.hasNext() && columnsCount <= limit) {
             try {
                 IndexEntryCollector.IndexEntry entry = indexIterator.next();
                 String pkNameString = entry.pkName;
@@ -90,6 +94,7 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
                         SearchSupport.logger.trace("Returned Row is null");
                     continue;
                 }
+                columnsCount++;
                 return row;
             } catch (IOException e) {
                 throw new RuntimeException(e);

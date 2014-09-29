@@ -120,26 +120,13 @@ public class NearRealTimeIndexer implements Indexer {
     }
 
     @Override
-    public void upsert(Iterable<Field> doc, Term idTerm) {
-        if (logger.isDebugEnabled())
-            logger.debug(indexName + " Indexing fields" + doc);
-
-        try {
-            latest = indexWriter.updateDocument(idTerm, doc);
-            indexSearcherReferenceManager.maybeRefresh();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
     public void insert(Iterable<Field> doc) {
         if (logger.isDebugEnabled())
             logger.debug(indexName + " Indexing fields" + doc);
 
         try {
             latest = indexWriter.addDocument(doc);
-            indexSearcherReferenceManager.maybeRefresh();
+            //indexSearcherReferenceManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -155,7 +142,7 @@ public class NearRealTimeIndexer implements Indexer {
                 q.add(new TermQuery(t), BooleanClause.Occur.MUST);
             }
             latest = indexWriter.deleteDocuments(q);
-            indexSearcherReferenceManager.maybeRefresh();
+            //indexSearcherReferenceManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

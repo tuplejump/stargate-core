@@ -49,5 +49,4 @@ public interface Indexer {
 
     public <T> T search(SearcherCallback<T> searcherCallback);
 
-    void upsert(Iterable<Field> doc, Term idTerm);
 }
