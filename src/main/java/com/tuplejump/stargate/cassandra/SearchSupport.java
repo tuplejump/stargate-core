@@ -21,6 +21,7 @@ import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
 import com.tuplejump.stargate.lucene.query.Search;
+import com.tuplejump.stargate.lucene.query.function.Aggregate;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
@@ -132,9 +133,9 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     if (SearchSupport.logger.isDebugEnabled()) {
                         SearchSupport.logger.debug(String.format("Search results [%s]", collector.totalHits));
                     }
-                    ColumnFamilyStore.AbstractScanIterator iter = new RowScanner(searchSupport, baseCfs, filter, collector.docs().iterator());
-                    List<Row> inputToFunction = baseCfs.filter(iter, filter);
                     Function function = search.function(options);
+                    ColumnFamilyStore.AbstractScanIterator iter = new RowScanner(searchSupport, baseCfs, filter, collector.docs().iterator(), function instanceof Aggregate ? false : search.isShowScore());
+                    List<Row> inputToFunction = baseCfs.filter(iter, filter);
                     return function.process(inputToFunction, customColumnFactory, baseCfs, currentIndex);
                 }
                 timer.endLogTime("SGIndex Search with results [" + results.size() + "]over all took -");
@@ -172,7 +173,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
         for (ByteBuffer colKey : cf.getColumnNames()) {
             String name = currentIndex.getRowIndexSupport().getActualColumnName(colKey);
             com.tuplejump.stargate.lucene.Properties option = options.getFields().get(name);
-            //if fieldType was not found then the column is not indexed
+            //if option was not found then the column is not indexed
             if (option != null) {
                 lastColumn = cf.getColumn(colKey);
             }

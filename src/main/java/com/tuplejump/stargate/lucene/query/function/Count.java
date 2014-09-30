@@ -17,9 +17,14 @@
 package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.RowIndex;
+import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
+import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -44,33 +49,67 @@ public class Count extends Aggregate {
 
     @Override
     public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        Grouped grouped = values(rows, table);
-        if (groupBy == null) {
-            int count;
-            if (distinct && field != null) {
-                count = grouped.values(DEFAULT).size();
-            } else {
-                count = rows.size();
-            }
-            return singleRow("" + count, customColumnFactory, table, currentIndex);
-        } else {
-            return row(customColumnFactory, table, currentIndex, grouped);
+        if (groupBy == null && !distinct)
+            return singleRow("" + rows.size(), customColumnFactory, table, currentIndex);
+
+        if (groupBy != null && distinct) {
+            Grouped grouped = values(rows, table);
+            return distinctSize(customColumnFactory, table, currentIndex, grouped);
         }
+
+        CompositeType baseComparator = (CompositeType) table.getComparator();
+        Grouped grouped = new Grouped(false);
+        for (Row row : rows) {
+            String group = DEFAULT;
+            long count = 0;
+            ColumnFamily cf = row.cf;
+            Collection<Column> cols = cf.getSortedColumns();
+            for (Column column : cols) {
+                String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
+                AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
+                if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
+                    group = valueValidator.getString(column.value());
+                }
+                if (actualColumnName.equalsIgnoreCase(field)) {
+                    count += 1;
+                }
+            }
+            Long singleValue = (Long) grouped.singleValue(group);
+            if (singleValue == null) grouped.singleValue(group, count);
+            else grouped.singleValue(group, count + singleValue);
+        }
+        if (groupBy == null)
+            return singleRow(grouped.singleValue(DEFAULT).toString(), customColumnFactory, table, currentIndex);
+        else
+            return row(customColumnFactory, table, currentIndex, grouped);
     }
 
     private List<Row> row(CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped) {
+        Map<String, Object> groupsAndValues = grouped.singleValued;
+        String result = "{";
+        boolean first = true;
+        for (Map.Entry<String, Object> group : groupsAndValues.entrySet()) {
+            if (!first)
+                result += ",";
+            result += "'" + group.getKey() + "':" + group.getValue();
+            first = false;
+        }
+        result += "}";
+        return singleRow(result, customColumnFactory, table, currentIndex);
+    }
+
+    private List<Row> distinctSize(CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped) {
         Map<String, Collection<Object>> groupsAndValues = grouped.multiValued;
         String result = "{";
         boolean first = true;
         for (Map.Entry<String, Collection<Object>> group : groupsAndValues.entrySet()) {
             if (!first)
                 result += ",";
-            result += "'" + group.getKey() + "':";
-            result += group.getValue().size();
-            result += "";
+            result += "'" + group.getKey() + "':" + group.getValue().size();
             first = false;
         }
         result += "}";
         return singleRow(result, customColumnFactory, table, currentIndex);
     }
 }
+

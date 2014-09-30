@@ -41,16 +41,16 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     Iterator<IndexEntryCollector.IndexEntry> indexIterator;
     SearchSupport searchSupport;
     int limit;
-    int rowsPerQuery = 2;
     int columnsCount = 0;
+    boolean showScore = false;
 
-    public RowScanner(SearchSupport searchSupport, ColumnFamilyStore table, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> indexIterator) throws Exception {
-
+    public RowScanner(SearchSupport searchSupport, ColumnFamilyStore table, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> indexIterator, boolean showScore) throws Exception {
         this.searchSupport = searchSupport;
         this.table = table;
         this.filter = filter;
         this.indexIterator = indexIterator;
         this.limit = filter.currentLimit();
+        this.showScore = showScore;
     }
 
     @Override
@@ -62,7 +62,7 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     protected Row computeNext() {
         DataRange range = filter.dataRange;
         SliceQueryFilter sliceQueryFilter = (SliceQueryFilter) filter.dataRange.columnFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-        while (indexIterator.hasNext() && columnsCount <= limit) {
+        while (indexIterator.hasNext() && columnsCount < limit) {
             try {
                 IndexEntryCollector.IndexEntry entry = indexIterator.next();
                 String pkNameString = entry.pkName;
@@ -87,7 +87,6 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
                     SearchSupport.logger.trace("Returning index hit for {}", dk);
                 }
 
-
                 Row row = getRow(pkNameString, keyAndFilter.right, dk, ts, score);
                 if (row == null) {
                     if (SearchSupport.logger.isTraceEnabled())
@@ -104,37 +103,39 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     }
 
     private Row getRow(String pkString, IDiskAtomFilter dataFilter, DecoratedKey dk, long ts, Float score) throws IOException {
-
         ColumnFamily data = table.getColumnFamily(new QueryFilter(dk, table.name, dataFilter, filter.timestamp));
         if (data == null || searchSupport.deleteIfNotLatest(dk, ts, pkString, data)) {
             return null;
         }
-        ColumnFamily cleanColumnFamily = data;
-        if (searchSupport.currentIndex.isMetaColumn()) {
-            String indexColumnName = searchSupport.currentIndex.getPrimaryColumnName();
-            cleanColumnFamily = TreeMapBackedSortedColumns.factory.create(table.metadata);
-            boolean metaColReplaced = false;
-            Column firstColumn = null;
-            for (Column column : data) {
-                if (firstColumn == null) firstColumn = column;
-                String thisColName = searchSupport.currentIndex.getRowIndexSupport().getActualColumnName(column.name());
-                boolean isIndexColumn = indexColumnName.equals(thisColName);
-                if (isIndexColumn) {
-                    if (logger.isDebugEnabled())
-                        logger.debug("Primary col name {}", UTF8Type.instance.compose(column.name()));
-                    Column scoreColumn = new Column(column.name(), UTF8Type.instance.decompose("{\"score\":" + score.toString() + "}"));
-                    cleanColumnFamily.addColumn(scoreColumn);
-                    metaColReplaced = true;
-                } else {
-                    cleanColumnFamily.addColumn(column);
-                }
-            }
-            if (!metaColReplaced && firstColumn != null) {
-                Column newColumn = getMetaColumn(firstColumn, indexColumnName, score);
-                cleanColumnFamily.addColumn(newColumn);
+        boolean scored = searchSupport.currentIndex.isMetaColumn() && showScore;
+        ColumnFamily cleanColumnFamily = scored ? scored(score, data) : data;
+        return new Row(dk, cleanColumnFamily);
+    }
+
+    private ColumnFamily scored(Float score, ColumnFamily data) {
+        ColumnFamily cleanColumnFamily = TreeMapBackedSortedColumns.factory.create(table.metadata);
+        String indexColumnName = searchSupport.currentIndex.getPrimaryColumnName();
+        boolean metaColReplaced = false;
+        Column firstColumn = null;
+        for (Column column : data) {
+            if (firstColumn == null) firstColumn = column;
+            String thisColName = searchSupport.currentIndex.getRowIndexSupport().getActualColumnName(column.name());
+            boolean isIndexColumn = indexColumnName.equals(thisColName);
+            if (isIndexColumn) {
+                if (logger.isDebugEnabled())
+                    logger.debug("Primary col name {}", UTF8Type.instance.compose(column.name()));
+                Column scoreColumn = new Column(column.name(), UTF8Type.instance.decompose("{\"score\":" + score.toString() + "}"));
+                cleanColumnFamily.addColumn(scoreColumn);
+                metaColReplaced = true;
+            } else {
+                cleanColumnFamily.addColumn(column);
             }
         }
-        return new Row(dk, cleanColumnFamily);
+        if (!metaColReplaced && firstColumn != null) {
+            Column newColumn = getMetaColumn(firstColumn, indexColumnName, score);
+            cleanColumnFamily.addColumn(newColumn);
+        }
+        return cleanColumnFamily;
     }
 
     protected Column getMetaColumn(Column firstColumn, String colName, Float score) {
