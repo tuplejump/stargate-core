@@ -62,7 +62,7 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     protected Row computeNext() {
         DataRange range = filter.dataRange;
         SliceQueryFilter sliceQueryFilter = (SliceQueryFilter) filter.dataRange.columnFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-        while (indexIterator.hasNext() && columnsCount < limit) {
+        while (indexIterator.hasNext() && columnsCount <= limit) {
             try {
                 IndexEntryCollector.IndexEntry entry = indexIterator.next();
                 String pkNameString = entry.pkName;

@@ -33,10 +33,12 @@ import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.gms.*;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
@@ -45,6 +47,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -88,6 +91,7 @@ public class RowIndex extends PerRowSecondaryIndex {
 
     @Override
     public void index(ByteBuffer rowKey, ColumnFamily cf) {
+        if (indexers == null || indexers.isEmpty()) return;//TODO
         readLock.lock();
         try {
             rowIndexSupport.indexRow(indexer(baseCfs.partitioner.decorateKey(rowKey)), rowKey, cf);
@@ -209,25 +213,50 @@ public class RowIndex extends PerRowSecondaryIndex {
             String optionsJson = columnDefinition.getIndexOptions().get(Constants.INDEX_OPTIONS_JSON);
             this.options = Options.getOptions(primaryColumnName, baseCfs, optionsJson);
 
-            logger.warn("Creating new NRT Indexer for {}", indexName);
+            logger.warn("Creating new RowIndex for {}", indexName);
             indexers = new HashMap<>();
-
-//            AbstractReplicationStrategy replicationStrategy = this.baseCfs.keyspace.getReplicationStrategy();
-//            Collection<Range<Token>> ranges = replicationStrategy.getAddressRanges().get(FBUtilities.getBroadcastAddress());
-            Collection<Range<Token>> ranges = Collections.singletonList(new Range<Token>(Murmur3Partitioner.MINIMUM.getToken(), Murmur3Partitioner.MINIMUM.getToken()));
-            logger.warn("Adding VNode indexers");
-            for (Range<Token> range : ranges) {
-                Indexer indexer = new NearRealTimeIndexer(this.options.analyzer, keyspace, baseCfs.name, indexName, range.left.toString());
-                indexers.put(range, indexer);
-                logger.warn("Added VNode indexers for range {}", range);
+            if (StorageService.instance.isInitialized()) {
+                addIndexers();
+            } else {
+                //this is booting. lets make indexers after booting is complete
+                RingChangeListener changeListener = new RingChangeListener();
+                Gossiper.instance.register(changeListener);
             }
             rowIndexSupport = new RowIndexSupport(options, baseCfs);
-
         } finally {
             writeLock.unlock();
         }
     }
 
+    private void addIndexers() {
+        writeLock.lock();
+        try {
+            Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace);
+            //Collection<Range<Token>> ranges = Collections.singletonList(new Range<Token>(Murmur3Partitioner.MINIMUM.getToken(), Murmur3Partitioner.MINIMUM.getToken()));
+            if (indexers.isEmpty()) {
+                logger.warn("Adding VNode indexers");
+                for (Range<Token> range : ranges) {
+                    Indexer indexer = new NearRealTimeIndexer(this.options.analyzer, keyspace, baseCfs.name, indexName, range.left.toString());
+                    indexers.put(range, indexer);
+                    logger.warn("Added VNode indexers for range {}", range);
+                }
+            } else {
+                logger.warn("Change in VNode indexers");
+                HashMap<Range<Token>, Indexer> indexersToRemove = new HashMap<>(indexers);
+                for (Range<Token> range : ranges) {
+                    indexersToRemove.remove(range);
+                }
+                for (Map.Entry<Range<Token>, Indexer> entry : indexersToRemove.entrySet()) {
+                    logger.warn("Removing indexer for range {}", entry.getKey());
+                    Indexer indexer = indexers.remove(entry.getKey());
+                    indexer.removeIndex();
+                    logger.warn("Removed indexer for range {}", entry.getKey());
+                }
+            }
+        } finally {
+            writeLock.unlock();
+        }
+    }
 
     @Override
     public void validateOptions() throws ConfigurationException {
@@ -314,7 +343,7 @@ public class RowIndex extends PerRowSecondaryIndex {
     public void invalidate() {
         writeLock.lock();
         try {
-            logger.warn("Removing NRT Indexer for {}", indexName);
+            logger.warn("Removing All Indexers for {}", indexName);
             for (Indexer indexer : indexers.values()) {
                 if (indexer != null) {
                     indexer.removeIndex();
@@ -346,4 +375,50 @@ public class RowIndex extends PerRowSecondaryIndex {
     public String toString() {
         return "RowIndex [index=" + indexName + ", keyspace=" + keyspace + ", table=" + tableName + ", column=" + primaryColumnName + "]";
     }
+
+
+    private class RingChangeListener implements IEndpointStateChangeSubscriber {
+
+        private void doOnChange() {
+            addIndexers();
+        }
+
+
+        @Override
+        public void onJoin(InetAddress endpoint, EndpointState epState) {
+
+        }
+
+        @Override
+        public void beforeChange(InetAddress endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {
+
+        }
+
+        @Override
+        public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value) {
+            if (state == ApplicationState.TOKENS && FBUtilities.getBroadcastAddress().equals(endpoint))
+                doOnChange();
+        }
+
+        @Override
+        public void onAlive(InetAddress endpoint, EndpointState state) {
+
+        }
+
+        @Override
+        public void onDead(InetAddress endpoint, EndpointState state) {
+
+        }
+
+        @Override
+        public void onRemove(InetAddress endpoint) {
+
+        }
+
+        @Override
+        public void onRestart(InetAddress endpoint, EndpointState state) {
+
+        }
+    }
+
 }

@@ -124,7 +124,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     if (limit == 0) {
                         limit = 1;
                     }
-                    resultsLimit = Math.min(resultsLimit, limit);
+                    resultsLimit = Math.min(resultsLimit + 1, limit);
                     Query query = search.query(options);
                     org.apache.lucene.search.SortField[] sort = search.usesSorting() ? search.sort(options) : null;
                     IndexEntryCollector collector = new IndexEntryCollector(sort, resultsLimit);
