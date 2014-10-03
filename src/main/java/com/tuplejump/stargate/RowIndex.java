@@ -91,7 +91,8 @@ public class RowIndex extends PerRowSecondaryIndex {
 
     @Override
     public void index(ByteBuffer rowKey, ColumnFamily cf) {
-        if (indexers == null || indexers.isEmpty()) return;//TODO
+        //TODO capture commit log replays which is the point at which indexers are empty
+        if (indexers == null || indexers.isEmpty()) return;
         readLock.lock();
         try {
             rowIndexSupport.indexRow(indexer(baseCfs.partitioner.decorateKey(rowKey)), rowKey, cf);
@@ -216,7 +217,7 @@ public class RowIndex extends PerRowSecondaryIndex {
             logger.warn("Creating new RowIndex for {}", indexName);
             indexers = new HashMap<>();
             if (StorageService.instance.isInitialized()) {
-                addIndexers();
+                updateIndexers();
             } else {
                 //this is booting. lets make indexers after booting is complete
                 RingChangeListener changeListener = new RingChangeListener();
@@ -228,7 +229,7 @@ public class RowIndex extends PerRowSecondaryIndex {
         }
     }
 
-    private void addIndexers() {
+    private void updateIndexers() {
         writeLock.lock();
         try {
             Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace);
@@ -380,7 +381,7 @@ public class RowIndex extends PerRowSecondaryIndex {
     private class RingChangeListener implements IEndpointStateChangeSubscriber {
 
         private void doOnChange() {
-            addIndexers();
+            updateIndexers();
         }
 
 
