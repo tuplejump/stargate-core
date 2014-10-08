@@ -149,7 +149,7 @@ public class Options {
         indexedColumnNames.addAll(mapping.getFields().keySet());
 
         clusteringKeysIndexed = new LinkedHashMap<>();
-        partitionKeysIndexed  = new LinkedHashMap<>();
+        partitionKeysIndexed = new LinkedHashMap<>();
         Set<String> added = new HashSet<>(indexedColumnNames.size());
         List<ColumnDefinition> partitionKeys = baseCfs.metadata.partitionKeyColumns();
         List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
@@ -191,14 +191,14 @@ public class Options {
             if (added.add(columnName.toLowerCase())) {
                 Properties options = mapping.getFields().get(columnName);
                 ColumnDefinition colDef = getColumnDefinition(baseCfs, columnName);
-                if (options.getType() == Properties.Type.object) {
-                    mapping.fields.putAll(options.fields);
-                }
                 if (colDef != null) {
                     validators.put(columnName, colDef.getValidator());
                     addFieldType(columnName, colDef.getValidator(), numericFieldOptions, options, fieldTypes, collectionFieldTypes);
                 } else {
                     throw new IllegalArgumentException(String.format("Column Definition for %s not found", columnName));
+                }
+                if (options.getType() == Properties.Type.object) {
+                    mapping.fields.putAll(options.fields);
                 }
             }
         }
@@ -225,17 +225,17 @@ public class Options {
                 MapType mapType = (MapType) validator;
                 AbstractType keyValidator = mapType.keys;
                 AbstractType valueValidator = mapType.values;
-                Properties keyProps = properties.getFields().get("key");
-                Properties valueProps = properties.getFields().get("value");
+                Properties keyProps = properties.getFields().get("_key");
+                Properties valueProps = properties.getFields().get("_value");
                 if (keyProps == null) {
                     keyProps = new Properties();
                     keyProps.setAnalyzer(properties.analyzer);
-                    properties.fields.put("key", keyProps);
+                    properties.fields.put("_key", keyProps);
                 }
                 if (valueProps == null) {
                     valueProps = new Properties();
                     valueProps.setAnalyzer(properties.analyzer);
-                    properties.fields.put("value", valueProps);
+                    properties.fields.put("_value", valueProps);
                 }
                 keyProps.setFromAbstractType(keyValidator);
                 valueProps.setFromAbstractType(valueValidator);

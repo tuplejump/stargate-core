@@ -20,6 +20,7 @@ import com.tuplejump.stargate.lucene.Properties;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
@@ -31,10 +32,7 @@ import org.apache.lucene.util.NumericUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
+import java.util.*;
 
 import static com.tuplejump.stargate.Constants.*;
 
@@ -191,6 +189,9 @@ public class Fields {
             return ByteBufferUtil.bytes(0);
         } else if (cqlType == CQL3Type.Native.BOOLEAN) {
             return BooleanType.instance.decompose(min ? false : true);
+        } else if (type.isCollection()) {
+            CollectionType collectionType = (CollectionType) type;
+            return collectionType.serialize(Collections.EMPTY_LIST);
         } else {
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         }

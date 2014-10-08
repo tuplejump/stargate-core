@@ -40,10 +40,10 @@ public class CollectionIndexTest extends IndexTestBase {
             Assert.assertEquals(16, countResults("TAG2", "magic = '" + q("tags", "hello1") + "'", true));
             Assert.assertEquals(28, countResults("TAG2", "magic = '" + q("tags2", "bad") + "'", true));
             Assert.assertEquals(16, countResults("TAG2", "magic = '" + q("tags2", "hot") + "'", true));
-            Assert.assertEquals(28, countResults("TAG2", "magic = '" + q("phones.key", "patricia") + "'", true));
-            //Assert.assertEquals(28, countResults("TAG2", "magic = '" + q("phones.patricia", "555-4326") + "'", true));
-            Assert.assertEquals(20, countResults("TAG2", "magic = '" + mq("phones.value", "555-4326") + "'", true));
-            Assert.assertEquals(40, countResults("TAG2", "magic = '" + pfq("phones.value", "555") + "'", true));
+            Assert.assertEquals(28, countResults("TAG2", "magic = '" + q("phones._key", "patricia") + "'", true));
+            Assert.assertEquals(28, countResults("TAG2", "magic = '" + q("phones.patricia", "555-4326") + "'", true));
+            Assert.assertEquals(20, countResults("TAG2", "magic = '" + mq("phones._value", "555-4326") + "'", true));
+            Assert.assertEquals(40, countResults("TAG2", "magic = '" + pfq("phones._value", "555") + "'", true));
             for (int i = 0; i < 20; i++) {
                 deleteTagData("TAG2", "key", false, i + 1);
             }
@@ -61,7 +61,7 @@ public class CollectionIndexTest extends IndexTestBase {
                 "\t\"fields\":{\n" +
                 "\t\t\"tags\":{},\n" +
                 "\t\t\"tags2\":{},\n" +
-                "\t\t\"phones\":{\"fields\":{\"value\":{\"type\":\"string\"}}}\n" +
+                "\t\t\"phones\":{\"fields\":{\"_value\":{\"type\":\"string\"}}}\n" +
                 "\t}\n" +
                 "}";
         getSession().execute("USE " + keyspace + ";");

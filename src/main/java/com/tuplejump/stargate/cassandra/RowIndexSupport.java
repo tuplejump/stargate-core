@@ -215,9 +215,9 @@ public class RowIndexSupport {
         AbstractType valueType = validator.valueComparator();
         if (validator instanceof MapType) {
             ByteBuffer keyBuf = components[components.length - 1];
-            fields.add(Fields.field(colName + ".key", keyType, keyBuf, fieldTypesArr[0]));
-            fields.add(Fields.field(colName + ".value", valueType, column.value(), fieldTypesArr[1]));
-            fields.add(Fields.field(keyType.getString(keyBuf), valueType, column.value(), fieldTypesArr[1]));
+            fields.add(Fields.field(colName + "._key", keyType, keyBuf, fieldTypesArr[0]));
+            fields.add(Fields.field(colName + "._value", valueType, column.value(), fieldTypesArr[1]));
+            fields.add(Fields.field(colName + "." + keyType.getString(keyBuf), valueType, column.value(), fieldTypesArr[1]));
         } else if (validator instanceof SetType) {
             fields.add(Fields.field(colName, keyType, components[components.length - 1], fieldTypesArr[0]));
         } else if (validator instanceof ListType) {
