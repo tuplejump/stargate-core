@@ -18,6 +18,7 @@ package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
+import com.tuplejump.stargate.cassandra.IndexEntryCollector;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 
@@ -27,6 +28,21 @@ import java.util.List;
  * User: satya
  */
 public class NoOp implements Function {
+
+    @Override
+    public boolean canByPassRowFetch() {
+        return false;
+    }
+
+    @Override
+    public boolean shouldLimit() {
+        return true;
+    }
+
+    @Override
+    public List<Row> byPass(IndexEntryCollector indexEntryCollector, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) {
+        return null;
+    }
 
     @Override
     public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {

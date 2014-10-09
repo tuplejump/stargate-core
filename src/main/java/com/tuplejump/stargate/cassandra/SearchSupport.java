@@ -119,13 +119,15 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     results = new ArrayList<>();
                 } else {
                     Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
-                    int resultsLimit = filter.currentLimit();
-                    int limit = searcher.getIndexReader().maxDoc();
-                    if (limit == 0) {
-                        limit = 1;
-                    }
-                    resultsLimit = Math.min(resultsLimit + 1, limit);
+                    Function function = search.function(options);
                     Query query = search.query(options);
+                    int resultsLimit = searcher.getIndexReader().maxDoc();
+                    if (function.shouldLimit()) {
+                        if (resultsLimit == 0) {
+                            resultsLimit = 1;
+                        }
+                        resultsLimit = Math.min(filter.currentLimit() + 1, resultsLimit);
+                    }
                     org.apache.lucene.search.SortField[] sort = search.usesSorting() ? search.sort(options) : null;
                     IndexEntryCollector collector = new IndexEntryCollector(sort, resultsLimit);
                     searcher.search(query, collector);
@@ -133,10 +135,17 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     if (SearchSupport.logger.isDebugEnabled()) {
                         SearchSupport.logger.debug(String.format("Search results [%s]", collector.totalHits));
                     }
-                    Function function = search.function(options);
-                    ColumnFamilyStore.AbstractScanIterator iter = new RowScanner(searchSupport, baseCfs, filter, collector.docs().iterator(), function instanceof Aggregate ? false : search.isShowScore());
-                    List<Row> inputToFunction = baseCfs.filter(iter, filter);
-                    return function.process(inputToFunction, customColumnFactory, baseCfs, currentIndex);
+
+                    if (function.canByPassRowFetch()) {
+                        results = function.byPass(collector, customColumnFactory, baseCfs, currentIndex);
+                    } else {
+
+                        ColumnFamilyStore.AbstractScanIterator iter = new RowScanner(searchSupport, baseCfs, filter, collector.docs().iterator(), function instanceof Aggregate ? false : search.isShowScore());
+                        List<Row> inputToFunction = baseCfs.filter(iter, filter);
+                        Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
+                        results = function.process(inputToFunction, customColumnFactory, baseCfs, currentIndex);
+                        timer3.endLogTime("For Aggregation -" + collector.totalHits + " results");
+                    }
                 }
                 timer.endLogTime("SGIndex Search with results [" + results.size() + "]over all took -");
                 return results;

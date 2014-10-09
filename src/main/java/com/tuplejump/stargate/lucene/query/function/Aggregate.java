@@ -19,6 +19,7 @@ package com.tuplejump.stargate.lucene.query.function;
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
+import com.tuplejump.stargate.cassandra.IndexEntryCollector;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
@@ -52,6 +53,21 @@ public abstract class Aggregate implements Function {
     }
 
     public abstract String getFunction();
+
+    @Override
+    public boolean shouldLimit() {
+        return false;
+    }
+
+    @Override
+    public boolean canByPassRowFetch() {
+        return false;
+    }
+
+    @Override
+    public List<Row> byPass(IndexEntryCollector indexEntryCollector, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) {
+        return null;
+    }
 
     public Grouped values(List<Row> rows, ColumnFamilyStore table) throws Exception {
         CompositeType baseComparator = (CompositeType) table.getComparator();
@@ -102,7 +118,7 @@ public abstract class Aggregate implements Function {
         return false;
     }
 
-    protected List<Row> singleRow(String valueStr, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) {
+    public List<Row> singleRow(String valueStr, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) {
         ByteBuffer value = UTF8Type.instance.decompose("{'" + alias + "':" + valueStr + "}");
         Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, value);
         return Collections.singletonList(row);

@@ -19,6 +19,7 @@ package com.tuplejump.stargate.lucene.query.function;
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
+import com.tuplejump.stargate.cassandra.IndexEntryCollector;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -46,6 +47,15 @@ public class Count extends Aggregate {
         return "count";
     }
 
+    @Override
+    public boolean canByPassRowFetch() {
+        return (groupBy == null && !distinct && field==null);
+    }
+
+    @Override
+    public List<Row> byPass(IndexEntryCollector indexEntryCollector, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) {
+        return singleRow("" + indexEntryCollector.docs().size(), customColumnFactory, table, currentIndex);
+    }
 
     @Override
     public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {

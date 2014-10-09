@@ -125,8 +125,15 @@ public class IndexTestBase {
     }
 
     protected String fun(String field, String name, String type, boolean distinct) {
-        String query1 = "function:{ type:\"%s\", field:\"%s\", alias:\"%s\", distinct:%b }";
-        return String.format(query1, type, field, name, distinct);
+        if (field == null) {
+            String query1 = "function:{ type:\"%s\", alias:\"%s\", distinct:%b }";
+            return String.format(query1, type, name, distinct);
+
+        } else {
+            String query1 = "function:{ type:\"%s\", field:\"%s\", alias:\"%s\", distinct:%b }";
+            return String.format(query1, type, field, name, distinct);
+
+        }
     }
 
     protected String gFun(String field, String name, String type, boolean distinct, String groupBy) {

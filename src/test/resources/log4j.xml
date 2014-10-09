@@ -22,7 +22,7 @@
     </logger>
 
     <logger name="com.tuplejump.stargate.cassandra.SearchSupport">
-        <level value="WARN"/>
+        <level value="ERROR"/>
     </logger>
     <logger name="com.tuplejump.stargate.cassandra.RowIndexSupport">
         <level value="WARN"/>
