@@ -55,10 +55,24 @@ public class Fields {
         return atomicReader.getNumericDocValues(CF_TS_DOC_VAL);
     }
 
-    public static ByteBuffer rowKey(BinaryDocValues rowKeyValues, int docId) throws IOException {
+    public static ByteBuffer byteBufferDocValue(BinaryDocValues rowKeyValues, int docId) throws IOException {
         BytesRef ref = new BytesRef();
         rowKeyValues.get(docId, ref);
         return ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
+    }
+
+    public static Number numericDocValue(NumericDocValues rowKeyValues, int docId, AbstractType abstractType) throws IOException {
+        Long ref = rowKeyValues.get(docId);
+        CQL3Type cqlType = abstractType.asCQL3Type();
+        if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT) {
+            return ref.intValue();
+        } else if (cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER || cqlType == CQL3Type.Native.TIMESTAMP) {
+            return ref;
+        } else if (cqlType == CQL3Type.Native.FLOAT) {
+            return Float.intBitsToFloat(ref.intValue());
+        } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
+            return Double.longBitsToDouble(ref);
+        } else throw new IllegalArgumentException(String.format("Invalid type for numeric doc values <%s>", cqlType));
     }
 
     public static String primaryKeyName(BinaryDocValues primaryKeyNames, int docId) throws IOException {
@@ -67,7 +81,7 @@ public class Fields {
         return new String(ref.bytes, ref.offset, ref.length, StandardCharsets.UTF_8);
     }
 
-    public static Field idDocValues(final AbstractType abstractType, final ByteBuffer byteBufferValue) {
+    public static Field idDocValue(final AbstractType abstractType, final ByteBuffer byteBufferValue) {
         BytesRef bytesRef = new BytesRef(byteBufferValue.array(), byteBufferValue.arrayOffset(), byteBufferValue.limit());
         return new SortedDocValuesField(PK_NAME_DOC_VAL, bytesRef) {
             @Override
@@ -77,7 +91,7 @@ public class Fields {
         };
     }
 
-    public static Field pkNameDocValues(final String pkName) {
+    public static Field pkNameDocValue(final String pkName) {
         BytesRef bytesRef = new BytesRef(pkName.getBytes(StandardCharsets.UTF_8));
         return new SortedDocValuesField(PK_NAME_STORED, bytesRef) {
             @Override
@@ -137,7 +151,8 @@ public class Fields {
 
     public static Field field(String name, AbstractType type, ByteBuffer byteBufferValue, FieldType fieldType) {
         if (fieldType.docValueType() != null) {
-            return docValueField(name, type, byteBufferValue);
+            if (fieldType.numericType() != null) return numericDocValuesField(name, type, byteBufferValue);
+            else return binaryDocValuesField(name, type, byteBufferValue);
         }
         CQL3Type cqlType = type.asCQL3Type();
         if (cqlType == CQL3Type.Native.INT) {
@@ -235,16 +250,25 @@ public class Fields {
     }
 
 
-    private static Field docValueField(String name, final AbstractType abstractType, final ByteBuffer byteBufferValue) {
+    private static Field binaryDocValuesField(String name, final AbstractType abstractType, final ByteBuffer byteBufferValue) {
         BytesRef bytesRef = new BytesRef(byteBufferValue.array(), byteBufferValue.arrayOffset(), byteBufferValue.limit());
         final String stripedName = striped + name;
-        return new BinaryDocValuesField(stripedName, bytesRef) {
-            @Override
-            public String toString() {
-                return String.format("BinaryDocValuesField <%s> <%s>", stripedName, abstractType.getString(byteBufferValue));
-            }
-        };
+        return new BinaryDocValuesField(stripedName, bytesRef);
     }
+
+    private static Field numericDocValuesField(String name, final AbstractType abstractType, final ByteBuffer byteBufferValue) {
+        final String stripedName = striped + name;
+        Number value = (Number) abstractType.compose(byteBufferValue);
+        CQL3Type cqlType = abstractType.asCQL3Type();
+        if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER || cqlType == CQL3Type.Native.TIMESTAMP) {
+            return new NumericDocValuesField(stripedName, value.longValue());
+        } else if (cqlType == CQL3Type.Native.FLOAT) {
+            return new FloatDocValuesField(stripedName, value.floatValue());
+        } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
+            return new DoubleDocValuesField(stripedName, value.doubleValue());
+        } else throw new IllegalArgumentException(String.format("Invalid type for numeric doc values <%s>", cqlType));
+    }
+
 
     public static String toString(ByteBuffer byteBuffer, AbstractType<?> type) {
         if (type instanceof CompositeType) {

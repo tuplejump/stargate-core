@@ -25,7 +25,10 @@ import com.tuplejump.stargate.lucene.query.function.Aggregate;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
@@ -128,26 +131,19 @@ public class SearchSupport extends SecondaryIndexSearcher {
                         }
                         resultsLimit = Math.min(filter.currentLimit() + 1, resultsLimit);
                     }
-                    org.apache.lucene.search.SortField[] sort = search.usesSorting() ? search.sort(options) : null;
-                    IndexEntryCollector collector = new IndexEntryCollector(sort, resultsLimit);
+
+                    IndexEntryCollector collector = new IndexEntryCollector(function, search, options, resultsLimit);
                     searcher.search(query, collector);
-                    timer2.endLogTime("For TopDocs search for -" + collector.totalHits + " results");
+                    timer2.endLogTime("TopDocs search for [" + collector.totalHits + "] results ");
                     if (SearchSupport.logger.isDebugEnabled()) {
                         SearchSupport.logger.debug(String.format("Search results [%s]", collector.totalHits));
                     }
-
-                    if (function.canByPassRowFetch()) {
-                        results = function.byPass(collector, customColumnFactory, baseCfs, currentIndex);
-                    } else {
-
-                        ColumnFamilyStore.AbstractScanIterator iter = new RowScanner(searchSupport, baseCfs, filter, collector.docs().iterator(), function instanceof Aggregate ? false : search.isShowScore());
-                        List<Row> inputToFunction = baseCfs.filter(iter, filter);
-                        Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
-                        results = function.process(inputToFunction, customColumnFactory, baseCfs, currentIndex);
-                        timer3.endLogTime("For Aggregation -" + collector.totalHits + " results");
-                    }
+                    RowScanner iter = new RowScanner(searchSupport, baseCfs, filter, collector, function instanceof Aggregate ? false : search.isShowScore());
+                    Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
+                    results = function.process(iter, customColumnFactory, baseCfs, currentIndex);
+                    timer3.endLogTime("Aggregation [" + collector.totalHits + "] results");
                 }
-                timer.endLogTime("SGIndex Search with results [" + results.size() + "]over all took -");
+                timer.endLogTime("Search with results [" + results.size() + "] ");
                 return results;
 
             }

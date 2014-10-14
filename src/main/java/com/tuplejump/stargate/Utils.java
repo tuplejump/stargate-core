@@ -20,6 +20,7 @@ import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
@@ -100,12 +101,12 @@ public class Utils {
     }
 
     public static SimpleTimer getStartedTimer(Logger logger) {
-        SimpleTimer timer = new SimpleTimer(logger);
+        SimpleTimer timer = Tracing.isTracing() ? getTracingTimer() : new SimpleTimer(logger);
         timer.start();
         return timer;
     }
 
-    public static SimpleTimer getStartedTimer() {
+    public static SimpleTimer getTracingTimer() {
         SimpleTimer timer = new SimpleTimer();
         timer.start();
         return timer;
@@ -148,8 +149,10 @@ public class Utils {
         }
 
         public void logTime(String prefix) {
-            if (logger.isWarnEnabled())
-                logger.warn(String.format("{} - time taken is [{}] milli seconds"), prefix, time());
+            if (logger != null && logger.isWarnEnabled())
+                logger.warn(String.format("{} - took [{}] milli seconds"), prefix, time());
+            if (Tracing.isTracing())
+                Tracing.trace("{} - took [{}] milli seconds", prefix, time());
         }
 
         public void endLogTime(String prefix) {

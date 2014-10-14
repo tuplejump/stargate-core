@@ -30,7 +30,7 @@ public final class Constants {
     public static final String CF_TS_INDEXED = "_cf_ts";
 
     //lucene options per field
-    public static final String striped = "striped";
+    public static final String striped = "_striped_";
     //lucene options
 
 

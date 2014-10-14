@@ -18,6 +18,7 @@ package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
+import com.tuplejump.stargate.cassandra.RowScanner;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 import org.apache.commons.lang3.StringUtils;
@@ -44,8 +45,8 @@ public class Values extends Aggregate {
 
 
     @Override
-    public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        Grouped grouped = values(rows, table);
+    public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
+        Grouped grouped = values(rowScanner, table);
         if (groupBy == null)
             return singleRow("[" + StringUtils.join(grouped.values(DEFAULT), ',') + "]", customColumnFactory, table, currentIndex);
         else {

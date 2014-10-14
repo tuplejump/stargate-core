@@ -19,7 +19,7 @@ package com.tuplejump.stargate.lucene.query.function;
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.IndexEntryCollector;
+import com.tuplejump.stargate.cassandra.RowScanner;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -48,28 +48,19 @@ public class Count extends Aggregate {
     }
 
     @Override
-    public boolean canByPassRowFetch() {
-        return (groupBy == null && !distinct && field==null);
-    }
-
-    @Override
-    public List<Row> byPass(IndexEntryCollector indexEntryCollector, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) {
-        return singleRow("" + indexEntryCollector.docs().size(), customColumnFactory, table, currentIndex);
-    }
-
-    @Override
-    public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
+    public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
         if (groupBy == null && !distinct)
-            return singleRow("" + rows.size(), customColumnFactory, table, currentIndex);
+            return singleRow("" + rowScanner.getCollector().docs().size(), customColumnFactory, table, currentIndex);
 
         if (groupBy != null && distinct) {
-            Grouped grouped = values(rows, table);
+            Grouped grouped = values(rowScanner, table);
             return distinctSize(customColumnFactory, table, currentIndex, grouped);
         }
 
         CompositeType baseComparator = (CompositeType) table.getComparator();
         Grouped grouped = new Grouped(false);
-        for (Row row : rows) {
+        while (rowScanner.hasNext()) {
+            Row row = rowScanner.next();
             String group = DEFAULT;
             long count = 0;
             ColumnFamily cf = row.cf;

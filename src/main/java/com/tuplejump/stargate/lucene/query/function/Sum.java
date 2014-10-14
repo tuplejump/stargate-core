@@ -19,6 +19,9 @@ package com.tuplejump.stargate.lucene.query.function;
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
+import com.tuplejump.stargate.cassandra.IndexEntryCollector;
+import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
@@ -29,8 +32,8 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
-import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -49,41 +52,67 @@ public class Sum extends Aggregate {
     }
 
     @Override
-    public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
+    public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
         CompositeType baseComparator = (CompositeType) table.getComparator();
-        boolean numberCheck = false;
+
         Grouped grouped = new Grouped(false);
-        for (Row row : rows) {
-            String group = DEFAULT;
-            double sum = 0;
-            ColumnFamily cf = row.cf;
-            Collection<Column> cols = cf.getSortedColumns();
-            for (Column column : cols) {
-                String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
-                AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
-                if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
-                    group = valueValidator.getString(column.value());
-                }
-                if (field.equalsIgnoreCase(actualColumnName)) {
-                    CQL3Type cqlType = valueValidator.asCQL3Type();
-                    if (!numberCheck && !isNumber(cqlType)) {
-                        throw new UnsupportedOperationException("Sum function is available only on numeric types");
+        if (rowScanner.getCollector().canByPassRowFetch()) {
+            return byPassRowFetch(rowScanner, customColumnFactory, table, currentIndex, grouped);
+
+        } else {
+            boolean numberCheck = false;
+            while (rowScanner.hasNext()) {
+                Row row = rowScanner.next();
+                String group = DEFAULT;
+                double sum = 0;
+                ColumnFamily cf = row.cf;
+
+                Collection<Column> cols = cf.getSortedColumns();
+                for (Column column : cols) {
+                    String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
+                    AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
+                    if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
+                        group = valueValidator.getString(column.value());
                     }
-                    numberCheck = true;
-                    Object obj = valueValidator.compose(column.value());
-                    if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT) {
-                        sum += (Integer) obj;
-                    } else if (cqlType == CQL3Type.Native.BIGINT) {
-                        sum += (Long) obj;
-                    } else if (cqlType == CQL3Type.Native.FLOAT) {
-                        sum += (Float) obj;
-                    } else if (cqlType == CQL3Type.Native.DECIMAL) {
-                        sum += ((BigDecimal) obj).doubleValue();
-                    } else if (cqlType == CQL3Type.Native.DOUBLE) {
-                        sum += (Double) obj;
+                    if (field.equalsIgnoreCase(actualColumnName)) {
+                        CQL3Type cqlType = valueValidator.asCQL3Type();
+                        if (!numberCheck && !isNumber(cqlType)) {
+                            throw new UnsupportedOperationException("Sum function is available only on numeric types");
+                        }
+                        numberCheck = true;
+                        Object obj = valueValidator.compose(column.value());
+                        sum = addToSum(sum, cqlType, (Number) obj);
                     }
                 }
+                Double singleValue = (Double) grouped.singleValue(group);
+                if (singleValue == null) grouped.singleValue(group, sum);
+                else grouped.singleValue(group, sum + singleValue);
             }
+            if (groupBy == null)
+                return singleRow(grouped.singleValue(DEFAULT).toString(), customColumnFactory, table, currentIndex);
+            else
+                return row(customColumnFactory, table, currentIndex, grouped);
+        }
+    }
+
+    private List<Row> byPassRowFetch(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped) {
+        Options options = rowScanner.getOptions();
+        Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
+        String field = getField();
+        String groupBy = getGroupBy();
+        AbstractType valueValidator = options.validators.get(getField());
+        AbstractType groupValidator = groupBy == null ? null : options.validators.get(groupBy);
+        CQL3Type cqlType = valueValidator.asCQL3Type();
+        if (!isNumber(cqlType)) {
+            throw new UnsupportedOperationException("Sum function is available only on numeric types");
+        }
+
+        double sum = 0;
+        while (indexIterator.hasNext()) {
+            IndexEntryCollector.IndexEntry indexEntry = indexIterator.next();
+            Object value = getValue(indexEntry, field, valueValidator, false);
+            String group = groupBy == null ? DEFAULT : (String) getValue(indexEntry, groupBy, groupValidator, true);
+            sum = addToSum(sum, cqlType, (Number) value);
             Double singleValue = (Double) grouped.singleValue(group);
             if (singleValue == null) grouped.singleValue(group, sum);
             else grouped.singleValue(group, sum + singleValue);
@@ -92,6 +121,21 @@ public class Sum extends Aggregate {
             return singleRow(grouped.singleValue(DEFAULT).toString(), customColumnFactory, table, currentIndex);
         else
             return row(customColumnFactory, table, currentIndex, grouped);
+    }
+
+    private double addToSum(double sum, CQL3Type cqlType, Number obj) {
+        if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT) {
+            sum += (Integer) obj;
+        } else if (cqlType == CQL3Type.Native.BIGINT) {
+            sum += (Long) obj;
+        } else if (cqlType == CQL3Type.Native.FLOAT) {
+            sum += (Float) obj;
+        } else if (cqlType == CQL3Type.Native.DECIMAL) {
+            sum += obj.doubleValue();
+        } else if (cqlType == CQL3Type.Native.DOUBLE) {
+            sum += (Double) obj;
+        }
+        return sum;
     }
 
     private List<Row> row(CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped) {

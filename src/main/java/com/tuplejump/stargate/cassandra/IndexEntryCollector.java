@@ -17,8 +17,16 @@
 
 package com.tuplejump.stargate.cassandra;
 
+import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.Fields;
+import com.tuplejump.stargate.lucene.Options;
+import com.tuplejump.stargate.lucene.query.Search;
+import com.tuplejump.stargate.lucene.query.function.Aggregate;
+import com.tuplejump.stargate.lucene.query.function.Function;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.Collector;
@@ -29,7 +37,9 @@ import org.apache.lucene.search.Scorer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: satya
@@ -50,9 +60,22 @@ public class IndexEntryCollector extends Collector {
     SortedDocValues pkNames;
     SortedDocValues rowKeys;
     NumericDocValues timeStamps;
+    List<String> numericDocValueNamesToFetch;
+    List<String> binaryDocValueNamesToFetch;
+    Map<String, NumericDocValues> numericDocValuesMap = new HashMap<>();
+    Map<String, BinaryDocValues> binaryDocValuesMap = new HashMap<>();
+    Options options;
 
 
-    public IndexEntryCollector(org.apache.lucene.search.SortField[] sortFields, int maxResults) throws IOException {
+    boolean canByPassRowFetch;
+
+    public boolean canByPassRowFetch() {
+        return canByPassRowFetch;
+    }
+
+    public IndexEntryCollector(Function function, Search search, Options options, int maxResults) throws IOException {
+        this.options = options;
+        org.apache.lucene.search.SortField[] sortFields = search.usesSorting() ? search.sort(options) : null;
         if (sortFields == null) {
             hitQueue = FieldValueHitQueue.create(new org.apache.lucene.search.SortField[]{org.apache.lucene.search.SortField.FIELD_SCORE}, maxResults);
         } else {
@@ -61,7 +84,26 @@ public class IndexEntryCollector extends Collector {
         comparators = hitQueue.getComparators();
         numHits = maxResults;
         reverseMul = hitQueue.getReverseMul();
+        numericDocValueNamesToFetch = new ArrayList<>();
+        binaryDocValueNamesToFetch = new ArrayList<>();
+        if (function instanceof Aggregate) {
+            Aggregate aggregate = (Aggregate) function;
+            if (addToFetch(options, aggregate.getField()) && addToFetch(options, aggregate.getGroupBy()))
+                canByPassRowFetch = true;
+        }
+    }
 
+    private boolean addToFetch(Options options, String field) {
+        if (field == null) return true;
+        FieldType docValType = options.fieldDocValueTypes.get(field);
+        if (docValType == null) docValType = options.collectionFieldDocValueTypes.get(field);
+        if (docValType != null) {
+            if (docValType.numericType() != null)
+                return numericDocValueNamesToFetch.add(field);
+            else
+                return binaryDocValueNamesToFetch.add(field);
+        }
+        return false;
     }
 
     public List<IndexEntry> docs() {
@@ -82,6 +124,13 @@ public class IndexEntryCollector extends Collector {
         pkNames = Fields.getPKDocValues(context.reader());
         rowKeys = Fields.getRKDocValues(context.reader());
         timeStamps = Fields.getTSDocValues(context.reader());
+        for (String docValName : numericDocValueNamesToFetch) {
+            numericDocValuesMap.put(docValName, context.reader().getNumericDocValues(Constants.striped + docValName));
+        }
+        for (String docValName : binaryDocValueNamesToFetch) {
+            binaryDocValuesMap.put(docValName, context.reader().getBinaryDocValues(Constants.striped + docValName));
+        }
+
     }
 
     @Override
@@ -165,9 +214,19 @@ public class IndexEntryCollector extends Collector {
 
     IndexEntry getIndexEntry(int slot, int doc, float score) throws IOException {
         String pkName = Fields.primaryKeyName(pkNames, doc);
-        ByteBuffer rowKey = Fields.rowKey(rowKeys, doc);
+        ByteBuffer rowKey = Fields.byteBufferDocValue(rowKeys, doc);
         long timeStamp = timeStamps.get(doc);
-        IndexEntry entry = new IndexEntry(pkName, rowKey, timeStamp, slot, docBase + doc, score);
+        Map<String, Number> numericDocValues = new HashMap<>();
+        Map<String, ByteBuffer> binaryDocValues = new HashMap<>();
+        for (Map.Entry<String, NumericDocValues> entry : numericDocValuesMap.entrySet()) {
+            AbstractType validator = options.validators.get(entry.getKey());
+            Number number = Fields.numericDocValue(entry.getValue(), doc, validator);
+            numericDocValues.put(entry.getKey(), number);
+        }
+        for (Map.Entry<String, BinaryDocValues> entry : binaryDocValuesMap.entrySet()) {
+            binaryDocValues.put(entry.getKey(), Fields.byteBufferDocValue(entry.getValue(), doc));
+        }
+        IndexEntry entry = new IndexEntry(pkName, rowKey, timeStamp, slot, docBase + doc, score, numericDocValues, binaryDocValues);
         return entry;
     }
 
@@ -177,14 +236,26 @@ public class IndexEntryCollector extends Collector {
         public final ByteBuffer rowKey;
         public final long timestamp;
         public float score;
+        Map<String, Number> numericDocValuesMap;
+        Map<String, ByteBuffer> binaryDocValuesMap;
 
 
-        public IndexEntry(String pkName, ByteBuffer rowKey, long timestamp, int slot, int doc, float score) {
+        public IndexEntry(String pkName, ByteBuffer rowKey, long timestamp, int slot, int doc, float score, Map<String, Number> numericDocValuesMap, Map<String, ByteBuffer> binaryDocValuesMap) {
             super(slot, doc, score);
             this.pkName = pkName;
             this.rowKey = rowKey;
             this.timestamp = timestamp;
             this.score = score;
+            this.binaryDocValuesMap = binaryDocValuesMap;
+            this.numericDocValuesMap = numericDocValuesMap;
+        }
+
+        public Number getNumber(String field) {
+            return numericDocValuesMap.get(field);
+        }
+
+        public ByteBuffer getByteBuffer(String field) {
+            return binaryDocValuesMap.get(field);
         }
 
         @Override

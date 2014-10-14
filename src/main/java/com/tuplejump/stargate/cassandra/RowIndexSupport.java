@@ -211,6 +211,7 @@ public class RowIndexSupport {
         ByteBuffer[] components = baseComparator.split(column.name());
         List<Field> fields = new ArrayList<>();
         FieldType[] fieldTypesArr = options.collectionFieldTypes.get(colName);
+        FieldType docValueType = options.collectionFieldDocValueTypes.get(colName);
         AbstractType keyType = validator.nameComparator();
         AbstractType valueType = validator.valueComparator();
         if (validator instanceof MapType) {
@@ -218,17 +219,23 @@ public class RowIndexSupport {
             fields.add(Fields.field(colName + "._key", keyType, keyBuf, fieldTypesArr[0]));
             fields.add(Fields.field(colName + "._value", valueType, column.value(), fieldTypesArr[1]));
             fields.add(Fields.field(colName + "." + keyType.getString(keyBuf), valueType, column.value(), fieldTypesArr[1]));
+            if (docValueType != null)
+                fields.add(Fields.field(colName + "." + keyType.getString(keyBuf), valueType, column.value(), docValueType));
         } else if (validator instanceof SetType) {
             fields.add(Fields.field(colName, keyType, components[components.length - 1], fieldTypesArr[0]));
+            if (docValueType != null)
+                fields.add(Fields.field(colName, keyType, components[components.length - 1], docValueType));
         } else if (validator instanceof ListType) {
             fields.add(Fields.field(colName, valueType, column.value(), fieldTypesArr[0]));
+            if (docValueType != null)
+                fields.add(Fields.field(colName, valueType, column.value(), docValueType));
         } else throw new UnsupportedOperationException("Unsupported collection type " + validator);
 
         return fields;
     }
 
     protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pk, AbstractType rkValValidator) {
-        return Arrays.asList(Fields.idDocValues(rkValValidator, pk), Fields.pkNameDocValues(pkName), Fields.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
+        return Arrays.asList(Fields.idDocValue(rkValValidator, pk), Fields.pkNameDocValue(pkName), Fields.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
     }
 
     protected List<Field> tsFields(long ts) {
@@ -256,7 +263,11 @@ public class RowIndexSupport {
         } else {
             FieldType fieldType = options.fieldTypes.get(name);
             addField(fields, columnDefinition, name, fieldType, column.value());
+            FieldType docValueType = options.fieldDocValueTypes.get(name);
+            if (docValueType != null)
+                addField(fields, columnDefinition, name, docValueType, column.value());
         }
     }
+
 
 }

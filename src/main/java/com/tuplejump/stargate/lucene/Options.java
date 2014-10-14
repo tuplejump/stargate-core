@@ -93,6 +93,9 @@ public class Options {
     final Map<String, Properties> fields;
     public final Properties primary;
     public final Map<String, NumericConfig> numericFieldOptions;
+    public final Map<String, FieldType> fieldDocValueTypes;
+    public final Map<String, FieldType> collectionFieldDocValueTypes;
+
     public final Map<String, FieldType> fieldTypes;
     public final Map<String, FieldType[]> collectionFieldTypes;
     public final Map<String, AbstractType> validators;
@@ -125,7 +128,9 @@ public class Options {
 
     public boolean shouldIndex(String fieldName) {
         if (fieldTypes.containsKey(fieldName)) return true;
+        if (fieldDocValueTypes.containsKey(fieldName)) return true;
         if (collectionFieldTypes.containsKey(fieldName)) return true;
+        if (collectionFieldDocValueTypes.containsKey(fieldName)) return true;
         return false;
     }
 
@@ -154,8 +159,12 @@ public class Options {
         List<ColumnDefinition> partitionKeys = baseCfs.metadata.partitionKeyColumns();
         List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
         fieldTypes = new TreeMap<>();
-        validators = new TreeMap<>();
         collectionFieldTypes = new TreeMap<>();
+
+        fieldDocValueTypes = new TreeMap<>();
+        collectionFieldDocValueTypes = new TreeMap<>();
+
+        validators = new TreeMap<>();
         numericFieldOptions = new HashMap<>();
 
         for (ColumnDefinition colDef : partitionKeys) {
@@ -167,7 +176,7 @@ public class Options {
                 partitionKeysIndexed.put(colDef.componentIndex, Pair.create(columnName, colDef.name));
                 validators.put(columnName, colDef.getValidator());
                 Properties properties = mapping.getFields().get(columnName.toLowerCase());
-                addFieldType(columnName, colDef.getValidator(), numericFieldOptions, properties, fieldTypes, collectionFieldTypes);
+                addFieldType(columnName, colDef.getValidator(), properties);
                 added.add(columnName.toLowerCase());
             }
         }
@@ -182,7 +191,7 @@ public class Options {
                 clusteringKeysIndexed.put(colDef.componentIndex + 1, Pair.create(columnName, colDef.name));
                 validators.put(columnName, colDef.getValidator());
                 Properties properties = mapping.getFields().get(columnName.toLowerCase());
-                addFieldType(columnName, colDef.getValidator(), numericFieldOptions, properties, fieldTypes, collectionFieldTypes);
+                addFieldType(columnName, colDef.getValidator(), properties);
                 added.add(columnName.toLowerCase());
             }
         }
@@ -193,7 +202,7 @@ public class Options {
                 ColumnDefinition colDef = getColumnDefinition(baseCfs, columnName);
                 if (colDef != null) {
                     validators.put(columnName, colDef.getValidator());
-                    addFieldType(columnName, colDef.getValidator(), numericFieldOptions, options, fieldTypes, collectionFieldTypes);
+                    addFieldType(columnName, colDef.getValidator(), options);
                 } else {
                     throw new IllegalArgumentException(String.format("Column Definition for %s not found", columnName));
                 }
@@ -218,7 +227,8 @@ public class Options {
         return null;
     }
 
-    private static void addFieldType(String columnName, AbstractType validator, Map<String, NumericConfig> numericConfigMap, Properties properties, Map<String, FieldType> fieldTypes, Map<String, FieldType[]> collectionFieldTypes) {
+    private void addFieldType(String columnName, AbstractType validator, Properties properties) {
+
         if (validator.isCollection()) {
             if (validator instanceof MapType) {
                 properties.setType(Properties.Type.map);
@@ -241,28 +251,46 @@ public class Options {
                 valueProps.setFromAbstractType(valueValidator);
                 FieldType keyFieldType = Properties.fieldType(keyProps, keyValidator);
                 FieldType valueFieldType = Properties.fieldType(valueProps, valueValidator);
-                collectionFieldTypes.put(columnName, new FieldType[]{keyFieldType, valueFieldType});
-            } else if (validator instanceof SetType) {
-                SetType setType = (SetType) validator;
-                AbstractType elementValidator = setType.elements;
+
+                if (valueProps.striped == Properties.Striped.only || valueProps.striped == Properties.Striped.also) {
+                    FieldType docValueType = Properties.docValueTypeFrom(valueFieldType);
+                    collectionFieldDocValueTypes.put(columnName, docValueType);
+                }
+                if (!(valueProps.striped == Properties.Striped.only))
+                    collectionFieldTypes.put(columnName, new FieldType[]{keyFieldType, valueFieldType});
+
+            } else if (validator instanceof ListType || validator instanceof SetType) {
+                AbstractType elementValidator;
+                if (validator instanceof SetType) {
+                    SetType setType = (SetType) validator;
+                    elementValidator = setType.elements;
+                } else {
+                    ListType listType = (ListType) validator;
+                    elementValidator = listType.elements;
+                }
                 properties.setFromAbstractType(elementValidator);
+
                 FieldType elementFieldType = Properties.fieldType(properties, elementValidator);
-                collectionFieldTypes.put(columnName, new FieldType[]{elementFieldType});
-            } else if (validator instanceof ListType) {
-                ListType listType = (ListType) validator;
-                AbstractType elementValidator = listType.elements;
-                properties.setFromAbstractType(elementValidator);
-                FieldType elementFieldType = Properties.fieldType(properties, elementValidator);
-                collectionFieldTypes.put(columnName, new FieldType[]{elementFieldType});
+                if (properties.striped == Properties.Striped.only || properties.striped == Properties.Striped.also) {
+                    FieldType docValueType = Properties.docValueTypeFrom(elementFieldType);
+                    collectionFieldDocValueTypes.put(columnName, docValueType);
+                }
+                if (!(properties.striped == Properties.Striped.only))
+                    collectionFieldTypes.put(columnName, new FieldType[]{elementFieldType});
             }
 
         } else {
             properties.setFromAbstractType(validator);
             FieldType fieldType = Properties.fieldType(properties, validator);
             if (fieldType.numericType() != null) {
-                numericConfigMap.put(columnName, Utils.numericConfig(fieldType));
+                numericFieldOptions.put(columnName, Utils.numericConfig(fieldType));
             }
-            fieldTypes.put(columnName, fieldType);
+            if (properties.striped == Properties.Striped.only || properties.striped == Properties.Striped.also) {
+                FieldType docValueType = Properties.docValueTypeFrom(fieldType);
+                fieldDocValueTypes.put(columnName, docValueType);
+            }
+            if (!(properties.striped == Properties.Striped.only))
+                fieldTypes.put(columnName, fieldType);
         }
     }
 

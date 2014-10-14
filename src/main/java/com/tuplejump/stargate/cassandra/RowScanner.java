@@ -16,6 +16,8 @@
 
 package com.tuplejump.stargate.cassandra;
 
+import com.tuplejump.stargate.lucene.Options;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -38,17 +40,18 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     protected static final Logger logger = LoggerFactory.getLogger(RowScanner.class);
     ColumnFamilyStore table;
     ExtendedFilter filter;
+    IndexEntryCollector collector;
     Iterator<IndexEntryCollector.IndexEntry> indexIterator;
     SearchSupport searchSupport;
     int limit;
     int columnsCount = 0;
     boolean showScore = false;
 
-    public RowScanner(SearchSupport searchSupport, ColumnFamilyStore table, ExtendedFilter filter, Iterator<IndexEntryCollector.IndexEntry> indexIterator, boolean showScore) throws Exception {
+    public RowScanner(SearchSupport searchSupport, ColumnFamilyStore table, ExtendedFilter filter, IndexEntryCollector collector, boolean showScore) throws Exception {
         this.searchSupport = searchSupport;
         this.table = table;
         this.filter = filter;
-        this.indexIterator = indexIterator;
+        this.collector = collector;
         this.limit = filter.currentLimit();
         this.showScore = showScore;
     }
@@ -62,6 +65,7 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     protected Row computeNext() {
         DataRange range = filter.dataRange;
         SliceQueryFilter sliceQueryFilter = (SliceQueryFilter) filter.dataRange.columnFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        if (indexIterator == null) indexIterator = collector.docs().iterator();
         while (indexIterator.hasNext() && columnsCount <= limit) {
             try {
                 IndexEntryCollector.IndexEntry entry = indexIterator.next();
@@ -109,6 +113,7 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
         }
         boolean scored = searchSupport.currentIndex.isMetaColumn() && showScore;
         ColumnFamily cleanColumnFamily = scored ? scored(score, data) : data;
+        removeDroppedColumns(cleanColumnFamily);
         return new Row(dk, cleanColumnFamily);
     }
 
@@ -192,5 +197,38 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     public void close() throws IOException {
         //no op
     }
+
+    public ColumnFamilyStore getTable() {
+        return table;
+    }
+
+    public ExtendedFilter getFilter() {
+        return filter;
+    }
+
+    public IndexEntryCollector getCollector() {
+        return collector;
+    }
+
+    public Options getOptions() {
+        return searchSupport.options;
+    }
+
+    private void removeDroppedColumns(ColumnFamily cf) {
+        CFMetaData metadata = cf.metadata();
+        if (cf == null || metadata.getDroppedColumns().isEmpty())
+            return;
+
+        Iterator<Column> iter = cf.iterator();
+        while (iter.hasNext())
+            if (isDroppedColumn(iter.next(), metadata))
+                iter.remove();
+    }
+
+    private static boolean isDroppedColumn(Column c, CFMetaData meta) {
+        Long droppedAt = meta.getDroppedColumns().get(((CompositeType) meta.comparator).extractLastComponent(c.name()));
+        return droppedAt != null && c.timestamp() <= droppedAt;
+    }
+
 
 }

@@ -47,6 +47,10 @@ public class Properties {
         ID_FIELD.indexed = true;
     }
 
+    public enum Striped {
+        also, only, none
+    }
+
     public enum Type {
         object,
         map,
@@ -89,6 +93,9 @@ public class Properties {
 
     @JsonProperty
     Boolean stored = false;
+
+    @JsonProperty
+    Striped striped = Striped.none;
 
     @JsonProperty
     Boolean tokenized = true;
@@ -197,6 +204,10 @@ public class Properties {
         return stored != null ? stored : false;
     }
 
+    public Striped striped() {
+        return striped;
+    }
+
     public boolean isTokenized() {
         if (tokenized == null) {
             if (type != null && type.canTokenize())
@@ -302,6 +313,14 @@ public class Properties {
         }
         return perFieldAnalyzers;
     }
+
+    public static FieldType docValueTypeFrom(FieldType fieldType) {
+        FieldType docValType = new FieldType(fieldType);
+        if (fieldType.numericType() != null) docValType.setDocValueType(FieldInfo.DocValuesType.NUMERIC);
+        else docValType.setDocValueType(FieldInfo.DocValuesType.BINARY);
+        return docValType;
+    }
+
 
     public static FieldType fieldType(Properties properties, AbstractType validator) {
         FieldType fieldType = new FieldType();

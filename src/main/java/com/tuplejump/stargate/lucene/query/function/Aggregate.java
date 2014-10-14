@@ -20,6 +20,8 @@ import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
 import com.tuplejump.stargate.cassandra.IndexEntryCollector;
+import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
@@ -30,6 +32,7 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.codehaus.jackson.annotate.JsonProperty;
 
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -59,21 +62,14 @@ public abstract class Aggregate implements Function {
         return false;
     }
 
-    @Override
-    public boolean canByPassRowFetch() {
-        return false;
-    }
-
-    @Override
-    public List<Row> byPass(IndexEntryCollector indexEntryCollector, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) {
-        return null;
-    }
-
-    public Grouped values(List<Row> rows, ColumnFamilyStore table) throws Exception {
+    public Grouped values(RowScanner rowScanner, ColumnFamilyStore table) throws Exception {
         CompositeType baseComparator = (CompositeType) table.getComparator();
-        if (rows.size() > 0) {
-            Grouped grouped = new Grouped(true);
-            for (Row row : rows) {
+        Grouped grouped = new Grouped(true);
+        if (rowScanner.getCollector().canByPassRowFetch()) {
+            byPassRowFetch(rowScanner, grouped);
+        } else {
+            while (rowScanner.hasNext()) {
+                Row row = rowScanner.next();
                 ColumnFamily cf = row.cf;
                 Collection<Column> cols = cf.getSortedColumns();
                 String group = DEFAULT;
@@ -90,9 +86,33 @@ public abstract class Aggregate implements Function {
                 }
                 values(group, grouped).add(value);
             }
-            return grouped;
+        }
+
+        return grouped;
+    }
+
+    private void byPassRowFetch(RowScanner rowScanner, Grouped grouped) {
+        Options options = rowScanner.getOptions();
+        Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
+        String field = getField();
+        String groupBy = getGroupBy();
+        AbstractType valueValidator = options.validators.get(getField());
+        AbstractType groupValidator = groupBy == null ? null : options.validators.get(groupBy);
+        while (indexIterator.hasNext()) {
+            IndexEntryCollector.IndexEntry indexEntry = indexIterator.next();
+            Object value = getValue(indexEntry, field, valueValidator, false);
+            String group = groupBy == null ? DEFAULT : (String) getValue(indexEntry, groupBy, groupValidator, true);
+            values(group, grouped).add(value);
+        }
+    }
+
+    protected Object getValue(IndexEntryCollector.IndexEntry indexEntry, String field, AbstractType valueValidator, boolean asString) {
+        if (isNumber(valueValidator.asCQL3Type())) {
+            Number number = indexEntry.getNumber(field);
+            return asString ? number.toString() : number;
         } else {
-            return new Grouped(false);
+            ByteBuffer byteBuffer = indexEntry.getByteBuffer(field);
+            return asString ? valueValidator.getString(byteBuffer) : valueValidator.compose(byteBuffer);
         }
     }
 
@@ -122,6 +142,33 @@ public abstract class Aggregate implements Function {
         ByteBuffer value = UTF8Type.instance.decompose("{'" + alias + "':" + valueStr + "}");
         Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, value);
         return Collections.singletonList(row);
+    }
+
+    public boolean isDistinct() {
+        return distinct;
+    }
+
+    public String getField() {
+        return field != null ? field.toLowerCase() : null;
+    }
+
+    public String getAlias() {
+        return alias;
+    }
+
+    public String getGroupBy() {
+        return groupBy != null ? groupBy.toLowerCase() : null;
+    }
+
+    public static class NumberComparator implements Comparator<Number> {
+
+        public int compare(Number a, Number b) {
+            return new BigDecimal(a.toString()).compareTo(new BigDecimal(b.toString()));
+        }
+
+        public static int compareNumbers(Number a, Number b) {
+            return new BigDecimal(a.toString()).compareTo(new BigDecimal(b.toString()));
+        }
 
     }
 }
