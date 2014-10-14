@@ -96,7 +96,8 @@ public class IndexEntryCollector extends Collector {
     private boolean addToFetch(Options options, String field) {
         if (field == null) return true;
         FieldType docValType = options.fieldDocValueTypes.get(field);
-        if (docValType == null) docValType = options.collectionFieldDocValueTypes.get(field);
+        if (docValType == null)
+            docValType = options.collectionFieldDocValueTypes.get(Constants.dotSplitter.split(field).iterator().next());
         if (docValType != null) {
             if (docValType.numericType() != null)
                 return numericDocValueNamesToFetch.add(field);
@@ -219,7 +220,7 @@ public class IndexEntryCollector extends Collector {
         Map<String, Number> numericDocValues = new HashMap<>();
         Map<String, ByteBuffer> binaryDocValues = new HashMap<>();
         for (Map.Entry<String, NumericDocValues> entry : numericDocValuesMap.entrySet()) {
-            AbstractType validator = options.validators.get(entry.getKey());
+            AbstractType validator = Aggregate.getFieldValidator(options, entry.getKey());
             Number number = Fields.numericDocValue(entry.getValue(), doc, validator);
             numericDocValues.put(entry.getKey(), number);
         }

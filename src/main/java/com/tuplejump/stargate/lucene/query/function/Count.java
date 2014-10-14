@@ -67,8 +67,8 @@ public class Count extends Aggregate {
             Collection<Column> cols = cf.getSortedColumns();
             for (Column column : cols) {
                 String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
-                AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
                 if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
+                    AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
                     group = valueValidator.getString(column.value());
                 }
                 if (actualColumnName.equalsIgnoreCase(field)) {

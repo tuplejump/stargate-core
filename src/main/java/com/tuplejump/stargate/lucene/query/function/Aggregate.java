@@ -16,6 +16,7 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
+import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
@@ -27,9 +28,7 @@ import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.*;
 import org.codehaus.jackson.annotate.JsonProperty;
 
 import java.math.BigDecimal;
@@ -74,14 +73,32 @@ public abstract class Aggregate implements Function {
                 Collection<Column> cols = cf.getSortedColumns();
                 String group = DEFAULT;
                 Object value = null;
+
                 for (Column column : cols) {
                     String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
+                    ByteBuffer colValue = column.value();
                     AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
-                    if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
-                        group = valueValidator.getString(column.value());
+                    if (valueValidator.isCollection()) {
+                        CollectionType validator = (CollectionType) valueValidator;
+                        AbstractType keyType = validator.nameComparator();
+                        AbstractType valueType = validator.valueComparator();
+                        ByteBuffer[] components = baseComparator.split(column.name());
+                        ByteBuffer keyBuf = components[components.length - 1];
+                        if (valueValidator instanceof MapType) {
+                            actualColumnName = actualColumnName + "." + keyType.compose(keyBuf);
+                            valueValidator = valueType;
+                        } else if (valueValidator instanceof SetType) {
+                            colValue = keyBuf;
+                            valueValidator = keyType;
+                        } else {
+                            valueValidator = valueType;
+                        }
                     }
-                    if (field.equalsIgnoreCase(actualColumnName)) {
-                        value = valueValidator.compose(column.value());
+
+                    if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
+                        group = valueValidator.getString(colValue);
+                    } else if (field.equalsIgnoreCase(actualColumnName)) {
+                        value = valueValidator.compose(colValue);
                     }
                 }
                 values(group, grouped).add(value);
@@ -96,14 +113,35 @@ public abstract class Aggregate implements Function {
         Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
         String field = getField();
         String groupBy = getGroupBy();
-        AbstractType valueValidator = options.validators.get(getField());
-        AbstractType groupValidator = groupBy == null ? null : options.validators.get(groupBy);
+        AbstractType valueValidator = getFieldValidator(options, field);
+        AbstractType groupValidator = getFieldValidator(options, groupBy);
         while (indexIterator.hasNext()) {
             IndexEntryCollector.IndexEntry indexEntry = indexIterator.next();
             Object value = getValue(indexEntry, field, valueValidator, false);
             String group = groupBy == null ? DEFAULT : (String) getValue(indexEntry, groupBy, groupValidator, true);
             values(group, grouped).add(value);
         }
+    }
+
+
+    public static AbstractType getFieldValidator(Options options, String field) {
+        String validatorFieldName = field != null ? Constants.dotSplitter.split(field).iterator().next() : null;
+        if (validatorFieldName == null) return null;
+        AbstractType abstractType = options.validators.get(validatorFieldName);
+        if (abstractType instanceof CollectionType) {
+            if (abstractType instanceof MapType) {
+                MapType mapType = (MapType) abstractType;
+                return mapType.valueComparator();
+            } else if (abstractType instanceof SetType) {
+                SetType setType = (SetType) abstractType;
+                return setType.nameComparator();
+            } else if (abstractType instanceof ListType) {
+                ListType listType = (ListType) abstractType;
+                return listType.valueComparator();
+            }
+        }
+        return abstractType;
+
     }
 
     protected Object getValue(IndexEntryCollector.IndexEntry indexEntry, String field, AbstractType valueValidator, boolean asString) {

@@ -16,6 +16,8 @@
 
 package com.tuplejump.stargate;
 
+import com.google.common.base.Splitter;
+
 /**
  * User: satya
  */
@@ -32,6 +34,8 @@ public final class Constants {
     //lucene options per field
     public static final String striped = "_striped_";
     //lucene options
+
+    public static final Splitter dotSplitter = Splitter.on('.');
 
 
 }

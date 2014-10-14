@@ -27,11 +27,11 @@ import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.*;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -70,17 +70,34 @@ public class Sum extends Aggregate {
                 Collection<Column> cols = cf.getSortedColumns();
                 for (Column column : cols) {
                     String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
+                    ByteBuffer colValue = column.value();
                     AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
-                    if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
-                        group = valueValidator.getString(column.value());
+                    if (valueValidator.isCollection()) {
+                        CollectionType validator = (CollectionType) valueValidator;
+                        AbstractType keyType = validator.nameComparator();
+                        AbstractType valueType = validator.valueComparator();
+                        ByteBuffer[] components = baseComparator.split(column.name());
+                        ByteBuffer keyBuf = components[components.length - 1];
+                        if (valueValidator instanceof MapType) {
+                            actualColumnName = actualColumnName + "." + keyType.compose(keyBuf);
+                            valueValidator = valueType;
+                        } else if (valueValidator instanceof SetType) {
+                            colValue = keyBuf;
+                            valueValidator = keyType;
+                        } else {
+                            valueValidator = valueType;
+                        }
                     }
-                    if (field.equalsIgnoreCase(actualColumnName)) {
+
+                    if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
+                        group = valueValidator.getString(colValue);
+                    } else if (field.equalsIgnoreCase(actualColumnName)) {
                         CQL3Type cqlType = valueValidator.asCQL3Type();
                         if (!numberCheck && !isNumber(cqlType)) {
                             throw new UnsupportedOperationException("Sum function is available only on numeric types");
                         }
                         numberCheck = true;
-                        Object obj = valueValidator.compose(column.value());
+                        Object obj = valueValidator.compose(colValue);
                         sum = addToSum(sum, cqlType, (Number) obj);
                     }
                 }
@@ -100,8 +117,8 @@ public class Sum extends Aggregate {
         Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
         String field = getField();
         String groupBy = getGroupBy();
-        AbstractType valueValidator = options.validators.get(getField());
-        AbstractType groupValidator = groupBy == null ? null : options.validators.get(groupBy);
+        AbstractType valueValidator = getFieldValidator(options, field);
+        AbstractType groupValidator = getFieldValidator(options, groupBy);
         CQL3Type cqlType = valueValidator.asCQL3Type();
         if (!isNumber(cqlType)) {
             throw new UnsupportedOperationException("Sum function is available only on numeric types");

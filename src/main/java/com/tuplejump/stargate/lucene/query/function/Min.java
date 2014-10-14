@@ -25,8 +25,7 @@ import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.*;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -61,35 +60,51 @@ public class Min extends Aggregate {
             return byPassRowFetch(rowScanner, customColumnFactory, table, currentIndex, grouped);
 
         } else {
-            AbstractType valueType = null;
+            AbstractType valueValidator = null;
             while (rowScanner.hasNext()) {
                 Row row = rowScanner.next();
                 String group = DEFAULT;
                 ByteBuffer colValue = null;
                 Collection<Column> cols = row.cf.getSortedColumns();
                 for (Column column : cols) {
-                    AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
                     String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
+                    ByteBuffer colValueToUse = column.value();
+                    valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
+                    if (valueValidator.isCollection()) {
+                        CollectionType validator = (CollectionType) valueValidator;
+                        AbstractType keyType = validator.nameComparator();
+                        AbstractType valueType = validator.valueComparator();
+                        ByteBuffer[] components = baseComparator.split(column.name());
+                        ByteBuffer keyBuf = components[components.length - 1];
+                        if (valueValidator instanceof MapType) {
+                            actualColumnName = actualColumnName + "." + keyType.compose(keyBuf);
+                            valueValidator = valueType;
+                        } else if (valueValidator instanceof SetType) {
+                            colValueToUse = keyBuf;
+                            valueValidator = keyType;
+                        } else {
+                            valueValidator = valueType;
+                        }
+                    }
                     if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
-                        group = valueValidator.getString(column.value());
+                        group = valueValidator.getString(colValueToUse);
                     }
                     if (field.equalsIgnoreCase(actualColumnName)) {
-                        colValue = column.value();
-                        valueType = valueValidator;
+                        colValue = colValueToUse;
                     }
                 }
                 ByteBuffer currentValue = (ByteBuffer) grouped.singleValue(group);
                 if (currentValue == null) currentValue = colValue;
                 if (reverse) {
-                    grouped.singleValue(group, valueType.compare(currentValue, colValue) > 0 ? currentValue : colValue);
+                    grouped.singleValue(group, valueValidator.compare(currentValue, colValue) > 0 ? currentValue : colValue);
                 } else
-                    grouped.singleValue(group, valueType.compare(currentValue, colValue) < 0 ? currentValue : colValue);
+                    grouped.singleValue(group, valueValidator.compare(currentValue, colValue) < 0 ? currentValue : colValue);
 
             }
             if (groupBy == null)
-                return singleRow(valueType.getString((ByteBuffer) grouped.singleValue(DEFAULT)), customColumnFactory, table, currentIndex);
+                return singleRow(valueValidator.getString((ByteBuffer) grouped.singleValue(DEFAULT)), customColumnFactory, table, currentIndex);
             else
-                return row(customColumnFactory, table, currentIndex, grouped, valueType, true);
+                return row(customColumnFactory, table, currentIndex, grouped, valueValidator, true);
         }
     }
 
@@ -98,8 +113,8 @@ public class Min extends Aggregate {
         Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
         String field = getField();
         String groupBy = getGroupBy();
-        AbstractType valueType = options.validators.get(getField());
-        AbstractType groupValidator = groupBy == null ? null : options.validators.get(groupBy);
+        AbstractType valueType = getFieldValidator(options, field);
+        AbstractType groupValidator = getFieldValidator(options, groupBy);
         while (indexIterator.hasNext()) {
             IndexEntryCollector.IndexEntry indexEntry = indexIterator.next();
             Object value = getValue(indexEntry, field, valueType, false);

@@ -216,17 +216,21 @@ public class RowIndexSupport {
         AbstractType valueType = validator.valueComparator();
         if (validator instanceof MapType) {
             ByteBuffer keyBuf = components[components.length - 1];
-            fields.add(Fields.field(colName + "._key", keyType, keyBuf, fieldTypesArr[0]));
-            fields.add(Fields.field(colName + "._value", valueType, column.value(), fieldTypesArr[1]));
-            fields.add(Fields.field(colName + "." + keyType.getString(keyBuf), valueType, column.value(), fieldTypesArr[1]));
+            if (fieldTypesArr != null) {
+                fields.add(Fields.field(colName + "._key", keyType, keyBuf, fieldTypesArr[0]));
+                fields.add(Fields.field(colName + "._value", valueType, column.value(), fieldTypesArr[1]));
+                fields.add(Fields.field((colName + "." + keyType.getString(keyBuf)).toLowerCase(), valueType, column.value(), fieldTypesArr[1]));
+            }
             if (docValueType != null)
-                fields.add(Fields.field(colName + "." + keyType.getString(keyBuf), valueType, column.value(), docValueType));
+                fields.add(Fields.field((colName + "." + keyType.getString(keyBuf)).toLowerCase(), valueType, column.value(), docValueType));
         } else if (validator instanceof SetType) {
-            fields.add(Fields.field(colName, keyType, components[components.length - 1], fieldTypesArr[0]));
+            if (fieldTypesArr != null)
+                fields.add(Fields.field(colName, keyType, components[components.length - 1], fieldTypesArr[0]));
             if (docValueType != null)
                 fields.add(Fields.field(colName, keyType, components[components.length - 1], docValueType));
         } else if (validator instanceof ListType) {
-            fields.add(Fields.field(colName, valueType, column.value(), fieldTypesArr[0]));
+            if (fieldTypesArr != null)
+                fields.add(Fields.field(colName, valueType, column.value(), fieldTypesArr[0]));
             if (docValueType != null)
                 fields.add(Fields.field(colName, valueType, column.value(), docValueType));
         } else throw new UnsupportedOperationException("Unsupported collection type " + validator);

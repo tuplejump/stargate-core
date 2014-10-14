@@ -82,4 +82,79 @@ public class CollectionIndexTest extends IndexTestBase {
             i = i + 10;
         }
     }
+
+    @Test
+    public void shouldAggregateCollections() throws Exception {
+        try {
+            createKS(keyspace);
+            createTableAndIndexForRowAgg(false);
+            countResults("CUBE", "", false, false);
+            Assert.assertEquals(12, countResults("CUBE", "magic = '" + q("dimensions._browser", "Chrome") + "'", true));
+            Assert.assertEquals(24, countResults("CUBE", "magic = '" + q("dimensions._os", "Windows") + "'", true));
+
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Sum", "sum", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Max", "max", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Min", "min", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Values", "values", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(fun("dimensions._browser", "browser-values", "values", true), "dimensions._os", "Windows") + "'", true);
+        } finally {
+            dropTable(keyspace, "CUBE");
+            dropKS(keyspace);
+        }
+    }
+
+    @Test
+    public void shouldAggregateCollectionsStriped() throws Exception {
+        try {
+            createKS(keyspace);
+            createTableAndIndexForRowAgg(true);
+            countResults("CUBE", "", false, false);
+            Assert.assertEquals(12, countResults("CUBE", "magic = '" + q("dimensions._browser", "Chrome") + "'", true));
+            Assert.assertEquals(24, countResults("CUBE", "magic = '" + q("dimensions._os", "Windows") + "'", true));
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Sum", "sum", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Max", "max", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Min", "min", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Values", "values", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(fun("dimensions._browser", "browser-values", "values", true), "dimensions._os", "Windows") + "'", true);
+        } finally {
+            dropTable(keyspace, "CUBE");
+            dropKS(keyspace);
+        }
+    }
+
+
+    private void createTableAndIndexForRowAgg(boolean striped) {
+        String optionsStr = "{\n" +
+                "\t\"fields\":{\n" +
+                "\t\t\"metrics\":{\"fields\":{\"_value\":{striped:\"only\"}}},\n" +
+                "\t\t\"dimensions\":{\"fields\":{\"_value\":{striped:\"also\",\"type\":\"string\"}}}\n" +
+                "\t}\n" +
+                "}";
+        String optionsNor = "{\n" +
+                "\t\"fields\":{\n" +
+                "\t\t\"metrics\":{},\n" +
+                "\t\t\"dimensions\":{\"fields\":{\"_value\":{\"type\":\"string\"}}}\n" +
+                "\t}\n" +
+                "}";
+
+        String options = striped ? optionsStr : optionsNor;
+
+        getSession().execute("USE " + keyspace + ";");
+        getSession().execute("CREATE TABLE CUBE(key int, dimensions map<text,varchar>,metrics map<text,decimal>, magic text, PRIMARY KEY (key))");
+        getSession().execute("CREATE CUSTOM INDEX tagsIdx ON CUBE(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
+        int i = 0;
+        while (i < 40) {
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 1) + ",{'loadTime':20,'fetchTime':1},{'_browser':'Chrome','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 2) + ",{'loadTime':15,'fetchTime':3},{'_browser':'Firefox','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 3) + ",{'loadTime':10,'fetchTime':5},{'_browser':'UCBrowser','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 4) + ",{'loadTime':5,'fetchTime':7},{'_browser':'Opera','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 5) + ",{'loadTime':10,'fetchTime':2.5},{'_browser':'Chrome','_os':'Linux'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 6) + ",{'loadTime':25,'fetchTime':4},{'_browser':'Firefox','_os':'Linux'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 7) + ",{'loadTime':20,'fetchTime':6},{'_browser':'UCBrowser','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 8) + ",{'loadTime':30,'fetchTime':8},{'_browser':'Opera','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 9) + ",{'loadTime':15,'fetchTime':9.5},{'_browser':'Chrome','_os':'Mac'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values(" + (i + 10) + ",{'loadTime':5,'fetchTime':1.5},{'_browser':'Safari','_os':'Mac'})");
+            i = i + 10;
+        }
+    }
 }

@@ -18,11 +18,13 @@ package com.tuplejump.stargate;
 
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
@@ -206,7 +208,10 @@ public class Fields {
             return BooleanType.instance.decompose(min ? false : true);
         } else if (type.isCollection()) {
             CollectionType collectionType = (CollectionType) type;
-            return collectionType.serialize(Collections.EMPTY_LIST);
+            List<Pair<ByteBuffer, Column>> collection = new ArrayList<>();
+            ByteBuffer dummyColumn = defaultValue(collectionType.nameComparator());
+            collection.add(Pair.create(dummyColumn, new Column(dummyColumn, defaultValue(collectionType.valueComparator(), min))));
+            return collectionType.serialize(collection);
         } else {
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         }

@@ -104,6 +104,32 @@ public class IndexTestBase {
         return count1;
     }
 
+    protected int countSGResults(String magicCol, String tName, String where, boolean log) {
+        return countSGResults(magicCol, tName, where, true, log);
+    }
+
+    protected int countSGResults(String magicCol, String tName, String where, boolean hasWhr, boolean log) {
+        long before = System.nanoTime();
+        String select = "select " + magicCol + " from ";
+        String query = select + tName + (hasWhr ? (" where " + where) : "") + " ";
+        ResultSet result = getSession().execute(query);
+        long after = System.nanoTime();
+        double taken = (after - before) / 1000000;
+        if (log)
+            logger.warn("Search for -" + query + " - results -");
+
+        Iterator<Row> iter = result.iterator();
+        int count1 = 0;
+        while (iter.hasNext()) {
+            Row row = iter.next();
+            if (log)
+                System.out.println(row.toString());
+            count1++;
+        }
+
+        System.out.println("Search query[" + query + "] in [" + taken + "] ms - count [" + count1 + "]");
+        return count1;
+    }
 
     protected void deleteTagData(String tName, String key, boolean isString, int i) {
         String val = isString ? "'" + i + "'" : i + "";
