@@ -16,131 +16,51 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import com.tuplejump.stargate.RowIndex;
-import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.IndexEntryCollector;
-import com.tuplejump.stargate.cassandra.RowScanner;
-import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.marshal.*;
-import org.codehaus.jackson.annotate.JsonCreator;
-import org.codehaus.jackson.annotate.JsonProperty;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.codehaus.jackson.JsonGenerator;
 
-import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
 
 /**
  * User: satya
  */
-public class Sum extends Aggregate {
+public class Sum implements Aggregate {
 
-    @JsonCreator
-    public Sum(@JsonProperty("field") String field, @JsonProperty("name") String name, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String groupBy) {
-        super(field, name, distinct, groupBy);
+    double sum = 0;
+
+    CQL3Type cqlType;
+    String field;
+    String alias;
+    boolean distinct;
+    Values values;
+
+    public Sum(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean distinct) {
+        this.field = aggregateFactory.getField();
+        this.alias = aggregateFactory.alias;
+        this.cqlType = valueValidator.asCQL3Type();
+        this.distinct = distinct;
+        if (!Aggregate.Tuple.isNumber(cqlType)) {
+            throw new UnsupportedOperationException("Sum function is available only on numeric types");
+        }
+        if (distinct) {
+            values = new Values(aggregateFactory, valueValidator, distinct);
+        }
     }
+
 
     public String getFunction() {
         return "sum";
     }
 
+
     @Override
-    public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        CompositeType baseComparator = (CompositeType) table.getComparator();
-
-        Grouped grouped = new Grouped(false);
-        if (rowScanner.getCollector().canByPassRowFetch()) {
-            return byPassRowFetch(rowScanner, customColumnFactory, table, currentIndex, grouped);
-
-        } else {
-            boolean numberCheck = false;
-            while (rowScanner.hasNext()) {
-                Row row = rowScanner.next();
-                String group = DEFAULT;
-                double sum = 0;
-                ColumnFamily cf = row.cf;
-
-                Collection<Column> cols = cf.getSortedColumns();
-                for (Column column : cols) {
-                    String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
-                    ByteBuffer colValue = column.value();
-                    AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
-                    if (valueValidator.isCollection()) {
-                        CollectionType validator = (CollectionType) valueValidator;
-                        AbstractType keyType = validator.nameComparator();
-                        AbstractType valueType = validator.valueComparator();
-                        ByteBuffer[] components = baseComparator.split(column.name());
-                        ByteBuffer keyBuf = components[components.length - 1];
-                        if (valueValidator instanceof MapType) {
-                            actualColumnName = actualColumnName + "." + keyType.compose(keyBuf);
-                            valueValidator = valueType;
-                        } else if (valueValidator instanceof SetType) {
-                            colValue = keyBuf;
-                            valueValidator = keyType;
-                        } else {
-                            valueValidator = valueType;
-                        }
-                    }
-
-                    if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
-                        group = valueValidator.getString(colValue);
-                    } else if (field.equalsIgnoreCase(actualColumnName)) {
-                        CQL3Type cqlType = valueValidator.asCQL3Type();
-                        if (!numberCheck && !isNumber(cqlType)) {
-                            throw new UnsupportedOperationException("Sum function is available only on numeric types");
-                        }
-                        numberCheck = true;
-                        Object obj = valueValidator.compose(colValue);
-                        sum = addToSum(sum, cqlType, (Number) obj);
-                    }
-                }
-                Double singleValue = (Double) grouped.singleValue(group);
-                if (singleValue == null) grouped.singleValue(group, sum);
-                else grouped.singleValue(group, sum + singleValue);
-            }
-            if (groupBy == null)
-                return singleRow(grouped.singleValue(DEFAULT).toString(), customColumnFactory, table, currentIndex);
-            else
-                return row(customColumnFactory, table, currentIndex, grouped);
-        }
+    public void aggregate(Tuple tuple) {
+        if (distinct) values.aggregate(tuple);
+        else add((Number) tuple.getValue(field));
     }
 
-    private List<Row> byPassRowFetch(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped) {
-        Options options = rowScanner.getOptions();
-        Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
-        String field = getField();
-        String groupBy = getGroupBy();
-        AbstractType valueValidator = getFieldValidator(options, field);
-        AbstractType groupValidator = getFieldValidator(options, groupBy);
-        CQL3Type cqlType = valueValidator.asCQL3Type();
-        if (!isNumber(cqlType)) {
-            throw new UnsupportedOperationException("Sum function is available only on numeric types");
-        }
-
-        double sum = 0;
-        while (indexIterator.hasNext()) {
-            IndexEntryCollector.IndexEntry indexEntry = indexIterator.next();
-            Object value = getValue(indexEntry, field, valueValidator, false);
-            String group = groupBy == null ? DEFAULT : (String) getValue(indexEntry, groupBy, groupValidator, true);
-            sum = addToSum(sum, cqlType, (Number) value);
-            Double singleValue = (Double) grouped.singleValue(group);
-            if (singleValue == null) grouped.singleValue(group, sum);
-            else grouped.singleValue(group, sum + singleValue);
-        }
-        if (groupBy == null)
-            return singleRow(grouped.singleValue(DEFAULT).toString(), customColumnFactory, table, currentIndex);
-        else
-            return row(customColumnFactory, table, currentIndex, grouped);
-    }
-
-    private double addToSum(double sum, CQL3Type cqlType, Number obj) {
+    private void add(Number obj) {
         if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT) {
             sum += (Integer) obj;
         } else if (cqlType == CQL3Type.Native.BIGINT) {
@@ -152,24 +72,17 @@ public class Sum extends Aggregate {
         } else if (cqlType == CQL3Type.Native.DOUBLE) {
             sum += (Double) obj;
         }
-        return sum;
-    }
-
-    private List<Row> row(CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped) {
-        Map<String, Object> groupsAndValues = grouped.singleValued;
-        String result = "{";
-        boolean first = true;
-        for (Map.Entry<String, Object> group : groupsAndValues.entrySet()) {
-            if (!first)
-                result += ",";
-            result += "'" + group.getKey() + "':";
-            result += group.getValue();
-            result += "";
-            first = false;
-        }
-        result += "}";
-        return singleRow(result, customColumnFactory, table, currentIndex);
     }
 
 
+    @Override
+    public void writeJson(JsonGenerator generator) throws IOException {
+        generator.writeStartObject();
+        generator.writeFieldName(alias);
+        if (distinct)
+            for (Object value : values.values)
+                add((Number) value);
+        generator.writeNumber(sum);
+        generator.writeEndObject();
+    }
 }

@@ -172,9 +172,9 @@ public class Options {
             if (logger.isDebugEnabled()) {
                 logger.debug("Partition key name is {} and index is {}", colName, colDef.componentIndex);
             }
+            validators.put(columnName, colDef.getValidator());
             if (indexedColumnNames.contains(columnName)) {
                 partitionKeysIndexed.put(colDef.componentIndex, Pair.create(columnName, colDef.name));
-                validators.put(columnName, colDef.getValidator());
                 Properties properties = mapping.getFields().get(columnName.toLowerCase());
                 addFieldType(columnName, colDef.getValidator(), properties);
                 added.add(columnName.toLowerCase());
@@ -187,9 +187,9 @@ public class Options {
             if (logger.isDebugEnabled()) {
                 logger.debug("Clustering key name is {} and index is {}", colName, colDef.componentIndex + 1);
             }
+            validators.put(columnName, colDef.getValidator());
             if (indexedColumnNames.contains(columnName)) {
                 clusteringKeysIndexed.put(colDef.componentIndex + 1, Pair.create(columnName, colDef.name));
-                validators.put(columnName, colDef.getValidator());
                 Properties properties = mapping.getFields().get(columnName.toLowerCase());
                 addFieldType(columnName, colDef.getValidator(), properties);
                 added.add(columnName.toLowerCase());
@@ -210,7 +210,14 @@ public class Options {
                     mapping.fields.putAll(options.fields);
                 }
             }
+
         }
+        Set<ColumnDefinition> otherColumns = baseCfs.metadata.regularColumns();
+        for (ColumnDefinition colDef : otherColumns) {
+            String columnName = CFDefinition.definitionType.getString(colDef.name);
+            validators.put(columnName, colDef.getValidator());
+        }
+
         numericFieldOptions.putAll(primary.getDynamicNumericConfig());
         this.defaultField = colName;
         Analyzer defaultAnalyzer = mapping.getAnalyzer();

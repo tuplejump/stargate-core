@@ -16,54 +16,50 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import com.tuplejump.stargate.RowIndex;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.RowScanner;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Row;
-import org.apache.commons.lang3.StringUtils;
-import org.codehaus.jackson.annotate.JsonCreator;
-import org.codehaus.jackson.annotate.JsonProperty;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.codehaus.jackson.JsonGenerator;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.HashSet;
 
 /**
  * User: satya
  */
-public class Values extends Aggregate {
+public class Values implements Aggregate {
 
-    @JsonCreator
-    public Values(@JsonProperty("field") String field, @JsonProperty("name") String name, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String groupBy) {
-        super(field, name, distinct, groupBy);
+    AbstractType valueValidator;
+    String field;
+    String alias;
+    boolean isNumber;
+    Collection<Object> values;
+
+    public Values(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean distinct) {
+        this.valueValidator = valueValidator;
+        this.field = aggregateFactory.getField();
+        this.alias = aggregateFactory.alias;
+        this.isNumber = Aggregate.Tuple.isNumber(valueValidator.asCQL3Type());
+        if (distinct) values = new HashSet<>();
+        else values = new ArrayList<>();
     }
-
-    public String getFunction() {
-        return "values";
-    }
-
 
     @Override
-    public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        Grouped grouped = values(rowScanner, table);
-        if (groupBy == null)
-            return singleRow("[" + StringUtils.join(grouped.values(DEFAULT), ',') + "]", customColumnFactory, table, currentIndex);
-        else {
-            Map<String, Collection<Object>> groupsAndValues = grouped.multiValued;
-            String result = "{";
-            boolean first = true;
-            for (Map.Entry<String, Collection<Object>> group : groupsAndValues.entrySet()) {
-                if (!first)
-                    result += ",";
-                result += "'" + group.getKey() + "':[";
-                result += StringUtils.join(group.getValue(), ',');
-                result += "]";
-                first = false;
-            }
-            result += "}";
-            return singleRow(result, customColumnFactory, table, currentIndex);
+    public void aggregate(Tuple tuple) {
+        values.add(tuple.getValue(field));
+    }
 
+    @Override
+    public void writeJson(JsonGenerator generator) throws IOException {
+        generator.writeStartObject();
+        generator.writeFieldName(alias);
+        generator.writeStartArray();
+        for (Object value : values) {
+            if (isNumber) generator.writeString(value.toString());
+            else generator.writeString(valueValidator.getString((ByteBuffer) value));
         }
+        generator.writeEndArray();
+        generator.writeEndObject();
     }
 }

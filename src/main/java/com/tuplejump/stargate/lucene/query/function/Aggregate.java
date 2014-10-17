@@ -16,197 +16,159 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import com.tuplejump.stargate.Constants;
-import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
 import com.tuplejump.stargate.cassandra.IndexEntryCollector;
-import com.tuplejump.stargate.cassandra.RowScanner;
-import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.marshal.*;
-import org.codehaus.jackson.annotate.JsonProperty;
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.codehaus.jackson.JsonGenerator;
 
-import java.math.BigDecimal;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * User: satya
  */
+public interface Aggregate {
 
-public abstract class Aggregate implements Function {
+    public void aggregate(Tuple tuple);
 
-    public static final String DEFAULT = "~__default__~";
-    protected String field;
-    protected String alias;
-    protected String groupBy;
-    protected boolean distinct = false;
+    public void writeJson(JsonGenerator generator) throws IOException;
 
-    public Aggregate(@JsonProperty("field") String field, @JsonProperty("alias") String alias, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String groupBy) {
-        this.field = field;
-        this.alias = alias == null ? getFunction() : alias;
-        this.distinct = distinct;
-        this.groupBy = groupBy;
-    }
+    public static class Tuple {
 
-    public abstract String getFunction();
+        Map<String, Integer> positions;
+        Map<String, AbstractType> validators;
+        Object[] tuple;
 
-    @Override
-    public boolean shouldLimit() {
-        return false;
-    }
+        public Tuple(Map<String, Integer> positions, Map<String, AbstractType> validators) {
+            this.positions = positions;
+            this.validators = validators;
+            tuple = new Object[positions.size()];
+        }
 
-    public Grouped values(RowScanner rowScanner, ColumnFamilyStore table) throws Exception {
-        CompositeType baseComparator = (CompositeType) table.getComparator();
-        Grouped grouped = new Grouped(true);
-        if (rowScanner.getCollector().canByPassRowFetch()) {
-            byPassRowFetch(rowScanner, grouped);
-        } else {
-            while (rowScanner.hasNext()) {
-                Row row = rowScanner.next();
-                ColumnFamily cf = row.cf;
-                Collection<Column> cols = cf.getSortedColumns();
-                String group = DEFAULT;
-                Object value = null;
 
-                for (Column column : cols) {
-                    String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
-                    ByteBuffer colValue = column.value();
-                    AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
-                    if (valueValidator.isCollection()) {
-                        CollectionType validator = (CollectionType) valueValidator;
-                        AbstractType keyType = validator.nameComparator();
-                        AbstractType valueType = validator.valueComparator();
-                        ByteBuffer[] components = baseComparator.split(column.name());
-                        ByteBuffer keyBuf = components[components.length - 1];
-                        if (valueValidator instanceof MapType) {
-                            actualColumnName = actualColumnName + "." + keyType.compose(keyBuf);
-                            valueValidator = valueType;
-                        } else if (valueValidator instanceof SetType) {
-                            colValue = keyBuf;
-                            valueValidator = keyType;
-                        } else {
-                            valueValidator = valueType;
-                        }
-                    }
+        public void setValuesFromIndexEntry(IndexEntryCollector.IndexEntry entry) {
+            for (String field : positions.keySet()) {
+                AbstractType abstractType = validators.get(field);
+                if (isNumber(abstractType.asCQL3Type())) {
+                    tuple[this.positions.get(field)] = entry.getNumber(field);
+                } else {
+                    tuple[this.positions.get(field)] = entry.getByteBuffer(field);
+                }
+            }
+        }
 
-                    if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
-                        group = valueValidator.getString(colValue);
-                    } else if (field.equalsIgnoreCase(actualColumnName)) {
-                        value = valueValidator.compose(colValue);
+        public void setValuesFromRow(Row row, ColumnFamilyStore table) {
+            CompositeType baseComparator = (CompositeType) table.getComparator();
+            ColumnFamily cf = row.cf;
+            Collection<Column> cols = cf.getSortedColumns();
+            for (Column column : cols) {
+                String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
+                ByteBuffer colValue = column.value();
+                AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
+                if (valueValidator.isCollection()) {
+                    CollectionType validator = (CollectionType) valueValidator;
+                    AbstractType keyType = validator.nameComparator();
+                    AbstractType valueType = validator.valueComparator();
+                    ByteBuffer[] components = baseComparator.split(column.name());
+                    ByteBuffer keyBuf = components[components.length - 1];
+                    if (valueValidator instanceof MapType) {
+                        actualColumnName = actualColumnName + "." + keyType.compose(keyBuf);
+                        valueValidator = valueType;
+                    } else if (valueValidator instanceof SetType) {
+                        colValue = keyBuf;
+                        valueValidator = keyType;
+                    } else {
+                        valueValidator = valueType;
                     }
                 }
-                values(group, grouped).add(value);
+                for (String field : positions.keySet()) {
+                    if (actualColumnName.equalsIgnoreCase(field)) {
+                        if (isNumber(valueValidator.asCQL3Type())) {
+                            tuple[this.positions.get(field)] = valueValidator.compose(colValue);
+                        } else {
+                            tuple[this.positions.get(field)] = colValue;
+                        }
+                    }
+                }
             }
         }
 
-        return grouped;
-    }
-
-    private void byPassRowFetch(RowScanner rowScanner, Grouped grouped) {
-        Options options = rowScanner.getOptions();
-        Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
-        String field = getField();
-        String groupBy = getGroupBy();
-        AbstractType valueValidator = getFieldValidator(options, field);
-        AbstractType groupValidator = getFieldValidator(options, groupBy);
-        while (indexIterator.hasNext()) {
-            IndexEntryCollector.IndexEntry indexEntry = indexIterator.next();
-            Object value = getValue(indexEntry, field, valueValidator, false);
-            String group = groupBy == null ? DEFAULT : (String) getValue(indexEntry, groupBy, groupValidator, true);
-            values(group, grouped).add(value);
+        public Object getValue(String field) {
+            return tuple[this.positions.get(field)];
         }
-    }
 
-
-    public static AbstractType getFieldValidator(Options options, String field) {
-        String validatorFieldName = field != null ? Constants.dotSplitter.split(field).iterator().next() : null;
-        if (validatorFieldName == null) return null;
-        AbstractType abstractType = options.validators.get(validatorFieldName);
-        if (abstractType instanceof CollectionType) {
-            if (abstractType instanceof MapType) {
-                MapType mapType = (MapType) abstractType;
-                return mapType.valueComparator();
-            } else if (abstractType instanceof SetType) {
-                SetType setType = (SetType) abstractType;
-                return setType.nameComparator();
-            } else if (abstractType instanceof ListType) {
-                ListType listType = (ListType) abstractType;
-                return listType.valueComparator();
+        public Tuple getView(String[] columns) {
+            Object[] newTuple = null;
+            Map<String, Integer> newPositions = new HashMap<>();
+            if (columns != null) {
+                newTuple = new Object[columns.length];
+                for (int i = 0; i < columns.length; i++) {
+                    String col = columns[i];
+                    int position = positions.get(col);
+                    newTuple[i] = tuple[position];
+                    newPositions.put(col, i);
+                }
             }
+            Tuple retVal = new Tuple(newPositions, validators);
+            retVal.tuple = newTuple;
+            return retVal;
         }
-        return abstractType;
 
-    }
-
-    protected Object getValue(IndexEntryCollector.IndexEntry indexEntry, String field, AbstractType valueValidator, boolean asString) {
-        if (isNumber(valueValidator.asCQL3Type())) {
-            Number number = indexEntry.getNumber(field);
-            return asString ? number.toString() : number;
-        } else {
-            ByteBuffer byteBuffer = indexEntry.getByteBuffer(field);
-            return asString ? valueValidator.getString(byteBuffer) : valueValidator.compose(byteBuffer);
-        }
-    }
-
-    private Collection<Object> values(String group, Grouped grouped) {
-        Collection<Object> results = grouped.values(group);
-        if (results == null) {
-            if (distinct) {
-                results = new TreeSet<>();
-            } else {
-                results = new ArrayList<>();
+        @Override
+        public boolean equals(Object obj) {
+            Tuple other = ((Tuple) obj);
+            if (tuple == null && other.tuple == null) return true;
+            EqualsBuilder equalsBuilder = new EqualsBuilder();
+            for (int i = 0; i < tuple.length; i++) {
+                equalsBuilder.append(tuple[i], other.tuple[i]);
             }
-            grouped.values(group, results);
-        }
-        return results;
-    }
-
-
-    protected boolean isNumber(CQL3Type cqlType) {
-        if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT ||
-                cqlType == CQL3Type.Native.COUNTER || cqlType == CQL3Type.Native.DECIMAL
-                || cqlType == CQL3Type.Native.DOUBLE || cqlType == CQL3Type.Native.FLOAT)
-            return true;
-        return false;
-    }
-
-    public List<Row> singleRow(String valueStr, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) {
-        ByteBuffer value = UTF8Type.instance.decompose("{'" + alias + "':" + valueStr + "}");
-        Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, value);
-        return Collections.singletonList(row);
-    }
-
-    public boolean isDistinct() {
-        return distinct;
-    }
-
-    public String getField() {
-        return field != null ? field.toLowerCase() : null;
-    }
-
-    public String getAlias() {
-        return alias;
-    }
-
-    public String getGroupBy() {
-        return groupBy != null ? groupBy.toLowerCase() : null;
-    }
-
-    public static class NumberComparator implements Comparator<Number> {
-
-        public int compare(Number a, Number b) {
-            return new BigDecimal(a.toString()).compareTo(new BigDecimal(b.toString()));
+            return equalsBuilder.build();
         }
 
-        public static int compareNumbers(Number a, Number b) {
-            return new BigDecimal(a.toString()).compareTo(new BigDecimal(b.toString()));
+        @Override
+        public int hashCode() {
+            if (tuple == null) return 0;
+            HashCodeBuilder hashCodeBuilder = new HashCodeBuilder();
+            for (int i = 0; i < tuple.length; i++) {
+                hashCodeBuilder.append(tuple[i]);
+            }
+            return hashCodeBuilder.build();
+        }
+
+
+        public static boolean isNumber(CQL3Type cqlType) {
+            if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT ||
+                    cqlType == CQL3Type.Native.COUNTER || cqlType == CQL3Type.Native.DECIMAL
+                    || cqlType == CQL3Type.Native.DOUBLE || cqlType == CQL3Type.Native.FLOAT)
+                return true;
+            return false;
+        }
+
+        public void writeJson(JsonGenerator generator) throws IOException {
+            generator.writeStartObject();
+            for (Map.Entry<String, Integer> entry : positions.entrySet()) {
+                String field = entry.getKey();
+                generator.writeFieldName(field);
+                AbstractType validator = validators.get(field);
+                if (isNumber(validator.asCQL3Type())) {
+                    generator.writeNumber(((Number) tuple[entry.getValue()]).doubleValue());
+                } else {
+                    generator.writeString(validator.getString((ByteBuffer) tuple[entry.getValue()]));
+                }
+            }
+            generator.writeEndObject();
         }
 
     }
+
 }

@@ -152,19 +152,25 @@ public class IndexTestBase {
 
     protected String fun(String field, String name, String type, boolean distinct) {
         if (field == null) {
-            String query1 = "function:{ type:\"%s\", alias:\"%s\", distinct:%b }";
+            String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"%s\",alias:\"%s\",distinct:%b}] }";
             return String.format(query1, type, name, distinct);
 
         } else {
-            String query1 = "function:{ type:\"%s\", field:\"%s\", alias:\"%s\", distinct:%b }";
+            String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"%s\",field:\"%s\",alias:\"%s\",distinct:%b}] }";
             return String.format(query1, type, field, name, distinct);
 
         }
     }
 
     protected String gFun(String field, String name, String type, boolean distinct, String groupBy) {
-        String query1 = "function:{ type:\"%s\", field:\"%s\", alias:\"%s\", distinct:%b, groupBy:\"%s\" }";
-        return String.format(query1, type, field, name, distinct, groupBy);
+        if (field == null) {
+            String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"%s\",alias:\"%s\",distinct:%b}], groupBy:[\"%s\"] }";
+            return String.format(query1, type, name, distinct, groupBy);
+        } else {
+            String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"%s\",field:\"%s\",alias:\"%s\",distinct:%b}], groupBy:[\"%s\"]  }";
+            return String.format(query1, type, field, name, distinct, groupBy);
+
+        }
     }
 
     protected String funWithFilter(String fun, String field, String value) {

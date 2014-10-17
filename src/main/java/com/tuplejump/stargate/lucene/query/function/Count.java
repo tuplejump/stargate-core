@@ -16,101 +16,42 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import com.tuplejump.stargate.RowIndex;
-import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.RowScanner;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.codehaus.jackson.annotate.JsonCreator;
-import org.codehaus.jackson.annotate.JsonProperty;
+import org.codehaus.jackson.JsonGenerator;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
 
 /**
  * User: satya
  */
-public class Count extends Aggregate {
+public class Count implements Aggregate {
 
-    @JsonCreator
-    public Count(@JsonProperty("field") String field, @JsonProperty("name") String name, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String groupBy) {
-        super(field, name, distinct, groupBy);
-    }
+    long count = 0;
+    String alias;
+    boolean distinct;
+    Values values;
 
-    public String getFunction() {
-        return "count";
+    public Count(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean distinct) {
+        this.alias = aggregateFactory.alias;
+        this.distinct = distinct;
+        if (distinct) {
+            values = new Values(aggregateFactory, valueValidator, distinct);
+        }
     }
 
     @Override
-    public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        if (groupBy == null && !distinct)
-            return singleRow("" + rowScanner.getCollector().docs().size(), customColumnFactory, table, currentIndex);
-
-        if (groupBy != null && distinct) {
-            Grouped grouped = values(rowScanner, table);
-            return distinctSize(customColumnFactory, table, currentIndex, grouped);
-        }
-
-        CompositeType baseComparator = (CompositeType) table.getComparator();
-        Grouped grouped = new Grouped(false);
-        while (rowScanner.hasNext()) {
-            Row row = rowScanner.next();
-            String group = DEFAULT;
-            long count = 0;
-            ColumnFamily cf = row.cf;
-            Collection<Column> cols = cf.getSortedColumns();
-            for (Column column : cols) {
-                String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
-                if (groupBy != null && groupBy.equalsIgnoreCase(actualColumnName)) {
-                    AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
-                    group = valueValidator.getString(column.value());
-                }
-                if (actualColumnName.equalsIgnoreCase(field)) {
-                    count += 1;
-                }
-            }
-            Long singleValue = (Long) grouped.singleValue(group);
-            if (singleValue == null) grouped.singleValue(group, count);
-            else grouped.singleValue(group, count + singleValue);
-        }
-        if (groupBy == null)
-            return singleRow(grouped.singleValue(DEFAULT).toString(), customColumnFactory, table, currentIndex);
-        else
-            return row(customColumnFactory, table, currentIndex, grouped);
+    public void aggregate(Tuple tuple) {
+        if (!distinct) count++;
+        else values.aggregate(tuple);
     }
 
-    private List<Row> row(CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped) {
-        Map<String, Object> groupsAndValues = grouped.singleValued;
-        String result = "{";
-        boolean first = true;
-        for (Map.Entry<String, Object> group : groupsAndValues.entrySet()) {
-            if (!first)
-                result += ",";
-            result += "'" + group.getKey() + "':" + group.getValue();
-            first = false;
-        }
-        result += "}";
-        return singleRow(result, customColumnFactory, table, currentIndex);
-    }
-
-    private List<Row> distinctSize(CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex, Grouped grouped) {
-        Map<String, Collection<Object>> groupsAndValues = grouped.multiValued;
-        String result = "{";
-        boolean first = true;
-        for (Map.Entry<String, Collection<Object>> group : groupsAndValues.entrySet()) {
-            if (!first)
-                result += ",";
-            result += "'" + group.getKey() + "':" + group.getValue().size();
-            first = false;
-        }
-        result += "}";
-        return singleRow(result, customColumnFactory, table, currentIndex);
+    @Override
+    public void writeJson(JsonGenerator generator) throws IOException {
+        generator.writeStartObject();
+        generator.writeFieldName(alias);
+        if (distinct) count = values.values.size();
+        generator.writeNumber(count);
+        generator.writeEndObject();
     }
 }
 

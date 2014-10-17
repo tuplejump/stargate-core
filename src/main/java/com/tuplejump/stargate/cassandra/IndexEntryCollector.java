@@ -21,7 +21,7 @@ import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.query.Search;
-import com.tuplejump.stargate.lucene.query.function.Aggregate;
+import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.lucene.document.FieldType;
@@ -86,25 +86,65 @@ public class IndexEntryCollector extends Collector {
         reverseMul = hitQueue.getReverseMul();
         numericDocValueNamesToFetch = new ArrayList<>();
         binaryDocValueNamesToFetch = new ArrayList<>();
-        if (function instanceof Aggregate) {
-            Aggregate aggregate = (Aggregate) function;
-            if (addToFetch(options, aggregate.getField()) && addToFetch(options, aggregate.getGroupBy()))
-                canByPassRowFetch = true;
+        if (function instanceof AggregateFunction) {
+            AggregateFunction aggregateFunction = (AggregateFunction) function;
+            aggregateFunction.init(options);
+            String[] groupByFields = aggregateFunction.getGroupByFields();
+            String[] aggregateFields = aggregateFunction.getAggregateFields();
+            boolean abort = false;
+            FieldType[] groupDocValueTypes = null;
+            if (groupByFields != null) {
+                groupDocValueTypes = new FieldType[groupByFields.length];
+                for (int i = 0; i < groupByFields.length; i++) {
+                    String field = groupByFields[i];
+                    FieldType docValType = canFetch(options, field);
+                    if (docValType == null) {
+                        abort = true;
+                        break;
+                    }
+                    groupDocValueTypes[i] = docValType;
+                }
+            }
+            FieldType[] aggDocValueTypes = new FieldType[aggregateFields.length];
+            if (!abort) {
+                for (int i = 0; i < aggregateFields.length; i++) {
+                    String field = aggregateFields[i];
+                    FieldType docValType = canFetch(options, field);
+                    if (docValType == null) {
+                        abort = true;
+                        break;
+                    }
+                    aggDocValueTypes[i] = docValType;
+                }
+            }
+            canByPassRowFetch = !abort;
+            if (canByPassRowFetch) {
+                if (groupByFields != null)
+                    addToFetch(groupByFields, groupDocValueTypes);
+                addToFetch(aggregateFields, aggDocValueTypes);
+            }
         }
     }
 
-    private boolean addToFetch(Options options, String field) {
-        if (field == null) return true;
+    private FieldType canFetch(Options options, String field) {
+        if (field == null) return null;
         FieldType docValType = options.fieldDocValueTypes.get(field);
         if (docValType == null)
             docValType = options.collectionFieldDocValueTypes.get(Constants.dotSplitter.split(field).iterator().next());
-        if (docValType != null) {
-            if (docValType.numericType() != null)
-                return numericDocValueNamesToFetch.add(field);
-            else
-                return binaryDocValueNamesToFetch.add(field);
+        return docValType;
+    }
+
+    private void addToFetch(String[] groupByFields, FieldType[] groupDocValueTypes) {
+        for (int i = 0; i < groupByFields.length; i++) {
+            String field = groupByFields[i];
+            FieldType docValType = groupDocValueTypes[i];
+            if (docValType != null) {
+                if (docValType.numericType() != null)
+                    numericDocValueNamesToFetch.add(field);
+                else
+                    binaryDocValueNamesToFetch.add(field);
+            }
         }
-        return false;
     }
 
     public List<IndexEntry> docs() {
@@ -220,7 +260,7 @@ public class IndexEntryCollector extends Collector {
         Map<String, Number> numericDocValues = new HashMap<>();
         Map<String, ByteBuffer> binaryDocValues = new HashMap<>();
         for (Map.Entry<String, NumericDocValues> entry : numericDocValuesMap.entrySet()) {
-            AbstractType validator = Aggregate.getFieldValidator(options, entry.getKey());
+            AbstractType validator = AggregateFunction.getFieldValidator(options, entry.getKey());
             Number number = Fields.numericDocValue(entry.getValue(), doc, validator);
             numericDocValues.put(entry.getKey(), number);
         }

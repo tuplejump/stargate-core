@@ -21,7 +21,7 @@ import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
 import com.tuplejump.stargate.lucene.query.Search;
-import com.tuplejump.stargate.lucene.query.function.Aggregate;
+import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
@@ -138,7 +138,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     if (SearchSupport.logger.isDebugEnabled()) {
                         SearchSupport.logger.debug(String.format("Search results [%s]", collector.totalHits));
                     }
-                    RowScanner iter = new RowScanner(searchSupport, baseCfs, filter, collector, function instanceof Aggregate ? false : search.isShowScore());
+                    RowScanner iter = new RowScanner(searchSupport, baseCfs, filter, collector, function instanceof AggregateFunction ? false : search.isShowScore());
                     Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
                     results = function.process(iter, customColumnFactory, baseCfs, currentIndex);
                     timer3.endLogTime("Aggregation [" + collector.totalHits + "] results");

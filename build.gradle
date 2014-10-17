@@ -20,6 +20,7 @@ dependencies {
 
     //trans log dependencies
     compile('net.openhft:chronicle:3.2.2')
+    compile('com.goldmansachs:gs-collections:5.1.0')
 
     //lucene dependencies
     compile group: 'org.apache.lucene', name: 'lucene-core', version: '4.8.1'

@@ -18,7 +18,6 @@ package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.IndexEntryCollector;
 import com.tuplejump.stargate.cassandra.RowScanner;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
@@ -34,11 +33,7 @@ import java.util.List;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = NoOp.class, name = "noOp"),
-        @JsonSubTypes.Type(value = Sum.class, name = "sum"),
-        @JsonSubTypes.Type(value = Max.class, name = "max"),
-        @JsonSubTypes.Type(value = Min.class, name = "min"),
-        @JsonSubTypes.Type(value = Values.class, name = "values"),
-        @JsonSubTypes.Type(value = Count.class, name = "count")})
+        @JsonSubTypes.Type(value = AggregateFunction.class, name = "aggregate")})
 public interface Function {
 
     boolean shouldLimit();
