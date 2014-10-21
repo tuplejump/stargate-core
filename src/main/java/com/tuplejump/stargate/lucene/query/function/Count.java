@@ -32,7 +32,7 @@ public class Count implements Aggregate {
     Values values;
 
     public Count(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean distinct) {
-        this.alias = aggregateFactory.alias;
+        this.alias = aggregateFactory.getAlias();
         this.distinct = distinct;
         if (distinct) {
             values = new Values(aggregateFactory, valueValidator, distinct);

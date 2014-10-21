@@ -152,6 +152,10 @@ public class IndexTestBase {
 
     protected String fun(String field, String name, String type, boolean distinct) {
         if (field == null) {
+            if (name == null) {
+                String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"%s\",distinct:%b}] }";
+                return String.format(query1, type, distinct);
+            }
             String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"%s\",alias:\"%s\",distinct:%b}] }";
             return String.format(query1, type, name, distinct);
 
@@ -164,6 +168,10 @@ public class IndexTestBase {
 
     protected String gFun(String field, String name, String type, boolean distinct, String groupBy) {
         if (field == null) {
+            if (name == null) {
+                String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"%s\",distinct:%b}], groupBy:[\"%s\"] }";
+                return String.format(query1, type, distinct, groupBy);
+            }
             String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"%s\",alias:\"%s\",distinct:%b}], groupBy:[\"%s\"] }";
             return String.format(query1, type, name, distinct, groupBy);
         } else {

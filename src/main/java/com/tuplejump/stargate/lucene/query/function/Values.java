@@ -39,8 +39,8 @@ public class Values implements Aggregate {
     public Values(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean distinct) {
         this.valueValidator = valueValidator;
         this.field = aggregateFactory.getField();
-        this.alias = aggregateFactory.alias;
-        this.isNumber = Aggregate.Tuple.isNumber(valueValidator.asCQL3Type());
+        this.alias = aggregateFactory.getAlias();
+        this.isNumber = Tuple.isNumber(valueValidator.asCQL3Type());
         if (distinct) values = new HashSet<>();
         else values = new ArrayList<>();
     }

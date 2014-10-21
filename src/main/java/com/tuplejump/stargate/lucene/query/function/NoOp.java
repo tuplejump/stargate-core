@@ -19,6 +19,7 @@ package com.tuplejump.stargate.lucene.query.function;
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
 import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 
@@ -28,6 +29,11 @@ import java.util.List;
  * User: satya
  */
 public class NoOp implements Function {
+
+    @Override
+    public void init(Options options) {
+        //do nothing.
+    }
 
     @Override
     public boolean shouldLimit() {
