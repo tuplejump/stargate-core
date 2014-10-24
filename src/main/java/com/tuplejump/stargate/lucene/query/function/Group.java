@@ -40,7 +40,7 @@ public class Group {
     AggregateFactory[] aggregatesToCalculate;
     String[] groupByFields;
     AbstractType[] groupFieldValidators;
-    Multimap<Aggregate.Tuple, Aggregate> groups = ArrayListMultimap.create();
+    Multimap<Tuple, Aggregate> groups = ArrayListMultimap.create();
 
     public Group(Options options, AggregateFactory[] aggregatesToCalculate, String[] groupByFields, AbstractType[] groupFieldValidators) {
         this.options = options;
@@ -50,8 +50,8 @@ public class Group {
     }
 
 
-    public void addTuple(Aggregate.Tuple tuple) {
-        Aggregate.Tuple key = tuple.getView(groupByFields);
+    public void addTuple(Tuple tuple) {
+        Tuple key = tuple.getView(groupByFields);
         Collection<Aggregate> groupValue = groups.get(key);
         if (groupValue.isEmpty()) {
             for (AggregateFactory aggregateFactory : aggregatesToCalculate) {
@@ -73,7 +73,7 @@ public class Group {
         gen.writeStartObject();
         gen.writeFieldName("groups");
         gen.writeStartArray();
-        for (Aggregate.Tuple tuple : groups.keySet()) {
+        for (Tuple tuple : groups.keySet()) {
             gen.writeStartObject();
             gen.writeFieldName("group");
             tuple.writeJson(gen);

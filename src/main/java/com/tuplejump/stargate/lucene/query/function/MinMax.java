@@ -38,8 +38,8 @@ public class MinMax implements Aggregate {
     public MinMax(AggregateFactory aggregateFactory, AbstractType valueValidator) {
         this.valueValidator = valueValidator;
         this.field = aggregateFactory.getField();
-        this.alias = aggregateFactory.alias;
-        this.isNumber = Aggregate.Tuple.isNumber(valueValidator.asCQL3Type());
+        this.alias = aggregateFactory.getAlias();
+        this.isNumber = Tuple.isNumber(valueValidator.asCQL3Type());
     }
 
     public MinMax(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean max) {

@@ -25,7 +25,7 @@ import org.codehaus.jackson.annotate.JsonProperty;
  */
 public class AggregateFactory {
     protected String type;
-    protected String alias;
+    private String alias;
     private String field;
     protected boolean distinct;
 
@@ -52,4 +52,9 @@ public class AggregateFactory {
     public String getField() {
         return field != null ? field.toLowerCase() : null;
     }
+
+    public String getAlias() {
+        return alias != null ? alias : type;
+    }
+
 }

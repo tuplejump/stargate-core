@@ -37,10 +37,10 @@ public class Sum implements Aggregate {
 
     public Sum(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean distinct) {
         this.field = aggregateFactory.getField();
-        this.alias = aggregateFactory.alias;
+        this.alias = aggregateFactory.getAlias();
         this.cqlType = valueValidator.asCQL3Type();
         this.distinct = distinct;
-        if (!Aggregate.Tuple.isNumber(cqlType)) {
+        if (!Tuple.isNumber(cqlType)) {
             throw new UnsupportedOperationException("Sum function is available only on numeric types");
         }
         if (distinct) {

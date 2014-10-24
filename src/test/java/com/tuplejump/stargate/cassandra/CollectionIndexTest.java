@@ -92,7 +92,6 @@ public class CollectionIndexTest extends IndexTestBase {
             Assert.assertEquals(12, countResults("CUBE", "magic = '" + q("dimensions._browser", "Chrome") + "'", true));
             Assert.assertEquals(24, countResults("CUBE", "magic = '" + q("dimensions._os", "Windows") + "'", true));
 
-            countSGResults("magic", "CUBE", "magic = '{" + gFun(null, "count*", "count", false, "dimensions._browser") + "}'", true);
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Count", "count", false, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Count", "count", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Sum", "sum", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
@@ -100,7 +99,10 @@ public class CollectionIndexTest extends IndexTestBase {
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Min", "min", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Values", "values", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(fun("dimensions._browser", "browser-values", "values", true), "dimensions._os", "Windows") + "'", true);
-            countSGResults("magic", "CUBE", "magic = '{" + fun(null, "count*", "count", false) + "}'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + fun(null, null, "count", false) + "}'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + gFun(null, "count*", "count", false, "dimensions._browser") + "}'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + gFun(null, null, "count", false, "dimensions._browser") + "}'", true);
+
         } finally {
             dropTable(keyspace, "CUBE");
             dropKS(keyspace);
@@ -115,12 +117,17 @@ public class CollectionIndexTest extends IndexTestBase {
             countResults("CUBE", "", false, false);
             Assert.assertEquals(12, countResults("CUBE", "magic = '" + q("dimensions._browser", "Chrome") + "'", true));
             Assert.assertEquals(24, countResults("CUBE", "magic = '" + q("dimensions._os", "Windows") + "'", true));
+
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Sum", "count", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Sum", "sum", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Max", "max", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Min", "min", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Values", "values", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(fun("dimensions._browser", "browser-values", "values", true), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + fun(null, null, "count", false) + "}'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + gFun(null, "count*", "count", false, "dimensions._browser") + "}'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + gFun(null, null, "count", false, "dimensions._browser") + "}'", true);
+
         } finally {
             dropTable(keyspace, "CUBE");
             dropKS(keyspace);

@@ -24,6 +24,7 @@ import com.tuplejump.stargate.lucene.query.Search;
 import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
@@ -36,10 +37,7 @@ import org.apache.lucene.search.Scorer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * User: satya
@@ -88,16 +86,15 @@ public class IndexEntryCollector extends Collector {
         binaryDocValueNamesToFetch = new ArrayList<>();
         if (function instanceof AggregateFunction) {
             AggregateFunction aggregateFunction = (AggregateFunction) function;
-            aggregateFunction.init(options);
             String[] groupByFields = aggregateFunction.getGroupByFields();
-            String[] aggregateFields = aggregateFunction.getAggregateFields();
+            List<String> aggregateFields = aggregateFunction.getAggregateFields();
             boolean abort = false;
             FieldType[] groupDocValueTypes = null;
             if (groupByFields != null) {
                 groupDocValueTypes = new FieldType[groupByFields.length];
                 for (int i = 0; i < groupByFields.length; i++) {
                     String field = groupByFields[i];
-                    FieldType docValType = canFetch(options, field);
+                    FieldType docValType = getDocValueType(options, field);
                     if (docValType == null) {
                         abort = true;
                         break;
@@ -105,11 +102,11 @@ public class IndexEntryCollector extends Collector {
                     groupDocValueTypes[i] = docValType;
                 }
             }
-            FieldType[] aggDocValueTypes = new FieldType[aggregateFields.length];
+            FieldType[] aggDocValueTypes = new FieldType[aggregateFields.size()];
             if (!abort) {
-                for (int i = 0; i < aggregateFields.length; i++) {
-                    String field = aggregateFields[i];
-                    FieldType docValType = canFetch(options, field);
+                for (int i = 0; i < aggregateFields.size(); i++) {
+                    String field = aggregateFields.get(i);
+                    FieldType docValType = getDocValueType(options, field);
                     if (docValType == null) {
                         abort = true;
                         break;
@@ -120,13 +117,13 @@ public class IndexEntryCollector extends Collector {
             canByPassRowFetch = !abort;
             if (canByPassRowFetch) {
                 if (groupByFields != null)
-                    addToFetch(groupByFields, groupDocValueTypes);
-                addToFetch(aggregateFields, aggDocValueTypes);
+                    addToFetch(new ArrayIterator(groupByFields), groupDocValueTypes);
+                addToFetch(aggregateFields.iterator(), aggDocValueTypes);
             }
         }
     }
 
-    private FieldType canFetch(Options options, String field) {
+    private FieldType getDocValueType(Options options, String field) {
         if (field == null) return null;
         FieldType docValType = options.fieldDocValueTypes.get(field);
         if (docValType == null)
@@ -134,10 +131,11 @@ public class IndexEntryCollector extends Collector {
         return docValType;
     }
 
-    private void addToFetch(String[] groupByFields, FieldType[] groupDocValueTypes) {
-        for (int i = 0; i < groupByFields.length; i++) {
-            String field = groupByFields[i];
-            FieldType docValType = groupDocValueTypes[i];
+    private void addToFetch(Iterator<String> groupByFields, FieldType[] groupDocValueTypes) {
+        int i = 0;
+        while (groupByFields.hasNext()) {
+            String field = groupByFields.next();
+            FieldType docValType = groupDocValueTypes[i++];
             if (docValType != null) {
                 if (docValType.numericType() != null)
                     numericDocValueNamesToFetch.add(field);

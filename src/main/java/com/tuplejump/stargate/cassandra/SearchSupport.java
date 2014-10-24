@@ -55,7 +55,7 @@ import java.util.Set;
  */
 public class SearchSupport extends SecondaryIndexSearcher {
 
-    protected static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
+    public static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
 
     protected RowIndex currentIndex;
 
@@ -131,7 +131,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
                         }
                         resultsLimit = Math.min(filter.currentLimit() + 1, resultsLimit);
                     }
-
+                    function.init(options);
                     IndexEntryCollector collector = new IndexEntryCollector(function, search, options, resultsLimit);
                     searcher.search(query, collector);
                     timer2.endLogTime("TopDocs search for [" + collector.totalHits + "] results ");

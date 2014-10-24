@@ -11,9 +11,9 @@
     <logger name="org.cassandraunit">
         <level value="WARN"/>
     </logger>
-    <logger name="org.apache.cassandra">
+    <!--<logger name="org.apache.cassandra">
         <level value="ERROR"/>
-    </logger>
+    </logger>-->
     <logger name="com.datastax">
         <level value="ERROR"/>
     </logger>
@@ -22,7 +22,7 @@
     </logger>
 
     <logger name="com.tuplejump.stargate.cassandra.SearchSupport">
-        <level value="ERROR"/>
+        <level value="WARN"/>
     </logger>
     <logger name="com.tuplejump.stargate.cassandra.RowIndexSupport">
         <level value="WARN"/>
@@ -36,7 +36,7 @@
         <level value="WARN"/>
     </logger>
     <logger name="com.tuplejump.stargate.RowIndex">
-        <level value="WARN"/>
+        <level value="ERROR"/>
     </logger>
 
     <logger name="com.tuplejump.stargate.lucene.NearRealTimeIndexer">
@@ -71,7 +71,7 @@
     </logger>
 
     <root>
-        <priority value="debug"/>
+        <priority value="ERROR"/>
         <appender-ref ref="outputConsole"/>
     </root>
 

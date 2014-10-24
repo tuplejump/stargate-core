@@ -18,9 +18,11 @@ package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.RowIndex;
+import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
 import com.tuplejump.stargate.cassandra.IndexEntryCollector;
 import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.cassandra.SearchSupport;
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -48,11 +50,14 @@ public class AggregateFunction implements Function {
     String[] groupByFields;
     String[] aggregateFields;
     AbstractType[] groupFieldValidators;
+    int chunkSize = 1;
 
-    public AggregateFunction(@JsonProperty("aggregates") AggregateFactory[] aggregates, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String[] groupBy) {
+
+    public AggregateFunction(@JsonProperty("aggregates") AggregateFactory[] aggregates, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String[] groupBy, @JsonProperty("chunkSize") Integer chunkSize) {
         this.aggregates = aggregates;
         this.distinct = distinct;
         this.groupBy = groupBy;
+        if (chunkSize != null) this.chunkSize = chunkSize;
     }
 
 
@@ -69,11 +74,11 @@ public class AggregateFunction implements Function {
             //this means it is a count-star. we can simply return the size of the index results
             Count count = new Count(aggregates[0], null, false);
             count.count = rowScanner.getCollector().docs().size();
-            group.groups.put(new Aggregate.Tuple(Collections.EMPTY_MAP, Collections.EMPTY_MAP), count);
+            group.groups.put(new Tuple(Collections.EMPTY_MAP, Collections.EMPTY_MAP), count);
             Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, group.toByteBuffer());
             return Collections.singletonList(row);
         }
-        Aggregate.Tuple tuple = new Aggregate.Tuple(positions, allValidators);
+        Tuple tuple = new Tuple(positions, allValidators);
         if (rowScanner.getCollector().canByPassRowFetch()) {
             Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
             while (indexIterator.hasNext()) {
@@ -82,17 +87,37 @@ public class AggregateFunction implements Function {
                 group.addTuple(tuple);
             }
         } else {
-            while (rowScanner.hasNext()) {
-                Row row = rowScanner.next();
-                tuple.setValuesFromRow(row, table);
-                group.addTuple(tuple);
+            if (chunkSize == 1) {
+                while (rowScanner.hasNext()) {
+                    Row row = rowScanner.next();
+                    tuple.setValuesFromRow(row, table);
+                    group.addTuple(tuple);
+                }
+            } else {
+                List<Row> rows;
+                while (rowScanner.hasNext()) {
+                    rows = new ArrayList<>(chunkSize);
+                    for (int i = 0; i < chunkSize; i++) {
+                        if (!rowScanner.hasNext()) break;
+                        rows.add(rowScanner.next());
+                    }
+                    for (Row row : rows) {
+                        tuple.setValuesFromRow(row, table);
+                        group.addTuple(tuple);
+                    }
+                }
             }
 
         }
-        Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, group.toByteBuffer());
+        Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
+        ByteBuffer groupBuffer = group.toByteBuffer();
+        timer3.endLogTime("Aggregation serialization  [" + group.groups.size() + "] results");
+
+        Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, groupBuffer);
         return Collections.singletonList(row);
     }
 
+    @Override
     public void init(Options options) {
         int k = 0;
         positions = new HashMap<>();
@@ -122,8 +147,13 @@ public class AggregateFunction implements Function {
         return groupByFields;
     }
 
-    public String[] getAggregateFields() {
-        return aggregateFields;
+    public List<String> getAggregateFields() {
+        if (aggregateFields == null) return null;
+        List<String> aggFields = new ArrayList<>(aggregateFields.length);
+        for (String field : aggregateFields) {
+            if (field != null) aggFields.add(field);
+        }
+        return aggFields;
     }
 
     public static AbstractType getFieldValidator(Options options, String field) {
