@@ -23,7 +23,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.commons.lang3.StringEscapeUtils;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -102,8 +101,10 @@ public class CustomColumnFactory {
             builder.add(Fields.defaultValue(baseComparator.types.get(i)));
         builder.add(col.name);
         ByteBuffer finalColumnName = builder.build();
-        Column defaultColumn = new Column(finalColumnName, Fields.defaultValue(col.getValidator()));
-        cleanColumnFamily.addColumn(defaultColumn);
+        if (!col.getValidator().isCollection()) {
+            Column defaultColumn = new Column(finalColumnName, Fields.defaultValue(col.getValidator()));
+            cleanColumnFamily.addColumn(defaultColumn);
+        }
     }
 
 }

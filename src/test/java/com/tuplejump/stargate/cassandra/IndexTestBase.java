@@ -110,7 +110,7 @@ public class IndexTestBase {
 
     protected int countSGResults(String magicCol, String tName, String where, boolean hasWhr, boolean log) {
         long before = System.nanoTime();
-        String select = "select " + magicCol + " from ";
+        String select = "select * from ";
         String query = select + tName + (hasWhr ? (" where " + where) : "") + " ";
         ResultSet result = getSession().execute(query);
         long after = System.nanoTime();

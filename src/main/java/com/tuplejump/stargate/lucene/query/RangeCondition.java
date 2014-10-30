@@ -17,6 +17,8 @@
 
 package com.tuplejump.stargate.lucene.query;
 
+import com.tuplejump.stargate.Dates;
+import com.tuplejump.stargate.FormatDateTimeFormatter;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
@@ -25,12 +27,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
+import org.joda.time.format.DateTimeFormatter;
+
+import java.util.Locale;
 
 /**
  * A {@link Condition} implementation that matches a field within an range of values.
  */
 public class RangeCondition extends Condition {
 
+
+    private final String format;
     /**
      * The field name.
      */
@@ -75,6 +82,7 @@ public class RangeCondition extends Condition {
     @JsonCreator
     public RangeCondition(@JsonProperty("boost") Float boost,
                           @JsonProperty("field") String field,
+                          @JsonProperty("format") String format,
                           @JsonProperty("lower") Object lowerValue,
                           @JsonProperty("upper") Object upperValue,
                           @JsonProperty("includeLower") boolean includeLower,
@@ -86,6 +94,7 @@ public class RangeCondition extends Condition {
         this.upper = upperValue;
         this.includeLower = includeLower;
         this.includeUpper = includeUpper;
+        this.format = format;
     }
 
     /**
@@ -176,6 +185,12 @@ public class RangeCondition extends Condition {
             Double lower = this.lower == null ? Double.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).doubleValue();
             Double upper = this.upper == null ? Double.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).doubleValue();
             query = NumericRangeQuery.newDoubleRange(field, lower, upper, includeLower, includeUpper);
+        } else if (fieldType == Properties.Type.date) {
+            FormatDateTimeFormatter formatter = Dates.forPattern(format, Locale.getDefault());
+            DateTimeFormatter parser = formatter.parser();
+            Long lower = this.lower == null ? Long.MIN_VALUE : parser.parseMillis(this.lower.toString());
+            Long upper = this.upper == null ? Long.MAX_VALUE : parser.parseMillis(this.upper.toString());
+            query = NumericRangeQuery.newLongRange(field, lower, upper, includeLower, includeUpper);
         } else {
             String message = String.format("Range queries are not supported by %s mapper", fieldType);
             throw new UnsupportedOperationException(message);

@@ -34,12 +34,10 @@ public class Dates {
         if (StringUtils.isNotBlank(input)) {
             input = input.trim();
         }
-        if (input == null || input.length() == 0) {
-            throw new IllegalArgumentException("No date pattern provided");
-        }
-
         DateTimeFormatter formatter;
-        if ("basicDate".equals(input) || "basic_date".equals(input)) {
+        if (input == null || input.length() == 0) {
+            formatter = ISODateTimeFormat.yearMonthDay();
+        }else if ("basicDate".equals(input) || "basic_date".equals(input)) {
             formatter = ISODateTimeFormat.basicDate();
         } else if ("basicDateTime".equals(input) || "basic_date_time".equals(input)) {
             formatter = ISODateTimeFormat.basicDateTime();
@@ -139,7 +137,6 @@ public class Dates {
                     }
                     parsers[i] = currentParser.getParser();
                 }
-
                 DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
                 formatter = builder.toFormatter();
             }
