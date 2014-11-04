@@ -18,6 +18,8 @@ repositories {
 
 dependencies {
 
+    compile('com.clearspring.analytics:stream:2.7.0')
+
     //trans log dependencies
     compile('net.openhft:chronicle:3.2.2')
     compile('com.goldmansachs:gs-collections:5.1.0')

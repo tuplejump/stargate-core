@@ -181,6 +181,22 @@ public class IndexTestBase {
         }
     }
 
+    protected String gQuantile(String field, String name, boolean distinct, String groupBy, int compression) {
+        if (field == null) {
+            if (name == null) {
+                String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"quantile\",compression:\"%s\",distinct:%b}], groupBy:[\"%s\"] }";
+                return String.format(query1, compression, distinct, groupBy);
+            }
+            String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"quantile\",compression:\"%s\",alias:\"%s\",distinct:%b}], groupBy:[\"%s\"] }";
+            return String.format(query1, compression, name, distinct, groupBy);
+        } else {
+            String query1 = "function:{ type:\"aggregate\", aggregates:[{type:\"quantile\",compression:\"%s\",field:\"%s\",alias:\"%s\",distinct:%b}], groupBy:[\"%s\"]  }";
+            return String.format(query1, compression, field, name, distinct, groupBy);
+
+        }
+    }
+
+
     protected String funWithFilter(String fun, String field, String value) {
         String query1 = "{ query:{ type:\"lucene\", field:\"%s\", value:\"%s\" }, %s}";
         return String.format(query1, field, value, fun);
@@ -233,9 +249,14 @@ public class IndexTestBase {
         return String.format(query1, field, value);
     }
 
-    protected String ltq(String field, String value) {
-        String query1 = "{ query:{ type:\"range\", field:\"%s\", upper:\"%s\" }}";
-        return String.format(query1, field, value);
+    protected String gtq(String field, String value, String format) {
+        String query1 = "{ query:{ type:\"range\", field:\"%s\",  lower:\"%s\",format:\"%s\" }}";
+        return String.format(query1, field, value, format);
+    }
+
+    protected String ltq(String field, String value, String format) {
+        String query1 = "{ query:{ type:\"range\", field:\"%s\", upper:\"%s\",format:\"%s\" }}";
+        return String.format(query1, field, value, format);
     }
 
     protected String ltEq(String field, String value) {

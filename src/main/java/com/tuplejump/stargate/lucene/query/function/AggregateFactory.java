@@ -18,7 +18,12 @@ package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.codehaus.jackson.annotate.JsonAnyGetter;
+import org.codehaus.jackson.annotate.JsonAnySetter;
 import org.codehaus.jackson.annotate.JsonProperty;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * User: satya
@@ -28,12 +33,23 @@ public class AggregateFactory {
     private String alias;
     private String field;
     protected boolean distinct;
+    protected Map<String, String> dynamicProperties = new HashMap<>();
 
     public AggregateFactory(@JsonProperty("type") String type, @JsonProperty("alias") String alias, @JsonProperty("field") String field, @JsonProperty("distinct") boolean distinct) {
         this.type = type;
         this.alias = alias;
         this.field = field;
         this.distinct = distinct;
+    }
+
+    @JsonAnyGetter
+    public Map<String, String> dynamicProperties() {
+        return dynamicProperties;
+    }
+
+    @JsonAnySetter
+    public void set(String name, String value) {
+        dynamicProperties.put(name, value);
     }
 
     public Aggregate getAggregate(Options options) {
@@ -46,6 +62,7 @@ public class AggregateFactory {
         else if ("min".equalsIgnoreCase(type)) return new MinMax(this, valueValidator);
         else if ("max".equalsIgnoreCase(type)) return new MinMax(this, valueValidator, true);
         else if ("values".equalsIgnoreCase(type)) return new Values(this, valueValidator, distinct);
+        else if ("quantile".equalsIgnoreCase(type)) return new Quantile(this, valueValidator);
         else throw new UnsupportedOperationException("Unknown function [" + type + "]");
     }
 

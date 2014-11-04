@@ -104,6 +104,8 @@ public class AggregatesTest extends IndexTestBase {
             countResults("TAG2", "magic = '" + funWithFilter(gFun("state", "distinct-state", "count", true, "segment"), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "values", "values", true, "state"), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "sum-value", "sum", false, "state"), "tags", "tags:hello*") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(gQuantile("value", "quantile-value", false, "state", 10), "tags", "tags:hello*") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "quantile-value", "quantile", false, "state"), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "min-value", "min", false, "state"), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "max-value", "max", false, "state"), "tags", "tags:hello*") + "'", true);
 
