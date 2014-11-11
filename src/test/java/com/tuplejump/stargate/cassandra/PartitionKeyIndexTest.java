@@ -39,12 +39,12 @@ public class PartitionKeyIndexTest extends IndexTestBase {
             createTableAndIndexForRow();
             countResults("TAG2", "", false, true);
             Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("state", "state:CA") + "'", true));
-//            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true));
-//            String q1 = "{ type:\"wildcard\", field:\"tags\", value:\"hello*\" }";
-//            String q2 = "{ type:\"match\", field:\"state\", value:\"CA\" }";
-//            Assert.assertEquals(12, countResults("TAG2", "magic = '" + bq(q1, q2) + "'", true));
-//            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
-//            Assert.assertEquals(8, countResults("TAG2", "magic = '" + q("tags", "tags:hello2 AND state:CA") + "'", true));
+            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true));
+            String q1 = "{ type:\"wildcard\", field:\"tags\", value:\"hello*\" }";
+            String q2 = "{ type:\"match\", field:\"state\", value:\"CA\" }";
+            Assert.assertEquals(12, countResults("TAG2", "magic = '" + bq(q1, q2) + "'", true));
+            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
+            Assert.assertEquals(8, countResults("TAG2", "magic = '" + q("tags", "tags:hello2 AND state:CA") + "'", true));
         } finally {
             dropTable(keyspace, "TAG2");
             dropKS(keyspace);
@@ -54,7 +54,8 @@ public class PartitionKeyIndexTest extends IndexTestBase {
     private void createTableAndIndexForRow() {
         String options = "{\n" +
                 "\t\"fields\":{\n" +
-                "\t\t\"state\":{}\n" +
+                "\t\t\"state\":{},\n" +
+                "\t\t\"tags\":{}\n" +
                 "\t}\n" +
                 "}";
         getSession().execute("USE " + keyspace + ";");
