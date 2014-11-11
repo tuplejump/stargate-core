@@ -96,13 +96,14 @@ public class AggregatesTest extends IndexTestBase {
             createKS(keyspace);
             createTableAndIndexForRowStriped();
             countResults("TAG2", "", false, true);
+            countResults("TAG2", "magic = '" + funWithFilter(gFun("state", "distinct-state", "count", true, "segment"), "tags", "tags:hello*") + "'", true);
             //Assert.assertEquals(12000, countResults("TAG2", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true));
             countResults("TAG2", "magic = '" + funWithFilter(fun("state", "state-values", "values", true), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(fun("value", "sum-value", "sum", false), "tags", "tags:hello* AND state:CA") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(fun("value", "min-value", "min", false), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(fun("value", "max-value", "max", false), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(gFun("state", "distinct-state", "count", true, "segment"), "tags", "tags:hello*") + "'", true);
-            countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "values", "values", true, "state"), "tags", "tags:hello*") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "values", "values", true, "return StringUtils.lowerCase(state);"), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "sum-value", "sum", false, "state"), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(gQuantile("value", "quantile-value", false, "state", 10), "tags", "tags:hello*") + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "quantile-value", "quantile", false, "state"), "tags", "tags:hello*") + "'", true);

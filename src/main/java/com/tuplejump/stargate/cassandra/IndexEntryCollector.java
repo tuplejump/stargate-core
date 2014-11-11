@@ -24,7 +24,6 @@ import com.tuplejump.stargate.lucene.query.Search;
 import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
@@ -86,14 +85,14 @@ public class IndexEntryCollector extends Collector {
         binaryDocValueNamesToFetch = new ArrayList<>();
         if (function instanceof AggregateFunction) {
             AggregateFunction aggregateFunction = (AggregateFunction) function;
-            String[] groupByFields = aggregateFunction.getGroupByFields();
+            List<String> groupByFields = aggregateFunction.getGroupByFields();
             List<String> aggregateFields = aggregateFunction.getAggregateFields();
             boolean abort = false;
             FieldType[] groupDocValueTypes = null;
             if (groupByFields != null) {
-                groupDocValueTypes = new FieldType[groupByFields.length];
-                for (int i = 0; i < groupByFields.length; i++) {
-                    String field = groupByFields[i];
+                groupDocValueTypes = new FieldType[groupByFields.size()];
+                for (int i = 0; i < groupByFields.size(); i++) {
+                    String field = groupByFields.get(i).toLowerCase();
                     FieldType docValType = getDocValueType(options, field);
                     if (docValType == null) {
                         abort = true;
@@ -117,7 +116,7 @@ public class IndexEntryCollector extends Collector {
             canByPassRowFetch = !abort;
             if (canByPassRowFetch) {
                 if (groupByFields != null)
-                    addToFetch(new ArrayIterator(groupByFields), groupDocValueTypes);
+                    addToFetch(groupByFields.iterator(), groupDocValueTypes);
                 addToFetch(aggregateFields.iterator(), aggDocValueTypes);
             }
         }
@@ -265,8 +264,7 @@ public class IndexEntryCollector extends Collector {
         for (Map.Entry<String, BinaryDocValues> entry : binaryDocValuesMap.entrySet()) {
             binaryDocValues.put(entry.getKey(), Fields.byteBufferDocValue(entry.getValue(), doc));
         }
-        IndexEntry entry = new IndexEntry(pkName, rowKey, timeStamp, slot, docBase + doc, score, numericDocValues, binaryDocValues);
-        return entry;
+        return new IndexEntry(pkName, rowKey, timeStamp, slot, docBase + doc, score, numericDocValues, binaryDocValues);
     }
 
 

@@ -19,12 +19,12 @@ package com.tuplejump.stargate.lucene.query.function;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.tuplejump.stargate.lucene.Options;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.impl.Utf8Generator;
 import org.codehaus.jackson.io.IOContext;
 import org.codehaus.jackson.util.BufferRecycler;
 import org.codehaus.jackson.util.ByteArrayBuilder;
+import org.mvel2.compiler.ExecutableStatement;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -39,19 +39,19 @@ public class Group {
     Options options;
     AggregateFactory[] aggregatesToCalculate;
     String[] groupByFields;
-    AbstractType[] groupFieldValidators;
     Multimap<Tuple, Aggregate> groups = ArrayListMultimap.create();
+    ExecutableStatement[] groupByExpressions;
 
-    public Group(Options options, AggregateFactory[] aggregatesToCalculate, String[] groupByFields, AbstractType[] groupFieldValidators) {
+    public Group(Options options, AggregateFactory[] aggregatesToCalculate, String[] groupByFields, ExecutableStatement[] groupByExpressions) {
         this.options = options;
         this.aggregatesToCalculate = aggregatesToCalculate;
+        this.groupByExpressions = groupByExpressions;
         this.groupByFields = groupByFields;
-        this.groupFieldValidators = groupFieldValidators;
     }
 
 
     public void addTuple(Tuple tuple) {
-        Tuple key = tuple.getView(groupByFields);
+        Tuple key = tuple.project(groupByFields, groupByExpressions);
         Collection<Aggregate> groupValue = groups.get(key);
         if (groupValue.isEmpty()) {
             for (AggregateFactory aggregateFactory : aggregatesToCalculate) {

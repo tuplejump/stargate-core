@@ -24,6 +24,8 @@ dependencies {
     compile('net.openhft:chronicle:3.2.2')
     compile('com.goldmansachs:gs-collections:5.1.0')
 
+    compile('org.mvel:mvel2:2.2.2.Final')
+
     //lucene dependencies
     compile group: 'org.apache.lucene', name: 'lucene-core', version: '4.8.1'
     compile group: 'org.apache.lucene', name: 'lucene-spatial', version: '4.8.1'

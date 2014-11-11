@@ -29,6 +29,10 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.marshal.*;
 import org.codehaus.jackson.annotate.JsonProperty;
+import org.mvel2.MVEL;
+import org.mvel2.ParserConfiguration;
+import org.mvel2.ParserContext;
+import org.mvel2.compiler.ExecutableStatement;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -40,24 +44,27 @@ import java.util.*;
 
 public class AggregateFunction implements Function {
 
-    public static final String DEFAULT = "~__default__~";
-
     protected AggregateFactory[] aggregates;
     protected String[] groupBy;
+    List<String> groupByFields;
     protected boolean distinct = false;
     Map<String, Integer> positions;
     Map<String, AbstractType> allValidators;
-    String[] groupByFields;
     String[] aggregateFields;
-    AbstractType[] groupFieldValidators;
     int chunkSize = 1;
+    ExecutableStatement[] groupByExpressions;
+    String[] imports;
+    boolean noScript;
+    boolean[] simpleExpressions;
 
 
-    public AggregateFunction(@JsonProperty("aggregates") AggregateFactory[] aggregates, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String[] groupBy, @JsonProperty("chunkSize") Integer chunkSize) {
+    public AggregateFunction(@JsonProperty("aggregates") AggregateFactory[] aggregates, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String[] groupBy, @JsonProperty("chunkSize") Integer chunkSize, @JsonProperty("imports") String[] imports, @JsonProperty("noScript") boolean noScript) {
         this.aggregates = aggregates;
         this.distinct = distinct;
         this.groupBy = groupBy;
+        this.imports = imports;
         if (chunkSize != null) this.chunkSize = chunkSize;
+        this.noScript = noScript;
     }
 
 
@@ -69,28 +76,29 @@ public class AggregateFunction implements Function {
     @Override
     public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
         Options options = rowScanner.getOptions();
-        Group group = new Group(options, aggregates, groupByFields, groupFieldValidators);
-        if (aggregates.length == 1 && aggregates[0].distinct == false && groupBy == null) {
+
+        Group group = new Group(options, aggregates, groupBy, groupByExpressions);
+        if (aggregates.length == 1 && !aggregates[0].distinct && groupBy == null) {
             //this means it is a count-star. we can simply return the size of the index results
             Count count = new Count(aggregates[0], null, false);
             count.count = rowScanner.getCollector().docs().size();
-            group.groups.put(new Tuple(Collections.EMPTY_MAP, Collections.EMPTY_MAP), count);
+            group.groups.put(new Tuple(Collections.EMPTY_MAP, Collections.EMPTY_MAP, simpleExpressions), count);
             Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, group.toByteBuffer());
             return Collections.singletonList(row);
         }
-        Tuple tuple = new Tuple(positions, allValidators);
+        Tuple tuple = new Tuple(positions, allValidators, simpleExpressions);
         if (rowScanner.getCollector().canByPassRowFetch()) {
             Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
             while (indexIterator.hasNext()) {
                 IndexEntryCollector.IndexEntry indexEntry = indexIterator.next();
-                tuple.setValuesFromIndexEntry(indexEntry);
+                tuple.load(indexEntry);
                 group.addTuple(tuple);
             }
         } else {
             if (chunkSize == 1) {
                 while (rowScanner.hasNext()) {
                     Row row = rowScanner.next();
-                    tuple.setValuesFromRow(row, table);
+                    tuple.load(row, table);
                     group.addTuple(tuple);
                 }
             } else {
@@ -102,7 +110,7 @@ public class AggregateFunction implements Function {
                         rows.add(rowScanner.next());
                     }
                     for (Row row : rows) {
-                        tuple.setValuesFromRow(row, table);
+                        tuple.load(row, table);
                         group.addTuple(tuple);
                     }
                 }
@@ -127,23 +135,61 @@ public class AggregateFunction implements Function {
             String field = aggregateFactory.getField();
             aggregateFields[k] = field;
             positions.put(field, k++);
-            allValidators.put(field, getFieldValidator(options, field));
+            allValidators.put(field, getValidator(options, field));
         }
+
+        ParserConfiguration parserConfig = getParserConfiguration();
+
         if (groupBy != null) {
-            groupByFields = new String[groupBy.length];
-            groupFieldValidators = new AbstractType[groupBy.length];
+            this.groupByExpressions = new ExecutableStatement[groupBy.length];
+            this.simpleExpressions = new boolean[groupBy.length];
+            groupByFields = new ArrayList<>();
             for (int i = 0; i < groupBy.length; i++) {
-                String groupByCol = getGroupBy(groupBy[i]);
-                AbstractType groupValidator = getFieldValidator(options, groupByCol);
-                positions.put(groupByCol, k++);
-                groupByFields[i] = groupByCol;
-                groupFieldValidators[i] = groupValidator;
-                allValidators.put(groupByCol, groupValidator);
+                String groupByField = groupBy[i];
+                String groupByCol = getGroupBy(groupByField);
+                AbstractType groupValidator = getValidator(options, groupByCol);
+                boolean isSimpleExpression = groupValidator != null;
+                ParserContext parserContext = new ParserContext(parserConfig);
+                groupByExpressions[i] = (ExecutableStatement) MVEL.compileExpression(groupByField, parserContext);
+                if (isSimpleExpression) {
+                    simpleExpressions[i] = true;
+                    int pos = k++;
+                    positions.put(groupByCol, pos);
+                    allValidators.put(groupByCol, groupValidator);
+                    allValidators.put(getColumnName(groupByCol), groupValidator);
+                    groupByFields.add(groupByCol);
+                } else {
+                    simpleExpressions[i] = false;
+                    Set<String> keys = parserContext.getInputs().keySet();
+                    for (String key : keys) {
+                        int pos = k++;
+                        String groupByColField = getGroupBy(key);
+                        AbstractType groupFValidator = getValidator(options, groupByColField);
+                        positions.put(key, pos);
+                        allValidators.put(groupByColField, groupFValidator);
+                        groupByFields.add(groupByColField);
+                    }
+                }
             }
+
         }
+
     }
 
-    public String[] getGroupByFields() {
+    private ParserConfiguration getParserConfiguration() {
+        ParserConfiguration parserConfig = new ParserConfiguration();
+        parserConfig.addPackageImport("java.util");
+        parserConfig.addPackageImport("org.apache.commons.lang3");
+        parserConfig.addPackageImport("org.joda.time");
+        parserConfig.addImport(Math.class);
+        if (imports != null) {
+            for (String imported : imports)
+                parserConfig.addPackageImport(imported);
+        }
+        return parserConfig;
+    }
+
+    public List<String> getGroupByFields() {
         return groupByFields;
     }
 
@@ -156,10 +202,19 @@ public class AggregateFunction implements Function {
         return aggFields;
     }
 
+    private static AbstractType getValidator(Options options, String field) {
+        String validatorFieldName = getColumnName(field);
+        if (validatorFieldName == null) return null;
+        return options.validators.get(validatorFieldName);
+    }
+
     public static AbstractType getFieldValidator(Options options, String field) {
         String validatorFieldName = getColumnName(field);
         if (validatorFieldName == null) return null;
-        AbstractType abstractType = options.validators.get(validatorFieldName);
+        return getValueValidator(options.validators.get(validatorFieldName));
+    }
+
+    public static AbstractType getValueValidator(AbstractType abstractType) {
         if (abstractType instanceof CollectionType) {
             if (abstractType instanceof MapType) {
                 MapType mapType = (MapType) abstractType;
@@ -173,7 +228,6 @@ public class AggregateFunction implements Function {
             }
         }
         return abstractType;
-
     }
 
     public static String getColumnName(String field) {

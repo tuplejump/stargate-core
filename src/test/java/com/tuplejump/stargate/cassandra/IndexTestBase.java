@@ -21,6 +21,7 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.util.CQLUnitD;
+import junit.framework.Assert;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.document.Field;
@@ -95,8 +96,10 @@ public class IndexTestBase {
         int count1 = 0;
         while (iter.hasNext()) {
             Row row = iter.next();
+            String rowStr = row.toString();
             if (log)
-                System.out.println(row.toString());
+                System.out.println(rowStr);
+            Assert.assertFalse(rowStr.indexOf("error") > 0);
             count1++;
         }
 
@@ -122,8 +125,10 @@ public class IndexTestBase {
         int count1 = 0;
         while (iter.hasNext()) {
             Row row = iter.next();
+            String rowStr = row.toString();
             if (log)
-                System.out.println(row.toString());
+                System.out.println(rowStr);
+            Assert.assertFalse(rowStr.indexOf("error") > 0);
             count1++;
         }
 
