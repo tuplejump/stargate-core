@@ -105,6 +105,7 @@ task copyLibs(type: Copy) {
     include 'lang-*.jar'
     include 'jna-*.jar'
     include 'affinity-*.jar'
+    include 'mvel2-*.jar'
 }
 
 task copySamples(type: Copy) {
