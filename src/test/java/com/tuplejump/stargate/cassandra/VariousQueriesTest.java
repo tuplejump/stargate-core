@@ -37,6 +37,7 @@ public class VariousQueriesTest extends IndexTestBase {
         createKS(keyspace);
         createTableAndIndexForRow();
         try {
+            countResults("sample_table", "magic = '" + funWithFilter(gFun("otherName", "otherName-values", "values", true, "joindate"), "searchName", "/.*?AT.*/") + "'", true);
             Assert.assertEquals(4, countResults("sample_table", "part=0 AND uid > 4 AND magic='" + q("searchName", "/.*?AT.*/") + "' ALLOW FILTERING", true));
             Assert.assertEquals(1, countResults("sample_table", "part=0 AND uid < 4 AND magic='" + q("searchName", "/.*?AT.*/") + "'  ALLOW FILTERING", true));
             Assert.assertEquals(5, countResults("sample_table", "part=0 AND magic = '" + q("searchName", "/.*?CT.*/") + "'", true));
@@ -53,6 +54,7 @@ public class VariousQueriesTest extends IndexTestBase {
             Assert.assertEquals(8, countResults("sample_table", "part=0 AND magic = '" + ltEq("joindate", "2013-03-01") + "'", true));
             Assert.assertEquals(4, countResults("sample_table", "part=0 AND magic = '" + gtq("joindate", "2013-03-01T00:00:00", "dateHourMinuteSecond") + "'", true));
             Assert.assertEquals(8, countResults("sample_table", "part=0 AND magic = '" + ltq("joindate", "2013-03-01T00:00:00", "dateHourMinuteSecond") + "'", true));
+
 
             getSession().execute("DELETE FROM sample_table where part=0");
             Assert.assertEquals(0, countResults("sample_table", "part=0", true));

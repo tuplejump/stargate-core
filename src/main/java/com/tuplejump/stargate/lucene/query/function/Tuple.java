@@ -66,10 +66,14 @@ public class Tuple extends BaseVariableResolverFactory {
         for (String field : positions.keySet()) {
             AbstractType validator = getFieldValidator(field);
             if (validator != null) {
-                if (isNumber(validator.asCQL3Type())) {
+                CQL3Type type = validator.asCQL3Type();
+                if (isNumber(type)) {
                     tuple[this.positions.get(field)] = entry.getNumber(field);
+                } else if (type == CQL3Type.Native.TIMESTAMP) {
+                    Number number = entry.getNumber(field);
+                    tuple[this.positions.get(field)] = new Date(number.longValue());
                 } else {
-                    tuple[this.positions.get(field)] = validator.getString(entry.getByteBuffer(field));
+                    tuple[this.positions.get(field)] = validator.compose(entry.getByteBuffer(field));
                 }
             }
         }
@@ -101,11 +105,7 @@ public class Tuple extends BaseVariableResolverFactory {
             }
             for (String field : positions.keySet()) {
                 if (actualColumnName.equalsIgnoreCase(field)) {
-                    if (isNumber(valueValidator.asCQL3Type())) {
-                        tuple[this.positions.get(field)] = valueValidator.compose(colValue);
-                    } else {
-                        tuple[this.positions.get(field)] = colValue;
-                    }
+                    tuple[this.positions.get(field)] = valueValidator.compose(colValue);
                 }
             }
         }
@@ -171,12 +171,8 @@ public class Tuple extends BaseVariableResolverFactory {
             String field = entry.getKey();
             generator.writeFieldName(field);
             AbstractType validator = getFieldValidator(field);
-            if (validator != null) {
-                if (isNumber(validator.asCQL3Type())) {
-                    generator.writeNumber(((Number) tuple[entry.getValue()]).doubleValue());
-                } else {
-                    generator.writeString(validator.getString((ByteBuffer) tuple[entry.getValue()]));
-                }
+            if (validator != null && isNumber(validator.asCQL3Type())) {
+                generator.writeNumber(((Number) tuple[entry.getValue()]).doubleValue());
             } else {
                 generator.writeString(tuple[entry.getValue()].toString());
             }

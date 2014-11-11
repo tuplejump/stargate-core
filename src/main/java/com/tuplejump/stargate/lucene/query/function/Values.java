@@ -20,7 +20,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.codehaus.jackson.JsonGenerator;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -56,8 +55,7 @@ public class Values implements Aggregate {
         generator.writeFieldName(alias);
         generator.writeStartArray();
         for (Object value : values) {
-            if (isNumber) generator.writeString(value.toString());
-            else generator.writeString(valueValidator.getString((ByteBuffer) value));
+            generator.writeString(value == null ? null : value.toString());
         }
         generator.writeEndArray();
         generator.writeEndObject();

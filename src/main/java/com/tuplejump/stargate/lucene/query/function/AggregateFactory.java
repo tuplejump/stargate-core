@@ -55,8 +55,7 @@ public class AggregateFactory {
     public Aggregate getAggregate(Options options) {
         if (field == null && distinct)
             throw new UnsupportedOperationException("Distinct cannot be specified when field is null");
-
-        AbstractType valueValidator = AggregateFunction.getFieldValidator(options, field);
+        AbstractType valueValidator = AggregateFunction.getFieldValidator(options, getField());
         if ("count".equalsIgnoreCase(type)) return new Count(this, valueValidator, distinct);
         else if ("sum".equalsIgnoreCase(type)) return new Sum(this, valueValidator, distinct);
         else if ("min".equalsIgnoreCase(type)) return new MinMax(this, valueValidator);

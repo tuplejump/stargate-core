@@ -59,12 +59,12 @@ public class MinMax implements Aggregate {
                 currentValue = AggregateFunction.NumberComparator.compareNumbers((Number) currentValue, colValue) < 0 ? currentValue : colValue;
 
         } else {
-            ByteBuffer colValue = (ByteBuffer) tuple.getValue(field);
+            String colValue = tuple.getValue(field).toString();
             if (currentValue == null) currentValue = colValue;
             if (reverse) {
-                currentValue = valueValidator.compare(currentValue, colValue) > 0 ? currentValue : colValue;
+                currentValue = colValue.compareTo(currentValue.toString()) < 0 ? currentValue : colValue;
             } else
-                currentValue = valueValidator.compare(currentValue, colValue) < 0 ? currentValue : colValue;
+                currentValue = colValue.compareTo(currentValue.toString()) > 0 ? currentValue : colValue;
         }
     }
 

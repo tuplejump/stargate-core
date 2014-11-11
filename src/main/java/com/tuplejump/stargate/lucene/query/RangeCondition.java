@@ -186,10 +186,17 @@ public class RangeCondition extends Condition {
             Double upper = this.upper == null ? Double.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).doubleValue();
             query = NumericRangeQuery.newDoubleRange(field, lower, upper, includeLower, includeUpper);
         } else if (fieldType == Properties.Type.date) {
-            FormatDateTimeFormatter formatter = Dates.forPattern(format, Locale.getDefault());
-            DateTimeFormatter parser = formatter.parser();
-            Long lower = this.lower == null ? Long.MIN_VALUE : parser.parseMillis(this.lower.toString());
-            Long upper = this.upper == null ? Long.MAX_VALUE : parser.parseMillis(this.upper.toString());
+            Long lower;
+            Long upper;
+            if ("millis".equals(format)) {
+                lower = this.lower == null ? Long.MIN_VALUE : Long.valueOf(this.lower.toString());
+                upper = this.upper == null ? Long.MAX_VALUE : Long.valueOf(this.upper.toString());
+            } else {
+                FormatDateTimeFormatter formatter = Dates.forPattern(format, Locale.getDefault());
+                DateTimeFormatter parser = formatter.parser();
+                lower = this.lower == null ? Long.MIN_VALUE : parser.parseMillis(this.lower.toString());
+                upper = this.upper == null ? Long.MAX_VALUE : parser.parseMillis(this.upper.toString());
+            }
             query = NumericRangeQuery.newLongRange(field, lower, upper, includeLower, includeUpper);
         } else {
             String message = String.format("Range queries are not supported by %s mapper", fieldType);

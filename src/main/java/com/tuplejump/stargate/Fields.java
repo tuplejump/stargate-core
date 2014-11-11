@@ -203,7 +203,7 @@ public class Fields {
         } else if (cqlType == CQL3Type.Native.TIMEUUID) {
             return ByteBufferUtil.bytes(UUIDGen.getTimeUUID(0));
         } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
-            return ByteBufferUtil.bytes(0);
+            return ByteBufferUtil.bytes(0l);
         } else if (cqlType == CQL3Type.Native.BOOLEAN) {
             return BooleanType.instance.decompose(min ? false : true);
         } else if (type.isCollection()) {
