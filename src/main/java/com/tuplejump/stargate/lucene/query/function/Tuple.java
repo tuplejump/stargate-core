@@ -175,7 +175,7 @@ public class Tuple extends BaseVariableResolverFactory {
                 if (isNumber(validator.asCQL3Type())) {
                     generator.writeNumber(((Number) tuple[entry.getValue()]).doubleValue());
                 } else {
-                    generator.writeString(tuple[entry.getValue()].toString());
+                    generator.writeString(validator.getString((ByteBuffer) tuple[entry.getValue()]));
                 }
             } else {
                 generator.writeString(tuple[entry.getValue()].toString());
