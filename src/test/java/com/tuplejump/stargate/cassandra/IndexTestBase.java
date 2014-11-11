@@ -92,16 +92,7 @@ public class IndexTestBase {
         if (log)
             logger.warn("Search for -" + query + " - results -");
 
-        Iterator<Row> iter = result.iterator();
-        int count1 = 0;
-        while (iter.hasNext()) {
-            Row row = iter.next();
-            String rowStr = row.toString();
-            if (log)
-                System.out.println(rowStr);
-            Assert.assertFalse(rowStr.indexOf("error") > 0);
-            count1++;
-        }
+        int count1 = printResultSet(log, result);
 
         System.out.println("Search query[" + query + "] in [" + taken + "] ms - count [" + count1 + "]");
         return count1;
@@ -121,6 +112,13 @@ public class IndexTestBase {
         if (log)
             logger.warn("Search for -" + query + " - results -");
 
+        int count1 = printResultSet(log, result);
+
+        System.out.println("Search query[" + query + "] in [" + taken + "] ms - count [" + count1 + "]");
+        return count1;
+    }
+
+    protected int printResultSet(boolean log, ResultSet result) {
         Iterator<Row> iter = result.iterator();
         int count1 = 0;
         while (iter.hasNext()) {
@@ -131,8 +129,6 @@ public class IndexTestBase {
             Assert.assertFalse(rowStr.indexOf("error") > 0);
             count1++;
         }
-
-        System.out.println("Search query[" + query + "] in [" + taken + "] ms - count [" + count1 + "]");
         return count1;
     }
 

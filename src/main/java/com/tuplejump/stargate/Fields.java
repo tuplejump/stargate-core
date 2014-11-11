@@ -263,8 +263,12 @@ public class Fields {
 
     private static Field numericDocValuesField(String name, final AbstractType abstractType, final ByteBuffer byteBufferValue) {
         final String stripedName = striped + name;
-        Number value = (Number) abstractType.compose(byteBufferValue);
         CQL3Type cqlType = abstractType.asCQL3Type();
+        if (cqlType == CQL3Type.Native.TIMESTAMP) {
+            Date date = (Date) abstractType.compose(byteBufferValue);
+            return new NumericDocValuesField(stripedName, date.getTime());
+        }
+        Number value = (Number) abstractType.compose(byteBufferValue);
         if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER || cqlType == CQL3Type.Native.TIMESTAMP) {
             return new NumericDocValuesField(stripedName, value.longValue());
         } else if (cqlType == CQL3Type.Native.FLOAT) {
