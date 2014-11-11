@@ -322,4 +322,33 @@ public class IndexTestBase {
 
     }
 
+  private String createEventInsertStmt(String id, String ts, String dim,String measures){
+    String insertStmt = "INSERT INTO event_store (app_id, event_type, base_ts, event_id, event_ts, dimensions, measures) " +
+      "VALUES ('39','beacon','2014-04-06 21:30:00+0530','"+id+"','"+ts+"',{"+dim+"},{"+measures+"});";
+    return insertStmt;
+  }
+
+
+  protected void createEventStoreSchema(String keyspace){
+    String createTableStmt = "CREATE TABLE IF NOT EXISTS event_store(app_id text, event_type text, base_ts timestamp, event_id text, event_ts timestamp, keys set<text>, dimensions map<text, text>, measures map<text, double>, stargate text, PRIMARY KEY((app_id, event_type, base_ts, event_id)));";
+    String createIndexStmt = "CREATE CUSTOM INDEX IF NOT EXISTS events_stargate_idx ON event_store(stargate) USING 'com.tuplejump.stargate.RowIndex' WITH options = {'sg_options':'{\"fields\": { \"app_id\": {}, \"event_type\": {}, \"base_ts\": {}, \"event_id\" : {}, \"event_ts\": {\"striped\":\"also\"}, \"dimensions\": {\"fields\":{\"_value\":{\"striped\":\"also\", \"type\":\"string\"}}}, \"keys\" :{}, \"measures\": {\"fields\":{\"_value\":{\"striped\":\"also\"}}} } }'};";
+
+    createKS(keyspace);
+    getSession().execute("USE " + keyspace + ";");
+    getSession().execute(createTableStmt);
+    getSession().execute(createIndexStmt);
+
+    List<String> ids = Arrays.asList("ec66026f-8c97-4c57-982f-937h94n34Fv6","ec66026f-8c97-4c57-982f-545G17A25rM0","ec66026f-8c97-4c57-982f-388q87g92KW4");
+    List<String> times = Arrays.asList("2014-05-04 00:06:00+0530","2014-05-04 00:08:00+0530","2014-05-04 00:09:00+0530");
+    List<String> dimensions = Arrays.asList("'_browser': 'IE'","'_browser': 'Firefox'","'_browser': 'Chrome'");
+    List<String> measures = Arrays.asList("'connection': 114","'connection': 207","'connection': 374");
+
+    for(int i=0;i<ids.size();i++){
+      String stmt = createEventInsertStmt(ids.get(i),times.get(i),dimensions.get(i),measures.get(i));
+      getSession().execute(stmt);
+    }
+
+  }
+
+
 }
