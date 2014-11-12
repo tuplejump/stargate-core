@@ -19,7 +19,6 @@ package com.tuplejump.stargate.lucene.query.function;
 import com.clearspring.analytics.stream.quantile.TDigest;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.commons.codec.binary.Base64;
 import org.codehaus.jackson.JsonGenerator;
 
 import java.io.IOException;
@@ -73,9 +72,8 @@ public class Quantile implements Aggregate {
     public void writeJson(JsonGenerator generator) throws IOException {
         generator.writeStartObject();
         generator.writeFieldName(alias);
-        generator.writeString(Base64.encodeBase64String(getBytes(accumulator)));
+        generator.writeString(javax.xml.bind.DatatypeConverter.printBase64Binary(getBytes(accumulator)));
         generator.writeEndObject();
-
     }
 
     private static byte[] getBytes(TDigest digest) throws IOException {
