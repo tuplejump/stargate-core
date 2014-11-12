@@ -22,7 +22,6 @@ dependencies {
 
     //trans log dependencies
     compile('net.openhft:chronicle:3.2.2')
-    compile('com.goldmansachs:gs-collections:5.1.0')
 
     compile('org.mvel:mvel2:2.2.2.Final')
 
@@ -106,6 +105,7 @@ task copyLibs(type: Copy) {
     include 'jna-*.jar'
     include 'affinity-*.jar'
     include 'mvel2-*.jar'
+    include 'stream-*.jar'
 }
 
 task copySamples(type: Copy) {

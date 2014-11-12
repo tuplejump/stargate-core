@@ -16,6 +16,7 @@
 
 package com.tuplejump.stargate.cassandra;
 
+import com.datastax.driver.core.ResultSet;
 import com.tuplejump.stargate.util.CQLUnitD;
 import org.junit.Test;
 
@@ -119,16 +120,17 @@ public class AggregatesTest extends IndexTestBase {
         }
     }
 
-  @Test
-  public void shouldCalculateQuantileAggregate() throws Exception {
-    try {
-      createEventStoreSchema(keyspace);
-      String quantileQuery = "SELECT stargate FROM "+keyspace+".event_store WHERE stargate = '{ function:{ type:\"aggregate\", aggregates:[{type:\"quantile\",field:\"measures.connection\"}], groupBy:[\"dimensions._browser\"]  }}' ;";
-      getSession().execute(quantileQuery);
-    } finally {
-      dropKS(keyspace);
+    @Test
+    public void shouldCalculateQuantileAggregate() throws Exception {
+        try {
+            createEventStoreSchema(keyspace);
+            String quantileQuery = "SELECT stargate FROM " + keyspace + ".event_store WHERE stargate = '{ function:{ type:\"aggregate\", aggregates:[{type:\"quantile\",field:\"measures.connection\"}], groupBy:[\"dimensions._browser\"]  }}' ;";
+            ResultSet rows = getSession().execute(quantileQuery);
+            printResultSet(true, rows);
+        } finally {
+            dropKS(keyspace);
+        }
     }
-  }
 
     private void createTableAndIndexForRowStriped() {
         String options = "{\n" +
