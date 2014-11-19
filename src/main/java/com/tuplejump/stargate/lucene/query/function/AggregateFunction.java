@@ -78,7 +78,7 @@ public class AggregateFunction implements Function {
         Options options = rowScanner.getOptions();
 
         Group group = new Group(options, aggregates, groupBy, groupByExpressions);
-        if (aggregates.length == 1 && !aggregates[0].distinct && groupBy == null) {
+        if (aggregates.length == 1 && !aggregates[0].distinct && "count".equalsIgnoreCase(aggregates[0].getType()) && groupBy == null) {
             //this means it is a count-star. we can simply return the size of the index results
             Count count = new Count(aggregates[0], null, false);
             count.count = rowScanner.getCollector().docs().size();

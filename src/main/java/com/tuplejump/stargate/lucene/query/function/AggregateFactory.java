@@ -73,4 +73,7 @@ public class AggregateFactory {
         return alias != null ? alias : type;
     }
 
+    public String getType() {
+        return type;
+    }
 }
