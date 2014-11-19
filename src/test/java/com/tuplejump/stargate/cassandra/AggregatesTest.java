@@ -132,6 +132,18 @@ public class AggregatesTest extends IndexTestBase {
         }
     }
 
+    @Test
+    public void shouldCalculateAggregateWithoutGroup() throws Exception {
+        try {
+            createEventStoreSchema(keyspace);
+            String quantileQuery = "SELECT stargate FROM " + keyspace + ".event_store WHERE stargate = '{ function:{ type:\"aggregate\", aggregates:[{type:\"sum\",field:\"measures.connection\"}] }}' ;";
+            ResultSet rows = getSession().execute(quantileQuery);
+            printResultSet(true, rows);
+        } finally {
+            dropKS(keyspace);
+        }
+    }
+
     private void createTableAndIndexForRowStriped() {
         String options = "{\n" +
                 "\t\"numShards\":1024,\n" +
