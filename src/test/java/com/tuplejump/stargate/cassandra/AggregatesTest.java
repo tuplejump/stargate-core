@@ -165,6 +165,23 @@ public class AggregatesTest extends IndexTestBase {
         }
     }
 
+    @Test
+    public void shouldReturnSumZeroIfNoEntriesFound() throws Exception {
+        try {
+            createEventStoreSchema(keyspace);
+            ObjectMapper jsonMapper = new ObjectMapper();
+            String quantileQuery = "SELECT stargate FROM " + keyspace + ".event_store WHERE stargate = '{ function:{ type:\"aggregate\", aggregates:[{type:\"sum\",field:\"measures.error\"}] }}' ;";
+            Row row = getSession().execute(quantileQuery).one();
+            String data = row.getString("stargate");
+            String expectedResult = "{\"groups\":[{\"group\":{},\"aggregations\":[{\"sum\":0}]}]}";
+            JsonNode result = jsonMapper.readTree(data);
+            JsonNode expected = jsonMapper.readTree(expectedResult);
+            Assert.assertEquals(result, expected);
+        } finally {
+            dropKS(keyspace);
+        }
+    }
+
     private void createTableAndIndexForRowStriped() {
         String options = "{\n" +
                 "\t\"numShards\":1024,\n" +
