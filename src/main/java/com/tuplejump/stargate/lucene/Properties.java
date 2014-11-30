@@ -80,6 +80,9 @@ public class Properties {
     }
 
     @JsonProperty
+    boolean nearRealTime = false;
+
+    @JsonProperty
     boolean metaColumn = true;
 
     @JsonProperty
@@ -206,6 +209,14 @@ public class Properties {
 
     public Striped striped() {
         return striped;
+    }
+
+    public boolean isNearRealTime() {
+        return nearRealTime;
+    }
+
+    public void setNearRealTime(boolean nearRealTime) {
+        this.nearRealTime = nearRealTime;
     }
 
     public boolean isTokenized() {

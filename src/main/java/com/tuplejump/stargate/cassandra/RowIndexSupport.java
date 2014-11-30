@@ -17,12 +17,14 @@
 package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Fields;
+import com.tuplejump.stargate.IndexContainer;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.Indexer;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.lucene.json.JsonDocument;
 import com.tuplejump.stargate.lucene.json.StreamingJsonDocument;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
@@ -48,13 +50,21 @@ import java.util.*;
 public class RowIndexSupport {
     protected static final Logger logger = LoggerFactory.getLogger(RowIndexSupport.class);
     protected Options options;
-    protected ColumnFamilyStore table;
+    public final ColumnFamilyStore table;
     FieldType tsFieldType;
+    public final IndexContainer indexContainer;
+    public final String keyspace;
 
-    public RowIndexSupport(Options options, ColumnFamilyStore table) {
+    public RowIndexSupport(String keyspace, IndexContainer indexContainer, Options options, ColumnFamilyStore table) {
         this.options = options;
         this.table = table;
+        this.keyspace = keyspace;
+        this.indexContainer = indexContainer;
         tsFieldType = Properties.fieldType(Properties.ID_FIELD, CQL3Type.Native.BIGINT.getType());
+    }
+
+    public CFMetaData getCFMetaData() {
+        return this.table.metadata;
     }
 
 
@@ -65,7 +75,8 @@ public class RowIndexSupport {
      * @param cf     the row to write.
      */
 
-    public void indexRow(Indexer indexer, ByteBuffer rowKey, ColumnFamily cf) {
+    public void indexRow(ByteBuffer rowKey, ColumnFamily cf) {
+        Indexer indexer = indexContainer.indexer(table.partitioner.decorateKey(rowKey));
         Map<ByteBuffer, List<Field>> primaryKeysVsFields = new HashMap<>();
         DecoratedKey dk = table.partitioner.decorateKey(rowKey);
         Map<ByteBuffer, Long> timestamps = new HashMap<>();

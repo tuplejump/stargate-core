@@ -47,6 +47,4 @@ public interface Indexer {
 
     IndexSearcher acquire();
 
-    public <T> T search(SearcherCallback<T> searcherCallback);
-
 }

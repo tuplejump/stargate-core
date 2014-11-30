@@ -64,7 +64,8 @@ public class Fields {
     }
 
     public static Number numericDocValue(NumericDocValues rowKeyValues, int docId, AbstractType abstractType) throws IOException {
-        Long ref = rowKeyValues.get(docId);
+        Long ref = rowKeyValues == null ? 0l : rowKeyValues.get(docId);
+        if (ref == null) ref = 0l;
         CQL3Type cqlType = abstractType.asCQL3Type();
         if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT) {
             return ref.intValue();

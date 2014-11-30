@@ -16,9 +16,9 @@
 
 package com.tuplejump.stargate.lucene;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.lucene.search.IndexSearcher;
-
-import java.io.IOException;
 
 /**
  * Interface for a searcher callback.
@@ -29,4 +29,10 @@ import java.io.IOException;
 public interface SearcherCallback<T> {
 
     public T doWithSearcher(IndexSearcher searcher) throws Exception;
+
+    public Range<Token> filterRange();
+
+    public boolean isSingleToken();
+
+    public boolean isFullRange();
 }

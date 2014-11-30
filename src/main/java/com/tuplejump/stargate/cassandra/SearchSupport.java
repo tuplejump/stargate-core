@@ -25,14 +25,14 @@ import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.commons.lang3.StringEscapeUtils;
@@ -113,6 +113,11 @@ public class SearchSupport extends SecondaryIndexSearcher {
 
     protected List<Row> getRows(final ExtendedFilter filter, final Search search) {
         final SearchSupport searchSupport = this;
+        AbstractBounds<RowPosition> keyRange = filter.dataRange.keyRange();
+        final Range<Token> filterRange = new Range<>(keyRange.left.getToken(), keyRange.right.getToken());
+        final boolean isSingleToken = filterRange.left.equals(filterRange.right);
+        final boolean isFullRange = isSingleToken && baseCfs.partitioner.getMinimumToken().equals(filterRange.left);
+
         SearcherCallback<List<Row>> sc = new SearcherCallback<List<Row>>() {
             @Override
             public List<Row> doWithSearcher(org.apache.lucene.search.IndexSearcher searcher) throws Exception {
@@ -147,8 +152,24 @@ public class SearchSupport extends SecondaryIndexSearcher {
                 return results;
 
             }
+
+            @Override
+            public Range<Token> filterRange() {
+                return filterRange;
+            }
+
+            @Override
+            public boolean isSingleToken() {
+                return isSingleToken;
+            }
+
+            @Override
+            public boolean isFullRange() {
+                return isFullRange;
+            }
         };
-        return currentIndex.search(filter, sc);
+
+        return currentIndex.search(sc);
     }
 
     protected IndexExpression matchThisIndex(List<IndexExpression> clause) {

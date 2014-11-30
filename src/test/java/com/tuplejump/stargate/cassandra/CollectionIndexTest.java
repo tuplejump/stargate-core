@@ -56,7 +56,7 @@ public class CollectionIndexTest extends IndexTestBase {
     }
 
 
-    private void createTableAndIndexForRow() {
+    private void createTableAndIndexForRow() throws InterruptedException {
         String options = "{\n" +
                 "\t\"fields\":{\n" +
                 "\t\t\"tags\":{},\n" +

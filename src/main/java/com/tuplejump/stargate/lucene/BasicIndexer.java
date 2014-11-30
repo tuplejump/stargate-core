@@ -23,10 +23,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TrackingIndexWriter;
 import org.apache.lucene.search.*;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.NRTCachingDirectory;
 import org.apache.lucene.util.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,16 +37,10 @@ import java.io.IOException;
  * User: satya
  * An indexer which uses an underlying lucene ControlledRealTimeReopenThread Manager
  */
-public class NearRealTimeIndexer implements Indexer {
-    private static final Logger logger = LoggerFactory.getLogger(NearRealTimeIndexer.class);
+public class BasicIndexer implements Indexer {
+    private static final Logger logger = LoggerFactory.getLogger(BasicIndexer.class);
 
     public static IndexWriterConfig.OpenMode OPEN_MODE = IndexWriterConfig.OpenMode.CREATE_OR_APPEND;
-
-    protected TrackingIndexWriter indexWriter;
-
-    protected ReferenceManager<IndexSearcher> indexSearcherReferenceManager;
-
-    protected NRTCachingDirectory directory;
 
     protected File file;
 
@@ -59,13 +52,15 @@ public class NearRealTimeIndexer implements Indexer {
 
     protected String cfName;
 
-    protected volatile long latest;
+    protected IndexWriter indexWriter;
 
-    protected ControlledRealTimeReopenThread<IndexSearcher> reopenThread;
+    protected Directory directory;
 
     protected String vNodeName;
 
-    public NearRealTimeIndexer(Analyzer analyzer, String keyspaceName, String cfName, String indexName, String vNodeName) {
+    protected SearcherManager searcherManager;
+
+    public BasicIndexer(Analyzer analyzer, String keyspaceName, String cfName, String indexName, String vNodeName) {
         try {
             init(analyzer, keyspaceName, cfName, indexName, vNodeName);
         } catch (IOException e) {
@@ -82,11 +77,8 @@ public class NearRealTimeIndexer implements Indexer {
         this.vNodeName = vNodeName;
         logger.debug(indexName + " Lucene analyzer -" + analyzer);
         logger.debug(indexName + " Lucene version -" + Properties.luceneVersion);
-        IndexWriter delegate = getIndexWriter(Properties.luceneVersion);
-        indexWriter = new TrackingIndexWriter(delegate);
-        indexSearcherReferenceManager = new SearcherManager(delegate, true, null);
-        reopenThread = new ControlledRealTimeReopenThread<>(indexWriter, indexSearcherReferenceManager, 1, 0.01);
-        startReopenThread();
+        indexWriter = getIndexWriter(Properties.luceneVersion);
+        searcherManager = new SearcherManager(indexWriter, true, new SearcherFactory());
     }
 
 
@@ -95,28 +87,9 @@ public class NearRealTimeIndexer implements Indexer {
         IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
         config.setRAMBufferSizeMB(256);
         config.setOpenMode(OPEN_MODE);
-        directory = new NRTCachingDirectory(FSDirectory.open(file), 100, 100);
+        directory = FSDirectory.open(file);
         logger.warn(indexName + " SG Index - Opened dir[" + file.getAbsolutePath() + "] - Openmode[" + OPEN_MODE + "]");
         return new IndexWriter(directory, config);
-    }
-
-    private void startReopenThread() {
-        reopenThread.setName(String.format("SGIndex - %s - NRT Reopen Thread", indexName));
-        reopenThread.setPriority(Math.min(Thread.currentThread().getPriority() + 2, Thread.MAX_PRIORITY));
-        reopenThread.setDaemon(true);
-        reopenThread.start();
-        logger.warn(indexName + " NRT reopen thread  started - " + reopenThread.getName());
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                try {
-                    logger.warn(indexName + " NRT Shutdown hook called- Commiting and closing index");
-                    close();
-                } catch (Exception e) {
-                    //do nothing
-                }
-            }
-        });
     }
 
     @Override
@@ -125,8 +98,8 @@ public class NearRealTimeIndexer implements Indexer {
             logger.debug(indexName + " Indexing fields" + doc);
 
         try {
-            latest = indexWriter.addDocument(doc);
-            //indexSearcherReferenceManager.maybeRefresh();
+            indexWriter.addDocument(doc);
+            searcherManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -134,15 +107,15 @@ public class NearRealTimeIndexer implements Indexer {
 
     @Override
     public void delete(Term... terms) {
+        BooleanQuery q = new BooleanQuery();
+        for (Term t : terms) {
+            if (logger.isDebugEnabled())
+                logger.debug(indexName + " Delete term - " + t);
+            q.add(new TermQuery(t), BooleanClause.Occur.MUST);
+        }
         try {
-            BooleanQuery q = new BooleanQuery();
-            for (Term t : terms) {
-                if (logger.isDebugEnabled())
-                    logger.debug(indexName + " Delete term - " + t);
-                q.add(new TermQuery(t), BooleanClause.Occur.MUST);
-            }
-            latest = indexWriter.deleteDocuments(q);
-            //indexSearcherReferenceManager.maybeRefresh();
+            indexWriter.deleteDocuments(q);
+            searcherManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -154,50 +127,29 @@ public class NearRealTimeIndexer implements Indexer {
         return analyzer;
     }
 
-
     @Override
     public void release(IndexSearcher searcher) {
         try {
-            indexSearcherReferenceManager.release(searcher);
+            searcherManager.release(searcher);
         } catch (IOException e) {
-            logger.error("Unable to release searcher", e);
-            //do nothing
+            throw new RuntimeException(e);
         }
     }
 
     @Override
     public IndexSearcher acquire() {
         try {
-            reopenThread.waitForGeneration(latest);
-            return indexSearcherReferenceManager.acquire();
-        } catch (Exception e) {
+            searcherManager.maybeRefreshBlocking();
+            return searcherManager.acquire();
+        } catch (IOException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public <T> T search(SearcherCallback<T> searcherCallback) {
-        IndexSearcher searcher = null;
-        try {
-            reopenThread.waitForGeneration(latest);
-            searcher = indexSearcherReferenceManager.acquire();
-            return searcherCallback.doWithSearcher(searcher);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        } finally {
-            try {
-                indexSearcherReferenceManager.release(searcher);
-            } catch (IOException e) {
-                logger.error("Unable to release searcher", e);
-                //do nothing
-            }
         }
     }
 
 
     @Override
     public boolean removeIndex() {
-        logger.warn("SG NearRealTimeIndexer - Removing index -" + indexName);
+        logger.warn("SG BasicIndexer - Removing index -" + indexName);
         try {
             closeIndex();
             FileUtils.deleteRecursive(file);
@@ -211,7 +163,7 @@ public class NearRealTimeIndexer implements Indexer {
     @Override
     public boolean truncate(long l) {
         try {
-            logger.warn("SG NearRealTimeIndexer - Truncating index -" + indexName);
+            logger.warn("SG BasicIndexer - Truncating index -" + indexName);
             indexWriter.deleteAll();
             return true;
         } catch (IOException e) {
@@ -223,7 +175,7 @@ public class NearRealTimeIndexer implements Indexer {
     public long getLiveSize() {
         if (indexWriter != null) {
             try {
-                return indexWriter.getIndexWriter().ramSizeInBytes();
+                return indexWriter.ramSizeInBytes();
             } catch (Exception e) {
                 //ignore
                 return 0;
@@ -246,19 +198,15 @@ public class NearRealTimeIndexer implements Indexer {
     }
 
     private void closeIndex() throws IOException {
-        logger.warn("SG NearRealTimeIndexer - Closing index -" + indexName);
-        reopenThread.interrupt();
-        reopenThread.close();
-        indexSearcherReferenceManager.close();
-        indexWriter.getIndexWriter().close();
+        indexWriter.close();
         analyzer.close();
     }
 
     @Override
     public void commit() {
         try {
-            logger.warn("SG NearRealTimeIndexer - Committing index -" + indexName);
-            indexWriter.getIndexWriter().commit();
+            logger.warn("SG BasicIndexer - Committing index -" + indexName);
+            indexWriter.commit();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

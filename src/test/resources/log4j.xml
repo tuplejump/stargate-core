@@ -39,7 +39,7 @@
         <level value="ERROR"/>
     </logger>
 
-    <logger name="com.tuplejump.stargate.lucene.NearRealTimeIndexer">
+    <logger name="com.tuplejump.stargate.lucene.BasicIndexer">
         <level value="ERROR"/>
     </logger>
     <logger name="com.tuplejump.stargate.RowIndex">
