@@ -35,7 +35,13 @@ import java.util.Collection;
  */
 public class Group {
 
-    static BufferRecycler bufferRecycler = new BufferRecycler();
+    public static final ThreadLocal<BufferRecycler> bufferThreadLocal = new ThreadLocal<BufferRecycler>() {
+        @Override
+        protected BufferRecycler initialValue() {
+            return new BufferRecycler();
+        }
+    };
+
     Options options;
     AggregateFactory[] aggregatesToCalculate;
     String[] groupByFields;
@@ -67,6 +73,7 @@ public class Group {
     }
 
     public ByteBuffer toByteBuffer() throws IOException {
+        BufferRecycler bufferRecycler = bufferThreadLocal.get();
         ByteArrayBuilder bytes = new ByteArrayBuilder(bufferRecycler);
         IOContext ioContext = new IOContext(bufferRecycler, bytes, false);
         JsonGenerator gen = new Utf8Generator(ioContext, 0, null, bytes);
