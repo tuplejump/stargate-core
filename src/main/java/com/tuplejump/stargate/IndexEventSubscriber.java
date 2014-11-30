@@ -17,10 +17,15 @@
 package com.tuplejump.stargate;
 
 import net.openhft.chronicle.ExcerptTailer;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnSerializer;
+import org.apache.cassandra.db.TreeMapBackedSortedColumns;
+import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -62,7 +67,9 @@ class IndexEventSubscriber extends Thread {
             try {
                 if (stopped.get()) break;
                 while (tailer.nextIndex()) {
-                    indexingService.index(tailer);
+                    final ByteBuffer rowkeyBuffer = readRowKey(tailer);
+                    final ColumnFamily columnFamily = ColumnFamily.serializer.deserialize(tailer, TreeMapBackedSortedColumns.factory, ColumnSerializer.Flag.LOCAL, MessagingService.current_version);
+                    indexingService.index(rowkeyBuffer, columnFamily);
                 }
                 Thread.yield();
             } catch (Exception e) {
@@ -70,6 +77,13 @@ class IndexEventSubscriber extends Thread {
             }
         }
 
+    }
+
+    private ByteBuffer readRowKey(ExcerptTailer tailer) {
+        int rowKeyLength = tailer.readInt();
+        byte[] bytes = new byte[rowKeyLength];
+        tailer.read(bytes);
+        return ByteBuffer.wrap(bytes);
     }
 
 }

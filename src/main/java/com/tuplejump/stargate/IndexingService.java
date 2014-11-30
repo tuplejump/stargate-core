@@ -17,18 +17,13 @@
 package com.tuplejump.stargate;
 
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
-import net.openhft.chronicle.ExcerptTailer;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnSerializer;
-import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.HashMap;
@@ -57,37 +52,20 @@ public class IndexingService {
         this.support.put(rowIndexSupport.getCFMetaData().cfName, rowIndexSupport);
     }
 
-    public void index(final ExcerptTailer tailer) {
-        submitForIndex(tailer);
+    public void index(final ByteBuffer rowkeyBuffer, final ColumnFamily columnFamily) {
+        final RowIndexSupport rowIndexSupport = support.get(columnFamily.metadata().cfName);
+        executorService.submit(new Runnable() {
+            @Override
+            public void run() {
+                rowIndexSupport.indexRow(rowkeyBuffer, columnFamily);
+                long readGen = reads.incrementAndGet();
+                if (logger.isDebugEnabled())
+                    logger.debug("Read gen:" + readGen);
+            }
+        });
+
     }
 
-    private void submitForIndex(final ExcerptTailer tailer) {
-        try {
-            final ByteBuffer rowkeyBuffer = readRowKey(tailer);
-            final ColumnFamily columnFamily = ColumnFamily.serializer.deserialize(tailer, TreeMapBackedSortedColumns.factory, ColumnSerializer.Flag.LOCAL, MessagingService.current_version);
-            final RowIndexSupport rowIndexSupport = support.get(columnFamily.metadata().cfName);
-            executorService.submit(new Runnable() {
-                @Override
-                public void run() {
-                    rowIndexSupport.indexRow(rowkeyBuffer, columnFamily);
-                    long readGen = reads.incrementAndGet();
-                    if (logger.isDebugEnabled())
-                        logger.debug("Read gen:" + readGen);
-                }
-            });
-
-        } catch (IOException e) {
-            logger.error("Exception occurred while de-serializing column family", e);
-        }
-    }
-
-
-    private ByteBuffer readRowKey(ExcerptTailer tailer) {
-        int rowKeyLength = tailer.readInt();
-        byte[] bytes = new byte[rowKeyLength];
-        tailer.read(bytes);
-        return ByteBuffer.wrap(bytes);
-    }
 
     public void updateAllIndexers() {
         for (RowIndexSupport rowIndexSupport : support.values()) {

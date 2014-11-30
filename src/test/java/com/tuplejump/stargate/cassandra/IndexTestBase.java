@@ -199,39 +199,39 @@ public class IndexTestBase {
 
 
     protected String funWithFilter(String fun, String field, String value) {
-        String query1 = "{ query:{ type:\"lucene\", field:\"%s\", value:\"%s\" }, %s}";
+        String query1 = "{ filter:{ type:\"lucene\", field:\"%s\", value:\"%s\" }, %s}";
         return String.format(query1, field, value, fun);
     }
 
     protected String q(String field, String value) {
-        String query1 = "{ query:{ type:\"lucene\", field:\"%s\", value:\"%s\" }}";
+        String query1 = "{ filter:{ type:\"lucene\", field:\"%s\", value:\"%s\" }}";
         return String.format(query1, field, value);
     }
 
     protected String wq(String field, String value) {
-        String query1 = "{ query:{ type:\"wildcard\", field:\"%s\", value:\"%s\" }}";
+        String query1 = "{ filter:{ type:\"wildcard\", field:\"%s\", value:\"%s\" }}";
         return String.format(query1, field, value);
     }
 
     protected String pfq(String field, String value) {
-        String query1 = "{ query:{ type:\"prefix\", field:\"%s\", value:\"%s\" }}";
+        String query1 = "{ filter:{ type:\"prefix\", field:\"%s\", value:\"%s\" }}";
         return String.format(query1, field, value);
     }
 
     protected String fq(int maxEdits, String field, String value) {
-        String query1 = "{ query:{ type:\"fuzzy\", field:\"%s\", value:\"%s\",maxEdits:" + maxEdits + " }}";
+        String query1 = "{ filter:{ type:\"fuzzy\", field:\"%s\", value:\"%s\",maxEdits:" + maxEdits + " }}";
         return String.format(query1, field, value);
     }
 
     protected String mq(String field, String value) {
-        String query1 = "{ query:{ type:\"match\", field:\"%s\", value:\"%s\" }}";
+        String query1 = "{ filter:{ type:\"match\", field:\"%s\", value:\"%s\" }}";
         return String.format(query1, field, value);
     }
 
     protected String phq(int slop, String field, String... value) {
         String toReplace = "\"%s\"";
         for (int i = 1; i < value.length; i++) toReplace += ",\"%s\"";
-        String query1 = "{ query:{ type:\"phrase\", field:\"%s\", values:[" + toReplace + "] , slop:" + slop + "}}";
+        String query1 = "{ filter:{ type:\"phrase\", field:\"%s\", values:[" + toReplace + "] , slop:" + slop + "}}";
         List<Object> args = new ArrayList<>();
         args.add(field);
         for (String val : value) args.add(val);
@@ -241,27 +241,27 @@ public class IndexTestBase {
     }
 
     protected String bq(String query1, String query2) {
-        String query = "{ \"query\":{ \"type\":\"boolean\", \"must\":[%s,%s] }}";
+        String query = "{ \"filter\":{ \"type\":\"boolean\", \"must\":[%s,%s] }}";
         return String.format(query, query1, query2);
     }
 
     protected String gtq(String field, String value) {
-        String query1 = "{ query:{ type:\"range\", field:\"%s\", lower:\"%s\" }}";
+        String query1 = "{ filter:{ type:\"range\", field:\"%s\", lower:\"%s\" }}";
         return String.format(query1, field, value);
     }
 
     protected String gtq(String field, String value, String format) {
-        String query1 = "{ query:{ type:\"range\", field:\"%s\",  lower:\"%s\",format:\"%s\" }}";
+        String query1 = "{ filter:{ type:\"range\", field:\"%s\",  lower:\"%s\",format:\"%s\" }}";
         return String.format(query1, field, value, format);
     }
 
     protected String ltq(String field, String value, String format) {
-        String query1 = "{ query:{ type:\"range\", field:\"%s\", upper:\"%s\",format:\"%s\" }}";
+        String query1 = "{ filter:{ type:\"range\", field:\"%s\", upper:\"%s\",format:\"%s\" }}";
         return String.format(query1, field, value, format);
     }
 
     protected String ltEq(String field, String value) {
-        String query1 = "{ query:{ type:\"range\", field:\"%s\", upper:\"%s\",includeUpper : true  }}";
+        String query1 = "{ filter:{ type:\"range\", field:\"%s\", upper:\"%s\",includeUpper : true  }}";
         return String.format(query1, field, value);
     }
 
