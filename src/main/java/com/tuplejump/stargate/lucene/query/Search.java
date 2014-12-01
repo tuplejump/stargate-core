@@ -127,7 +127,7 @@ public class Search {
      */
     public static Search fromJson(String json) {
         try {
-            return Options.jsonMapper.readValue(json, Search.class);
+            return Options.inputMapper.readValue(json, Search.class);
         } catch (Exception e) {
             String message = "Cannot parse JSON index expression: " + json;
             logger.error(message, e);

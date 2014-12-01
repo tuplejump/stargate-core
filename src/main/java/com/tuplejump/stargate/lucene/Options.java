@@ -51,20 +51,20 @@ public class Options {
     private static final Logger logger = LoggerFactory.getLogger(Options.class);
     public static final String DUMMY_DIR = "_DUMMY_";
     public static String defaultIndexesDir = System.getProperty("sg.index.dir", DUMMY_DIR);
-    public static final ObjectMapper jsonMapper = new ObjectMapper();
+    public static final ObjectMapper inputMapper = new ObjectMapper();
 
 
     static {
-        jsonMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
-        jsonMapper.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
-        jsonMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
-        jsonMapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        jsonMapper.configure(SerializationConfig.Feature.AUTO_DETECT_IS_GETTERS, false);
+        inputMapper.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+        inputMapper.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+        inputMapper.configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
+        inputMapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        inputMapper.configure(SerializationConfig.Feature.AUTO_DETECT_IS_GETTERS, false);
         SimpleModule module = new SimpleModule("LowerCaseKeyDeserializer",
                 new org.codehaus.jackson.Version(1, 9, 0, null));
         module.addKeyDeserializer(Object.class, new LowerCaseKeyDeserializer());
         module.addKeyDeserializer(Map.class, new LowerCaseKeyDeserializer());
-        jsonMapper.registerModule(module);
+        inputMapper.registerModule(module);
 
 
         if (defaultIndexesDir.equals(DUMMY_DIR)) {
@@ -137,7 +137,7 @@ public class Options {
 
     public static Options getOptions(String columnName, ColumnFamilyStore baseCfs, String json) {
         try {
-            Properties mapping = jsonMapper.readValue(json, Properties.class);
+            Properties mapping = inputMapper.readValue(json, Properties.class);
             return new Options(mapping, baseCfs, columnName);
 
         } catch (IOException e) {

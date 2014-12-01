@@ -18,7 +18,6 @@ package com.tuplejump.stargate.cassandra;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
-import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.util.CQLUnitD;
 import junit.framework.Assert;
 import org.codehaus.jackson.JsonNode;
@@ -145,7 +144,7 @@ public class AggregatesTest extends IndexTestBase {
     public void shouldReturnJSONString() throws Exception {
         try {
             createEventStoreSchema(keyspace);
-            ObjectMapper jsonMapper = Options.jsonMapper;
+            ObjectMapper jsonMapper = new ObjectMapper();
             String quantileQuery = "SELECT stargate FROM " + keyspace + ".event_store WHERE stargate = '{ function:{ type:\"aggregate\", aggregates:[{type:\"sum\",field:\"measures.connection\"}] }}' ;";
             Row row = getSession().execute(quantileQuery).one();
             String data = row.getString("stargate");
@@ -162,7 +161,7 @@ public class AggregatesTest extends IndexTestBase {
     public void shouldReturnSumZeroIfNoEntriesFound() throws Exception {
         try {
             createEventStoreSchema(keyspace);
-            ObjectMapper jsonMapper = Options.jsonMapper;
+            ObjectMapper jsonMapper = new ObjectMapper();
             String quantileQuery = "SELECT stargate FROM " + keyspace + ".event_store WHERE stargate = '{ function:{ type:\"aggregate\", aggregates:[{type:\"sum\",field:\"measures.error\"}] }}' ;";
             Row row = getSession().execute(quantileQuery).one();
             String data = row.getString("stargate");

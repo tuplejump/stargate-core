@@ -77,6 +77,17 @@ public class Group {
         ByteArrayBuilder bytes = new ByteArrayBuilder(bufferRecycler);
         IOContext ioContext = new IOContext(bufferRecycler, bytes, false);
         JsonGenerator gen = new Utf8Generator(ioContext, 0, null, bytes);
+        gen.enable(JsonGenerator.Feature.QUOTE_FIELD_NAMES);
+        gen.enable(JsonGenerator.Feature.QUOTE_NON_NUMERIC_NUMBERS);
+        gen.enable(JsonGenerator.Feature.ESCAPE_NON_ASCII);
+        writeJson(gen);
+        gen.flush();
+        bytes.flush();
+        bytes.close();
+        return ByteBuffer.wrap(bytes.toByteArray());
+    }
+
+    private void writeJson(JsonGenerator gen) throws IOException {
         gen.writeStartObject();
         gen.writeFieldName("groups");
         gen.writeStartArray();
@@ -95,10 +106,6 @@ public class Group {
         }
         gen.writeEndArray();
         gen.writeEndObject();
-        gen.flush();
-        bytes.flush();
-        bytes.close();
-        return ByteBuffer.wrap(bytes.toByteArray());
     }
 
 
