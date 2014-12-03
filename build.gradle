@@ -21,7 +21,7 @@ dependencies {
     compile('com.clearspring.analytics:stream:2.7.0')
 
     //trans log dependencies
-    compile('net.openhft:chronicle:3.2.2')
+    compile('org.mapdb:mapdb:1.0.6')
 
     compile('org.mvel:mvel2:2.2.2.Final')
 
@@ -44,7 +44,7 @@ dependencies {
     compile('org.slf4j:slf4j-api:1.7.2')
     compile('org.slf4j:slf4j-log4j12:1.7.2')
 
-    compile('org.apache.cassandra:cassandra-all:2.0.9') {
+    compile('org.apache.cassandra:cassandra-all:2.0.11') {
         exclude group: 'asm'
         exclude group: 'org.apache.mina'
         exclude group: 'com.google.guava'
@@ -98,14 +98,11 @@ task copyLibs(type: Copy) {
     include 'lucene-*.jar'
     include 'joda-*.jar'
     include 'commons-collections-*.jar'
-    include 'chronicle-*.jar'
     include 'annotations-*.jar'
     include 'compiler-*.jar'
-    include 'lang-*.jar'
-    include 'jna-*.jar'
-    include 'affinity-*.jar'
     include 'mvel2-*.jar'
     include 'stream-*.jar'
+    include 'mapdb-*.jar'
 }
 
 task copySamples(type: Copy) {

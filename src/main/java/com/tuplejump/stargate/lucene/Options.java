@@ -64,6 +64,9 @@ public class Options {
                 new org.codehaus.jackson.Version(1, 9, 0, null));
         module.addKeyDeserializer(Object.class, new LowerCaseKeyDeserializer());
         module.addKeyDeserializer(Map.class, new LowerCaseKeyDeserializer());
+        module.addSerializer(AbstractType.class, new Utils.AbstractTypeSerializer());
+        module.addSerializer(FieldType.class, new Utils.FieldTypeSerializer());
+        module.addSerializer(Analyzer.class, new Utils.AnalyzerSerializer());
         inputMapper.registerModule(module);
 
 
@@ -105,6 +108,10 @@ public class Options {
     public final Set<String> indexedColumnNames;
     public final Analyzer analyzer;
     public final String defaultField;
+
+    public String describeAsJson() throws IOException {
+        return inputMapper.writeValueAsString(this);
+    }
 
 
     public Properties getProperties(String fieldName) {

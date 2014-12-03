@@ -76,7 +76,7 @@ public class RowIndex extends PerRowSecondaryIndex {
 
     @Override
     public void index(ByteBuffer rowKey, ColumnFamily cf) {
-        latest = IndexEventBus.getInstance().publish(rowKey, cf);
+        latest = Stargate.getInstance().publish(rowKey, cf);
     }
 
     @Override
@@ -121,7 +121,8 @@ public class RowIndex extends PerRowSecondaryIndex {
             //don't give the searcher out till this happens
             if (isIndexBuilt(columnDefinition.name)) break;
         }
-        IndexEventBus.getInstance().catchUp(latest);
+        if (!nearRealTime)
+            Stargate.getInstance().catchUp(latest);
     }
 
 
@@ -146,7 +147,7 @@ public class RowIndex extends PerRowSecondaryIndex {
             logger.warn("Creating new RowIndex for {}", indexName);
             indexContainer = new IndexContainer(options.analyzer, keyspace, tableName, indexName);
             rowIndexSupport = new RowIndexSupport(keyspace, indexContainer, options, baseCfs);
-            IndexEventBus.getInstance().register(rowIndexSupport);
+            Stargate.getInstance().register(rowIndexSupport);
         } finally {
             writeLock.unlock();
         }

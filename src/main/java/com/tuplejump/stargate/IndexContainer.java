@@ -146,7 +146,15 @@ public class IndexContainer {
     public long size() {
         long size = 0;
         for (Indexer indexer : indexers.values()) {
-            size = (indexer == null) ? 0 : indexer.getLiveSize();
+            size += (indexer == null) ? 0 : indexer.size();
+        }
+        return size;
+    }
+
+    public long liveSize() {
+        long size = 0;
+        for (Indexer indexer : indexers.values()) {
+            size += (indexer == null) ? 0 : indexer.liveSize();
         }
         return size;
     }

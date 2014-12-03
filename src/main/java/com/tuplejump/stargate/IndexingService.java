@@ -21,6 +21,7 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
+import org.mapdb.Atomic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,21 +31,20 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * User: satya
  */
 public class IndexingService {
-    protected static final Logger logger = LoggerFactory.getLogger(IndexEventBus.class);
+    protected static final Logger logger = LoggerFactory.getLogger(Stargate.class);
     ExecutorService executorService;
     Map<String, RowIndexSupport> support;
-    AtomicLong reads;
+    Atomic.Long reads;
 
 
-    public IndexingService() {
+    public IndexingService(Atomic.Long reads) {
         support = new HashMap<>();
-        reads = new AtomicLong(0);
+        this.reads = reads;
         executorService = Executors.newFixedThreadPool(4);
     }
 

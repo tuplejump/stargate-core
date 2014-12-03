@@ -16,32 +16,26 @@
 
 package com.tuplejump.stargate;
 
-import net.openhft.chronicle.ExcerptTailer;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnSerializer;
-import org.apache.cassandra.db.TreeMapBackedSortedColumns;
-import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * User: satya
  */
 class IndexEventSubscriber extends Thread {
-    protected static final Logger logger = LoggerFactory.getLogger(IndexEventBus.class);
-    ExcerptTailer tailer;
+    protected static final Logger logger = LoggerFactory.getLogger(Stargate.class);
+    BlockingQueue<IndexEntryEvent> queue;
     AtomicBoolean stopped;
     AtomicBoolean started;
     IndexingService indexingService;
 
 
-    public IndexEventSubscriber(IndexingService indexingService, ExcerptTailer tailer) throws IOException {
+    public IndexEventSubscriber(IndexingService indexingService, BlockingQueue<IndexEntryEvent> queue) {
         this.indexingService = indexingService;
-        this.tailer = tailer;
+        this.queue = queue;
         stopped = new AtomicBoolean(false);
         started = new AtomicBoolean(false);
         setName("SGIndex Entry Subscriber");
@@ -58,18 +52,16 @@ class IndexEventSubscriber extends Thread {
         });
         super.start();
         started.set(true);
-        IndexEventBus.logger.warn("********* Indexer Thread Started ************");
+        Stargate.logger.warn("********* Indexer Thread Started ************");
     }
 
     @Override
     public void run() {
-        while (true) {
+        while (!stopped.get()) {
             try {
-                if (stopped.get()) break;
-                while (tailer.nextIndex()) {
-                    final ByteBuffer rowkeyBuffer = readRowKey(tailer);
-                    final ColumnFamily columnFamily = ColumnFamily.serializer.deserialize(tailer, TreeMapBackedSortedColumns.factory, ColumnSerializer.Flag.LOCAL, MessagingService.current_version);
-                    indexingService.index(rowkeyBuffer, columnFamily);
+                if (queue.peek() != null) {
+                    IndexEntryEvent indexEntryEvent = queue.remove();
+                    indexingService.index(indexEntryEvent.getRowKey(), indexEntryEvent.getColumnFamily());
                 }
                 Thread.yield();
             } catch (Exception e) {
@@ -77,13 +69,6 @@ class IndexEventSubscriber extends Thread {
             }
         }
 
-    }
-
-    private ByteBuffer readRowKey(ExcerptTailer tailer) {
-        int rowKeyLength = tailer.readInt();
-        byte[] bytes = new byte[rowKeyLength];
-        tailer.read(bytes);
-        return ByteBuffer.wrap(bytes);
     }
 
 }

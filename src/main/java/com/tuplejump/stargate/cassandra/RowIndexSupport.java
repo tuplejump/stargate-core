@@ -67,6 +67,9 @@ public class RowIndexSupport {
         return this.table.metadata;
     }
 
+    public Options getOptions() {
+        return options;
+    }
 
     /**
      * Writes one row to the lucene index.

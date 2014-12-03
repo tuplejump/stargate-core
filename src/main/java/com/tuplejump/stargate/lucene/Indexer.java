@@ -31,7 +31,8 @@ public interface Indexer {
 
     public boolean truncate(long l);
 
-    public long getLiveSize();
+    public long liveSize();
+    public long size();
 
     public void commit();
 

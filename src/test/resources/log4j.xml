@@ -27,7 +27,7 @@
     <logger name="com.tuplejump.stargate.cassandra.RowIndexSupport">
         <level value="WARN"/>
     </logger>
-    <logger name="com.tuplejump.stargate.IndexEventBus">
+    <logger name="com.tuplejump.stargate.Stargate">
         <level value="DEBUG"/>
     </logger>
 

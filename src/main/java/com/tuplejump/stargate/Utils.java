@@ -19,11 +19,17 @@ package com.tuplejump.stargate;
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
+import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.JsonProcessingException;
+import org.codehaus.jackson.map.JsonSerializer;
+import org.codehaus.jackson.map.SerializerProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -171,5 +177,28 @@ public class Utils {
         }
 
     }
+
+
+    public static class AbstractTypeSerializer extends JsonSerializer<AbstractType> {
+        @Override
+        public void serialize(AbstractType value, JsonGenerator gen, SerializerProvider provider) throws IOException, JsonProcessingException {
+            gen.writeString(value.asCQL3Type().toString());
+        }
+    }
+
+    public static class FieldTypeSerializer extends JsonSerializer<FieldType> {
+        @Override
+        public void serialize(FieldType value, JsonGenerator gen, SerializerProvider provider) throws IOException, JsonProcessingException {
+            gen.writeString(value.toString());
+        }
+    }
+
+    public static class AnalyzerSerializer extends JsonSerializer<Analyzer> {
+        @Override
+        public void serialize(Analyzer value, JsonGenerator gen, SerializerProvider provider) throws IOException, JsonProcessingException {
+            gen.writeString(value.getClass().getName());
+        }
+    }
+
 
 }

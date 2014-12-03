@@ -172,10 +172,25 @@ public class BasicIndexer implements Indexer {
     }
 
     @Override
-    public long getLiveSize() {
+    public long liveSize() {
         if (indexWriter != null) {
             try {
                 return indexWriter.ramSizeInBytes();
+            } catch (Exception e) {
+                //ignore
+                return 0;
+            }
+
+        } else {
+            return 0;
+        }
+    }
+
+    @Override
+    public long size() {
+        if (indexWriter != null) {
+            try {
+                return calcTotalFileSize(file.getPath(), directory);
             } catch (Exception e) {
                 //ignore
                 return 0;
@@ -210,5 +225,15 @@ public class BasicIndexer implements Indexer {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static long calcTotalFileSize(String path, Directory directory) throws Exception {
+        long totalFileSize = 0L;
+        String[] files = directory.listAll();
+        if (files == null) return totalFileSize;
+        for (int i = 0; i < files.length; i++) {
+            totalFileSize += directory.fileLength(files[i]);
+        }
+        return totalFileSize;
     }
 }
