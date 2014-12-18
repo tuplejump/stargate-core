@@ -19,6 +19,7 @@ package com.tuplejump.stargate.lucene.query.function;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.tuplejump.stargate.lucene.Options;
+import com.tuplejump.stargate.lucene.Properties;
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.impl.Utf8Generator;
 import org.codehaus.jackson.io.IOContext;
@@ -61,7 +62,8 @@ public class Group {
         Collection<Aggregate> groupValue = groups.get(key);
         if (groupValue.isEmpty()) {
             for (AggregateFactory aggregateFactory : aggregatesToCalculate) {
-                Aggregate aggregate = aggregateFactory.getAggregate(options);
+                Properties.Type valueType = AggregateFunction.getLuceneType(options, aggregateFactory.getField());
+                Aggregate aggregate = aggregateFactory.getAggregate(valueType);
                 aggregate.aggregate(tuple);
                 groups.put(key, aggregate);
             }

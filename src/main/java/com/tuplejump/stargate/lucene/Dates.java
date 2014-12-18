@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.tuplejump.stargate;
+package com.tuplejump.stargate.lucene;
 
 import org.apache.commons.lang3.StringUtils;
 import org.joda.time.DateTimeZone;

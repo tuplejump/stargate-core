@@ -279,7 +279,7 @@ public class IndexTestBase {
         public MemIndex(com.tuplejump.stargate.lucene.Properties properties) {
             this.options = properties;
             Version luceneV = Version.parseLeniently(Version.LUCENE_48.name());
-            Analyzer analyzer = new PerFieldAnalyzerWrapper(options.getAnalyzer(), options.perFieldAnalyzers());
+            Analyzer analyzer = new PerFieldAnalyzerWrapper(options.getLuceneAnalyzer(), options.perFieldAnalyzers());
             IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
             try {
                 Path path = Files.createTempDirectory(null, fileAttributes);

@@ -16,8 +16,6 @@
 
 package com.tuplejump.stargate.lucene;
 
-import com.tuplejump.stargate.Utils;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
@@ -83,7 +81,7 @@ public class BasicIndexer implements Indexer {
 
 
     private IndexWriter getIndexWriter(Version luceneV) throws IOException {
-        file = Utils.getDirectory(keyspaceName, cfName, indexName, vNodeName);
+        file = LuceneUtils.getDirectory(keyspaceName, cfName, indexName, vNodeName);
         IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
         config.setRAMBufferSizeMB(256);
         config.setOpenMode(OPEN_MODE);
@@ -152,7 +150,7 @@ public class BasicIndexer implements Indexer {
         logger.warn("SG BasicIndexer - Removing index -" + indexName);
         try {
             closeIndex();
-            FileUtils.deleteRecursive(file);
+            LuceneUtils.deleteRecursive(file);
             directory.close();
         } catch (IOException e) {
             throw new RuntimeException(e);

@@ -18,12 +18,13 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.IndexContainer;
-import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.Indexer;
+import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.lucene.json.JsonDocument;
 import com.tuplejump.stargate.lucene.json.StreamingJsonDocument;
+import com.tuplejump.stargate.utils.Pair;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
@@ -33,7 +34,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
@@ -60,7 +60,7 @@ public class RowIndexSupport {
         this.table = table;
         this.keyspace = keyspace;
         this.indexContainer = indexContainer;
-        tsFieldType = Properties.fieldType(Properties.ID_FIELD, CQL3Type.Native.BIGINT.getType());
+        tsFieldType = CassandraUtils.fieldType(Properties.ID_FIELD, CQL3Type.Native.BIGINT.getType());
     }
 
     public CFMetaData getCFMetaData() {
@@ -98,7 +98,7 @@ public class RowIndexSupport {
             ByteBuffer pk = entry.getKey();
             String pkName = pkNames.get(pk);
             List<Field> fields = entry.getValue();
-            Term term = Fields.idTerm(pkName);
+            Term term = LuceneUtils.idTerm(pkName);
 
             if (cf.isMarkedForDelete() && options.collectionFieldTypes.isEmpty()) {
                 if (logger.isDebugEnabled())
@@ -219,7 +219,7 @@ public class RowIndexSupport {
 
     public String getActualColumnName(ByteBuffer name) {
         ByteBuffer colName = ((CompositeType) table.getComparator()).extractLastComponent(name);
-        return Utils.getColumnNameStr(colName);
+        return CassandraUtils.getColumnNameStr(colName);
     }
 
 
@@ -256,12 +256,12 @@ public class RowIndexSupport {
     }
 
     protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pk, AbstractType rkValValidator) {
-        return Arrays.asList(Fields.idDocValue(rkValValidator, pk), Fields.pkNameDocValue(pkName), Fields.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
+        return Arrays.asList(LuceneUtils.idDocValue(pk), LuceneUtils.pkNameDocValue(pkName), LuceneUtils.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
     }
 
     protected List<Field> tsFields(long ts) {
-        Field tsField = Fields.tsField(ts, tsFieldType);
-        return Arrays.asList(Fields.tsDocValues(ts), tsField);
+        Field tsField = LuceneUtils.tsField(ts, tsFieldType);
+        return Arrays.asList(LuceneUtils.tsDocValues(ts), tsField);
     }
 
 

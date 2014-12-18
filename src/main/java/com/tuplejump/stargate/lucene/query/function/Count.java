@@ -16,7 +16,6 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.codehaus.jackson.JsonGenerator;
 
 import java.io.IOException;
@@ -31,11 +30,11 @@ public class Count implements Aggregate {
     boolean distinct;
     Values values;
 
-    public Count(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean distinct) {
+    public Count(AggregateFactory aggregateFactory, boolean distinct) {
         this.alias = aggregateFactory.getAlias();
         this.distinct = distinct;
         if (distinct) {
-            values = new Values(aggregateFactory, valueValidator, distinct);
+            values = new Values(aggregateFactory, true);
         }
     }
 

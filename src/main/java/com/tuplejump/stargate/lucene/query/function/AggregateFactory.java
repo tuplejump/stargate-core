@@ -16,8 +16,7 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import com.tuplejump.stargate.lucene.Options;
-import org.apache.cassandra.db.marshal.AbstractType;
+import com.tuplejump.stargate.lucene.Properties;
 import org.codehaus.jackson.annotate.JsonAnyGetter;
 import org.codehaus.jackson.annotate.JsonAnySetter;
 import org.codehaus.jackson.annotate.JsonProperty;
@@ -52,16 +51,15 @@ public class AggregateFactory {
         dynamicProperties.put(name, value);
     }
 
-    public Aggregate getAggregate(Options options) {
+    public Aggregate getAggregate(Properties.Type valueType) {
         if (field == null && distinct)
             throw new UnsupportedOperationException("Distinct cannot be specified when field is null");
-        AbstractType valueValidator = AggregateFunction.getFieldValidator(options, getField());
-        if ("count".equalsIgnoreCase(type)) return new Count(this, valueValidator, distinct);
-        else if ("sum".equalsIgnoreCase(type)) return new Sum(this, valueValidator, distinct);
-        else if ("min".equalsIgnoreCase(type)) return new MinMax(this, valueValidator);
-        else if ("max".equalsIgnoreCase(type)) return new MinMax(this, valueValidator, true);
-        else if ("values".equalsIgnoreCase(type)) return new Values(this, valueValidator, distinct);
-        else if ("quantile".equalsIgnoreCase(type)) return new Quantile(this, valueValidator);
+        if ("count".equalsIgnoreCase(type)) return new Count(this, distinct);
+        else if ("sum".equalsIgnoreCase(type)) return new Sum(this, valueType, distinct);
+        else if ("min".equalsIgnoreCase(type)) return new MinMax(this, valueType.isNumeric());
+        else if ("max".equalsIgnoreCase(type)) return new MinMax(this, valueType.isNumeric(), true);
+        else if ("values".equalsIgnoreCase(type)) return new Values(this, distinct);
+        else if ("quantile".equalsIgnoreCase(type)) return new Quantile(this, valueType);
         else throw new UnsupportedOperationException("Unknown function [" + type + "]");
     }
 

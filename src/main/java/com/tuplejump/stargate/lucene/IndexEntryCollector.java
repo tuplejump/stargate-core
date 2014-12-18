@@ -15,15 +15,15 @@
  */
 
 
-package com.tuplejump.stargate.cassandra;
+package com.tuplejump.stargate.lucene;
 
-import com.tuplejump.stargate.Constants;
-import com.tuplejump.stargate.Fields;
+import com.tuplejump.stargate.lucene.Constants;
+import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
+import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.lucene.query.Search;
 import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
 import com.tuplejump.stargate.lucene.query.function.Function;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
@@ -68,6 +68,10 @@ public class IndexEntryCollector extends Collector {
 
     public boolean canByPassRowFetch() {
         return canByPassRowFetch;
+    }
+
+    public int getTotalHits() {
+        return totalHits;
     }
 
     public IndexEntryCollector(Function function, Search search, Options options, int maxResults) throws IOException {
@@ -159,9 +163,9 @@ public class IndexEntryCollector extends Collector {
         for (int i = 0; i < comparators.length; i++) {
             hitQueue.setComparator(i, comparators[i].setNextReader(context));
         }
-        pkNames = Fields.getPKDocValues(context.reader());
-        rowKeys = Fields.getRKDocValues(context.reader());
-        timeStamps = Fields.getTSDocValues(context.reader());
+        pkNames = LuceneUtils.getPKDocValues(context.reader());
+        rowKeys = LuceneUtils.getRKDocValues(context.reader());
+        timeStamps = LuceneUtils.getTSDocValues(context.reader());
         for (String docValName : numericDocValueNamesToFetch) {
             numericDocValuesMap.put(docValName, context.reader().getNumericDocValues(Constants.striped + docValName));
         }
@@ -251,18 +255,18 @@ public class IndexEntryCollector extends Collector {
     }
 
     IndexEntry getIndexEntry(int slot, int doc, float score) throws IOException {
-        String pkName = Fields.primaryKeyName(pkNames, doc);
-        ByteBuffer rowKey = Fields.byteBufferDocValue(rowKeys, doc);
+        String pkName = LuceneUtils.primaryKeyName(pkNames, doc);
+        ByteBuffer rowKey = LuceneUtils.byteBufferDocValue(rowKeys, doc);
         long timeStamp = timeStamps.get(doc);
         Map<String, Number> numericDocValues = new HashMap<>();
-        Map<String, ByteBuffer> binaryDocValues = new HashMap<>();
+        Map<String, String> binaryDocValues = new HashMap<>();
         for (Map.Entry<String, NumericDocValues> entry : numericDocValuesMap.entrySet()) {
-            AbstractType validator = AggregateFunction.getFieldValidator(options, entry.getKey());
-            Number number = Fields.numericDocValue(entry.getValue(), doc, validator);
+            Properties.Type type = AggregateFunction.getLuceneType(options, entry.getKey());
+            Number number = LuceneUtils.numericDocValue(entry.getValue(), doc, type);
             numericDocValues.put(entry.getKey(), number);
         }
         for (Map.Entry<String, BinaryDocValues> entry : binaryDocValuesMap.entrySet()) {
-            binaryDocValues.put(entry.getKey(), Fields.byteBufferDocValue(entry.getValue(), doc));
+            binaryDocValues.put(entry.getKey(), LuceneUtils.stringDocValue(entry.getValue(), doc));
         }
         return new IndexEntry(pkName, rowKey, timeStamp, slot, docBase + doc, score, numericDocValues, binaryDocValues);
     }
@@ -274,10 +278,10 @@ public class IndexEntryCollector extends Collector {
         public final long timestamp;
         public float score;
         Map<String, Number> numericDocValuesMap;
-        Map<String, ByteBuffer> binaryDocValuesMap;
+        Map<String, String> binaryDocValuesMap;
 
 
-        public IndexEntry(String pkName, ByteBuffer rowKey, long timestamp, int slot, int doc, float score, Map<String, Number> numericDocValuesMap, Map<String, ByteBuffer> binaryDocValuesMap) {
+        public IndexEntry(String pkName, ByteBuffer rowKey, long timestamp, int slot, int doc, float score, Map<String, Number> numericDocValuesMap, Map<String, String> binaryDocValuesMap) {
             super(slot, doc, score);
             this.pkName = pkName;
             this.rowKey = rowKey;
@@ -291,7 +295,7 @@ public class IndexEntryCollector extends Collector {
             return numericDocValuesMap.get(field);
         }
 
-        public ByteBuffer getByteBuffer(String field) {
+        public String getString(String field) {
             return binaryDocValuesMap.get(field);
         }
 

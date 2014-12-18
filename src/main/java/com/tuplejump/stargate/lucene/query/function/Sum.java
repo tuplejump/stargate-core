@@ -16,8 +16,7 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.marshal.AbstractType;
+import com.tuplejump.stargate.lucene.Properties;
 import org.codehaus.jackson.JsonGenerator;
 
 import java.io.IOException;
@@ -29,22 +28,22 @@ public class Sum implements Aggregate {
 
     double sum = 0;
 
-    CQL3Type cqlType;
+    Properties.Type cqlType;
     String field;
     String alias;
     boolean distinct;
     Values values;
 
-    public Sum(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean distinct) {
+    public Sum(AggregateFactory aggregateFactory, Properties.Type type, boolean distinct) {
         this.field = aggregateFactory.getField();
         this.alias = aggregateFactory.getAlias();
-        this.cqlType = valueValidator.asCQL3Type();
+        this.cqlType = type;
         this.distinct = distinct;
-        if (!Tuple.isNumber(cqlType)) {
+        if (!type.isNumeric()) {
             throw new UnsupportedOperationException("Sum function is available only on numeric types");
         }
         if (distinct) {
-            values = new Values(aggregateFactory, valueValidator, distinct);
+            values = new Values(aggregateFactory, distinct);
         }
     }
 
@@ -61,16 +60,14 @@ public class Sum implements Aggregate {
     }
 
     private void add(Number obj) {
-        if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT) {
-            sum += (Integer) obj;
-        } else if (cqlType == CQL3Type.Native.BIGINT) {
-            sum += (Long) obj;
-        } else if (cqlType == CQL3Type.Native.FLOAT) {
-            sum += (Float) obj;
-        } else if (cqlType == CQL3Type.Native.DECIMAL) {
+        if (cqlType == Properties.Type.integer) {
+            sum += obj.intValue();
+        } else if (cqlType == Properties.Type.bigint) {
+            sum += obj.longValue();
+        } else if (cqlType == Properties.Type.decimal) {
+            sum += obj.floatValue();
+        } else if (cqlType == Properties.Type.bigdecimal) {
             sum += obj.doubleValue();
-        } else if (cqlType == CQL3Type.Native.DOUBLE) {
-            sum += (Double) obj;
         }
     }
 

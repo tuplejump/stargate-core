@@ -18,6 +18,7 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
+import com.tuplejump.stargate.lucene.IndexEntryCollector;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
 import com.tuplejump.stargate.lucene.query.Search;
@@ -78,7 +79,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
     protected Search getQuery(IndexExpression predicate) throws Exception {
         ColumnDefinition cd = baseCfs.metadata.getColumnDefinition(predicate.column_name);
         String predicateValue = cd.getValidator().getString(predicate.bufferForValue());
-        String columnName = Utils.getColumnName(cd);
+        String columnName = CassandraUtils.getColumnName(cd);
         if (logger.isDebugEnabled())
             logger.debug("Index Searcher - query - predicate value [" + predicateValue + "] column name [" + columnName + "]");
         logger.debug("Column name is {}", columnName);
@@ -139,14 +140,14 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     function.init(options);
                     IndexEntryCollector collector = new IndexEntryCollector(function, search, options, resultsLimit);
                     searcher.search(query, collector);
-                    timer2.endLogTime("TopDocs search for [" + collector.totalHits + "] results ");
+                    timer2.endLogTime("TopDocs search for [" + collector.getTotalHits() + "] results ");
                     if (SearchSupport.logger.isDebugEnabled()) {
-                        SearchSupport.logger.debug(String.format("Search results [%s]", collector.totalHits));
+                        SearchSupport.logger.debug(String.format("Search results [%s]", collector.getTotalHits()));
                     }
                     RowScanner iter = new RowScanner(searchSupport, baseCfs, filter, collector, function instanceof AggregateFunction ? false : search.isShowScore());
                     Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
                     results = function.process(iter, customColumnFactory, baseCfs, currentIndex);
-                    timer3.endLogTime("Aggregation [" + collector.totalHits + "] results");
+                    timer3.endLogTime("Aggregation [" + collector.getTotalHits() + "] results");
                 }
                 timer.endLogTime("Search with results [" + results.size() + "] ");
                 return results;
@@ -198,7 +199,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
         Column lastColumn = null;
         for (ByteBuffer colKey : cf.getColumnNames()) {
             String name = currentIndex.getRowIndexSupport().getActualColumnName(colKey);
-            com.tuplejump.stargate.lucene.Properties option = options.getFields().get(name);
+            com.tuplejump.stargate.lucene.Properties option = options.fields.get(name);
             //if option was not found then the column is not indexed
             if (option != null) {
                 lastColumn = cf.getColumn(colKey);

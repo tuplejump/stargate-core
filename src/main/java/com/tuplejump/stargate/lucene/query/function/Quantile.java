@@ -17,8 +17,7 @@
 package com.tuplejump.stargate.lucene.query.function;
 
 import com.clearspring.analytics.stream.quantile.TDigest;
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.marshal.AbstractType;
+import com.tuplejump.stargate.lucene.Properties;
 import org.codehaus.jackson.JsonGenerator;
 
 import java.io.IOException;
@@ -30,13 +29,13 @@ import java.nio.ByteBuffer;
 public class Quantile implements Aggregate {
     String alias;
     TDigest accumulator;
-    CQL3Type cqlType;
+    Properties.Type cqlType;
     String field;
 
-    public Quantile(AggregateFactory aggregateFactory, AbstractType valueValidator) {
+    public Quantile(AggregateFactory aggregateFactory, Properties.Type type) {
         this.field = aggregateFactory.getField();
         this.alias = aggregateFactory.getAlias();
-        this.cqlType = valueValidator.asCQL3Type();
+        this.cqlType = type;
         String compressionStr = aggregateFactory.dynamicProperties().get("compression");
         int compression = 100;
         if (compressionStr != null) {
@@ -55,15 +54,13 @@ public class Quantile implements Aggregate {
     }
 
     private void add(Number obj) {
-        if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT) {
+        if (cqlType == Properties.Type.integer) {
             accumulator.add((Integer) obj);
-        } else if (cqlType == CQL3Type.Native.BIGINT) {
+        } else if (cqlType == Properties.Type.bigint) {
             accumulator.add((Long) obj);
-        } else if (cqlType == CQL3Type.Native.FLOAT) {
+        } else if (cqlType == Properties.Type.decimal) {
             accumulator.add((Float) obj);
-        } else if (cqlType == CQL3Type.Native.DECIMAL) {
-            accumulator.add(obj.doubleValue());
-        } else if (cqlType == CQL3Type.Native.DOUBLE) {
+        } else if (cqlType == Properties.Type.bigdecimal) {
             accumulator.add((Double) obj);
         }
     }

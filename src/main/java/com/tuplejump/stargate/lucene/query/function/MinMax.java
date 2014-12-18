@@ -16,11 +16,9 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.codehaus.jackson.JsonGenerator;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 /**
  * User: satya
@@ -30,20 +28,18 @@ public class MinMax implements Aggregate {
     protected boolean reverse = false;
     Object currentValue;
 
-    AbstractType valueValidator;
     String field;
     String alias;
     boolean isNumber;
 
-    public MinMax(AggregateFactory aggregateFactory, AbstractType valueValidator) {
-        this.valueValidator = valueValidator;
+    public MinMax(AggregateFactory aggregateFactory, boolean isNumber) {
         this.field = aggregateFactory.getField();
         this.alias = aggregateFactory.getAlias();
-        this.isNumber = Tuple.isNumber(valueValidator.asCQL3Type());
+        this.isNumber = isNumber;
     }
 
-    public MinMax(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean max) {
-        this(aggregateFactory, valueValidator);
+    public MinMax(AggregateFactory aggregateFactory, boolean isNumber, boolean max) {
+        this(aggregateFactory, isNumber);
         this.reverse = max;
     }
 
@@ -72,10 +68,7 @@ public class MinMax implements Aggregate {
     public void writeJson(JsonGenerator generator) throws IOException {
         generator.writeStartObject();
         generator.writeFieldName(alias);
-        if (isNumber)
-            generator.writeNumber(currentValue.toString());
-        else
-            generator.writeString(valueValidator.getString((ByteBuffer) currentValue));
+        generator.writeString(currentValue.toString());
         generator.writeEndObject();
     }
 }

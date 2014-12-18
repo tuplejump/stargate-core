@@ -16,6 +16,7 @@
 
 package com.tuplejump.stargate.cassandra;
 
+import com.tuplejump.stargate.lucene.IndexEntryCollector;
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;

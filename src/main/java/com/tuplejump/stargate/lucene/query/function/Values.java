@@ -16,7 +16,6 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.codehaus.jackson.JsonGenerator;
 
 import java.io.IOException;
@@ -29,17 +28,13 @@ import java.util.HashSet;
  */
 public class Values implements Aggregate {
 
-    AbstractType valueValidator;
     String field;
     String alias;
-    boolean isNumber;
     Collection<Object> values;
 
-    public Values(AggregateFactory aggregateFactory, AbstractType valueValidator, boolean distinct) {
-        this.valueValidator = valueValidator;
+    public Values(AggregateFactory aggregateFactory, boolean distinct) {
         this.field = aggregateFactory.getField();
         this.alias = aggregateFactory.getAlias();
-        this.isNumber = Tuple.isNumber(valueValidator.asCQL3Type());
         if (distinct) values = new HashSet<>();
         else values = new ArrayList<>();
     }

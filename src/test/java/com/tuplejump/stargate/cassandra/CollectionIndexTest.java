@@ -126,6 +126,7 @@ public class CollectionIndexTest extends IndexTestBase {
             countSGResults("magic", "CUBE", "magic = '" + funWithFilter(fun("dimensions._browser", "browser-values", "values", true), "dimensions._os", "Windows") + "'", true);
             countSGResults("magic", "CUBE", "magic = '{" + fun(null, null, "count", false) + "}'", true);
             countSGResults("magic", "CUBE", "magic = '{" + gFun(null, "count*", "count", false, "dimensions._browser") + "}'", true);
+            //countSGResults("magic", "CUBE", "magic = '{" + gFun(null, "count*", "count", false, "return StringUtils.lowerCase(dimensions._browser);") + "}'", true);
             countSGResults("magic", "CUBE", "magic = '{" + gFun(null, null, "count", false, "dimensions._browser") + "}'", true);
 
         } finally {

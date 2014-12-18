@@ -16,8 +16,11 @@
 
 package com.tuplejump.stargate;
 
+import com.tuplejump.stargate.cassandra.CassandraUtils;
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
 import com.tuplejump.stargate.cassandra.SearchSupport;
+import com.tuplejump.stargate.lucene.Constants;
+import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -84,7 +87,7 @@ public class RowIndex extends PerRowSecondaryIndex {
         readLock.lock();
         try {
             AbstractType<?> rkValValidator = baseCfs.metadata.getKeyValidator();
-            Term term = Fields.rkTerm(rkValValidator.getString(key.key));
+            Term term = LuceneUtils.rkTerm(rkValValidator.getString(key.key));
             indexContainer.indexer(key).delete(term);
         } finally {
             readLock.unlock();
@@ -94,7 +97,7 @@ public class RowIndex extends PerRowSecondaryIndex {
     public void delete(DecoratedKey decoratedKey, String pkString, Long ts) {
         readLock.lock();
         try {
-            indexContainer.indexer(decoratedKey).delete(Fields.idTerm(pkString), Fields.tsTerm(ts));
+            indexContainer.indexer(decoratedKey).delete(LuceneUtils.idTerm(pkString), LuceneUtils.tsTerm(ts));
         } finally {
             readLock.unlock();
         }
@@ -141,7 +144,7 @@ public class RowIndex extends PerRowSecondaryIndex {
             tableDefinition = baseCfs.metadata.getCfDef();
             primaryColumnName = CFDefinition.definitionType.getString(columnDefinition.name).toLowerCase();
             String optionsJson = columnDefinition.getIndexOptions().get(Constants.INDEX_OPTIONS_JSON);
-            this.options = Options.getOptions(primaryColumnName, baseCfs, optionsJson);
+            this.options = CassandraUtils.getOptions(primaryColumnName, baseCfs, optionsJson);
             this.nearRealTime = options.primary.isNearRealTime();
 
             logger.warn("Creating new RowIndex for {}", indexName);
@@ -169,7 +172,7 @@ public class RowIndex extends PerRowSecondaryIndex {
     @Override
     public boolean indexes(ByteBuffer name) {
         String toCheck = rowIndexSupport.getActualColumnName(name);
-        for (String columnName : this.options.getFields().keySet()) {
+        for (String columnName : this.options.fields.keySet()) {
             boolean areEqual = toCheck.trim().equalsIgnoreCase(columnName.trim());
             if (logger.isDebugEnabled())
                 logger.debug(String.format("Comparing name for index - This column name [%s] - Passed column name [%s] - Equal [%s]", columnName, toCheck, areEqual));

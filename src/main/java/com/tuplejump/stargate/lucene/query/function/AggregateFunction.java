@@ -16,15 +16,20 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
+import com.tuplejump.stargate.cassandra.CassandraUtils;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.IndexEntryCollector;
 import com.tuplejump.stargate.cassandra.RowScanner;
 import com.tuplejump.stargate.cassandra.SearchSupport;
+import com.tuplejump.stargate.lucene.Constants;
+import com.tuplejump.stargate.lucene.IndexEntryCollector;
 import com.tuplejump.stargate.lucene.Options;
-import org.apache.cassandra.cql3.CQL3Type;
+import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.utils.Pair;
+import org.apache.cassandra.cql3.CFDefinition;
+import org.apache.cassandra.db.Column;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.marshal.*;
@@ -49,13 +54,13 @@ public class AggregateFunction implements Function {
     List<String> groupByFields;
     protected boolean distinct = false;
     Map<String, Integer> positions;
-    Map<String, AbstractType> allValidators;
     String[] aggregateFields;
     int chunkSize = 1;
     ExecutableStatement[] groupByExpressions;
     String[] imports;
     boolean noScript;
     boolean[] simpleExpressions;
+    Options options;
 
 
     public AggregateFunction(@JsonProperty("aggregates") AggregateFactory[] aggregates, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String[] groupBy, @JsonProperty("chunkSize") Integer chunkSize, @JsonProperty("imports") String[] imports, @JsonProperty("noScript") boolean noScript) {
@@ -80,25 +85,25 @@ public class AggregateFunction implements Function {
         Group group = new Group(options, aggregates, groupBy, groupByExpressions);
         if (aggregates.length == 1 && !aggregates[0].distinct && "count".equalsIgnoreCase(aggregates[0].getType()) && groupBy == null) {
             //this means it is a count-star. we can simply return the size of the index results
-            Count count = new Count(aggregates[0], null, false);
+            Count count = new Count(aggregates[0], false);
             count.count = rowScanner.getCollector().docs().size();
-            group.groups.put(new Tuple(options, Collections.EMPTY_MAP, Collections.EMPTY_MAP, simpleExpressions), count);
+            group.groups.put(new Tuple(options.nestedFields, Collections.EMPTY_MAP, simpleExpressions), count);
             Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, group.toByteBuffer());
             return Collections.singletonList(row);
         }
-        Tuple tuple = new Tuple(options, positions, allValidators, simpleExpressions);
+        Tuple tuple = new Tuple(options.nestedFields, positions, simpleExpressions);
         if (rowScanner.getCollector().canByPassRowFetch()) {
             Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
             while (indexIterator.hasNext()) {
                 IndexEntryCollector.IndexEntry indexEntry = indexIterator.next();
-                tuple.load(indexEntry);
+                load(tuple, indexEntry);
                 group.addTuple(tuple);
             }
         } else {
             if (chunkSize == 1) {
                 while (rowScanner.hasNext()) {
                     Row row = rowScanner.next();
-                    tuple.load(row, table);
+                    load(tuple, row, table);
                     group.addTuple(tuple);
                 }
             } else {
@@ -110,7 +115,7 @@ public class AggregateFunction implements Function {
                         rows.add(rowScanner.next());
                     }
                     for (Row row : rows) {
-                        tuple.load(row, table);
+                        load(tuple, row, table);
                         group.addTuple(tuple);
                     }
                 }
@@ -127,15 +132,16 @@ public class AggregateFunction implements Function {
 
     @Override
     public void init(Options options) {
+        this.options = options;
         int k = 0;
         positions = new HashMap<>();
-        allValidators = new HashMap<>();
         aggregateFields = new String[aggregates.length];
         for (AggregateFactory aggregateFactory : aggregates) {
             String field = aggregateFactory.getField();
-            aggregateFields[k] = field;
-            positions.put(field, k++);
-            allValidators.put(field, getValidator(options, field));
+            if (field != null) {
+                aggregateFields[k] = field;
+                positions.put(field, k++);
+            }
         }
 
         ParserConfiguration parserConfig = getParserConfiguration();
@@ -147,27 +153,25 @@ public class AggregateFunction implements Function {
             for (int i = 0; i < groupBy.length; i++) {
                 String groupByField = groupBy[i];
                 String groupByCol = getGroupBy(groupByField);
-                AbstractType groupValidator = getValidator(options, groupByCol);
-                boolean isSimpleExpression = groupValidator != null;
+                boolean isSimpleExpression = options.types.containsKey(getColumnName(groupByCol));
                 ParserContext parserContext = new ParserContext(parserConfig);
                 groupByExpressions[i] = (ExecutableStatement) MVEL.compileExpression(groupByField, parserContext);
                 if (isSimpleExpression) {
                     simpleExpressions[i] = true;
                     int pos = k++;
                     positions.put(groupByCol, pos);
-                    allValidators.put(groupByCol, groupValidator);
-                    allValidators.put(getColumnName(groupByCol), groupValidator);
                     groupByFields.add(groupByCol);
                 } else {
                     simpleExpressions[i] = false;
                     Set<String> keys = parserContext.getInputs().keySet();
                     for (String key : keys) {
                         int pos = k++;
-                        String groupByColField = getGroupBy(key);
-                        AbstractType groupFValidator = getValidator(options, groupByColField);
-                        positions.put(key, pos);
-                        allValidators.put(groupByColField, groupFValidator);
-                        groupByFields.add(groupByColField);
+                        boolean canResolve = options.types.containsKey(getColumnName(key));
+                        if (canResolve) {
+                            String groupByColField = getGroupBy(key);
+                            positions.put(key, pos);
+                            groupByFields.add(groupByColField);
+                        }
                     }
                 }
             }
@@ -202,57 +206,17 @@ public class AggregateFunction implements Function {
         return aggFields;
     }
 
-    private static AbstractType getValidator(Options options, String field) {
+
+    public static Properties.Type getLuceneType(Options options, String field) {
         String validatorFieldName = getColumnName(field);
         if (validatorFieldName == null) return null;
-        return options.validators.get(validatorFieldName);
+        return options.types.get(validatorFieldName);
     }
 
-    public static AbstractType getFieldValidator(Options options, String field) {
-        String validatorFieldName = getColumnName(field);
-        if (validatorFieldName == null) return null;
-        return getValueValidator(options.validators.get(validatorFieldName));
-    }
-
-    public static AbstractType getValueValidator(AbstractType abstractType) {
-        if (abstractType instanceof CollectionType) {
-            if (abstractType instanceof MapType) {
-                MapType mapType = (MapType) abstractType;
-                return mapType.valueComparator();
-            } else if (abstractType instanceof SetType) {
-                SetType setType = (SetType) abstractType;
-                return setType.nameComparator();
-            } else if (abstractType instanceof ListType) {
-                ListType listType = (ListType) abstractType;
-                return listType.valueComparator();
-            }
-        }
-        return abstractType;
-    }
 
     public static String getColumnName(String field) {
         return field != null ? Constants.dotSplitter.split(field).iterator().next() : null;
     }
-
-    protected Object getValue(IndexEntryCollector.IndexEntry indexEntry, String field, AbstractType valueValidator, boolean asString) {
-        if (isNumber(valueValidator.asCQL3Type())) {
-            Number number = indexEntry.getNumber(field);
-            return asString ? number.toString() : number;
-        } else {
-            ByteBuffer byteBuffer = indexEntry.getByteBuffer(field);
-            return asString ? valueValidator.getString(byteBuffer) : valueValidator.compose(byteBuffer);
-        }
-    }
-
-
-    protected boolean isNumber(CQL3Type cqlType) {
-        if (cqlType == CQL3Type.Native.INT || cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT ||
-                cqlType == CQL3Type.Native.COUNTER || cqlType == CQL3Type.Native.DECIMAL
-                || cqlType == CQL3Type.Native.DOUBLE || cqlType == CQL3Type.Native.FLOAT)
-            return true;
-        return false;
-    }
-
 
     public static String getGroupBy(String groupBy) {
         return groupBy != null ? groupBy.toLowerCase() : null;
@@ -269,4 +233,92 @@ public class AggregateFunction implements Function {
         }
 
     }
+
+
+    public void load(Tuple tuple, IndexEntryCollector.IndexEntry entry) {
+        for (String field : positions.keySet()) {
+            Properties.Type validator = options.types.get(field);
+            load(tuple, entry, field, validator);
+            if (validator == null) {
+                Iterator<String> fieldNameParts = Constants.dotSplitter.split(field).iterator();
+                String columnName = fieldNameParts.next();
+                if (options.nestedFields.contains(columnName)) {
+                    Properties columnProps = options.fields.get(columnName);
+                    Properties fieldProps;
+                    if (columnProps.getType() == Properties.Type.map) {
+                        fieldProps = columnProps.getFields().get("_value");
+                    } else {
+                        fieldProps = columnProps.getFields().get(fieldNameParts.next());
+                    }
+                    load(tuple, entry, field, fieldProps.getType());
+                }
+            }
+        }
+    }
+
+    private void load(Tuple tuple, IndexEntryCollector.IndexEntry entry, String field, Properties.Type validator) {
+        if (validator != null) {
+            if (validator.isNumeric()) {
+                tuple.tuple[this.positions.get(field)] = entry.getNumber(field);
+            } else if (validator == Properties.Type.date) {
+                Number number = entry.getNumber(field);
+                tuple.tuple[this.positions.get(field)] = new Date(number.longValue());
+            } else {
+                tuple.tuple[this.positions.get(field)] = entry.getString(field);
+            }
+        }
+    }
+
+    public void load(Tuple tuple, Row row, ColumnFamilyStore table) {
+        CompositeType baseComparator = (CompositeType) table.getComparator();
+        ColumnFamily cf = row.cf;
+        CFDefinition cfDef = table.metadata.getCfDef();
+        ByteBuffer rowKey = row.key.key;
+        AbstractType<?> keyValidator = table.metadata.getKeyValidator();
+        Collection<Column> cols = cf.getSortedColumns();
+        boolean keyColumnsAdded = false;
+        for (Column column : cols) {
+            if (!keyColumnsAdded) {
+                ByteBuffer[] keyComponents = cfDef.hasCompositeKey ? ((CompositeType) table.metadata.getKeyValidator()).split(rowKey) : new ByteBuffer[]{rowKey};
+                List<AbstractType<?>> keyValidators = keyValidator.getComponents();
+                for (Map.Entry<Integer, Pair<String, ByteBuffer>> entry : options.partitionKeysIndexed.entrySet()) {
+                    ByteBuffer value = keyComponents[entry.getKey()];
+                    AbstractType<?> validator = keyValidators.get(entry.getKey());
+                    String actualColumnName = entry.getValue().left;
+                    for (String field : positions.keySet()) {
+                        if (actualColumnName.equalsIgnoreCase(field)) {
+                            tuple.tuple[this.positions.get(field)] = validator.compose(value);
+                        }
+                    }
+                }
+                keyColumnsAdded = true;
+            }
+            String actualColumnName = CassandraUtils.getColumnNameStr(baseComparator, column.name());
+            ByteBuffer colValue = column.value();
+            AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
+            if (valueValidator.isCollection()) {
+                CollectionType validator = (CollectionType) valueValidator;
+                AbstractType keyType = validator.nameComparator();
+                AbstractType valueType = validator.valueComparator();
+                ByteBuffer[] components = baseComparator.split(column.name());
+                ByteBuffer keyBuf = components[components.length - 1];
+                if (valueValidator instanceof MapType) {
+                    actualColumnName = actualColumnName + "." + keyType.compose(keyBuf);
+                    valueValidator = valueType;
+                } else if (valueValidator instanceof SetType) {
+                    colValue = keyBuf;
+                    valueValidator = keyType;
+                } else {
+                    valueValidator = valueType;
+                }
+            }
+            for (String field : positions.keySet()) {
+                if (actualColumnName.equalsIgnoreCase(field)) {
+                    tuple.tuple[this.positions.get(field)] = valueValidator.compose(colValue);
+                }
+            }
+        }
+    }
+
+
 }

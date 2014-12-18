@@ -1,4 +1,4 @@
-package com.tuplejump.stargate;
+package com.tuplejump.stargate.lucene;
 
 import java.util.Date;
 

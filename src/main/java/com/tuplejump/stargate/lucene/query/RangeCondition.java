@@ -17,8 +17,8 @@
 
 package com.tuplejump.stargate.lucene.query;
 
-import com.tuplejump.stargate.Dates;
-import com.tuplejump.stargate.FormatDateTimeFormatter;
+import com.tuplejump.stargate.lucene.Dates;
+import com.tuplejump.stargate.lucene.FormatDateTimeFormatter;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
