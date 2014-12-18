@@ -19,12 +19,15 @@ package com.tuplejump.stargate.lucene.query.function;
 import com.tuplejump.stargate.Constants;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.cassandra.IndexEntryCollector;
+import com.tuplejump.stargate.lucene.Options;
+import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.codehaus.jackson.JsonGenerator;
@@ -49,8 +52,10 @@ public class Tuple extends BaseVariableResolverFactory {
     Map<String, AbstractType> validators;
     Object[] tuple;
     boolean[] simpleExpressions;
+    Options options;
 
-    public Tuple(Map<String, Integer> positions, Map<String, AbstractType> validators, boolean[] simpleExpressions) {
+    public Tuple(Options options, Map<String, Integer> positions, Map<String, AbstractType> validators, boolean[] simpleExpressions) {
+        this.options = options;
         this.positions = positions;
         this.validators = validators;
         this.simpleExpressions = simpleExpressions;
@@ -81,9 +86,28 @@ public class Tuple extends BaseVariableResolverFactory {
 
     public void load(Row row, ColumnFamilyStore table) {
         CompositeType baseComparator = (CompositeType) table.getComparator();
+        CFDefinition cfDef = table.metadata.getCfDef();
         ColumnFamily cf = row.cf;
+        ByteBuffer rowKey = row.key.key;
+        AbstractType<?> keyValidator = table.metadata.getKeyValidator();
+
         Collection<Column> cols = cf.getSortedColumns();
+        boolean keyColumnsAdded = false;
         for (Column column : cols) {
+            if (!keyColumnsAdded) {
+                ByteBuffer[] keyComponents = cfDef.hasCompositeKey ? ((CompositeType) table.metadata.getKeyValidator()).split(rowKey) : new ByteBuffer[]{rowKey};
+                List<AbstractType<?>> keyValidators = keyValidator.getComponents();
+                for (Map.Entry<Integer, Pair<String, ByteBuffer>> entry : options.partitionKeysIndexed.entrySet()) {
+                    ByteBuffer value = keyComponents[entry.getKey()];
+                    AbstractType<?> validator = keyValidators.get(entry.getKey());
+                    String actualColumnName = entry.getValue().left;
+                    for (String field : positions.keySet()) {
+                        if (actualColumnName.equalsIgnoreCase(field)) {
+                            tuple[this.positions.get(field)] = validator.compose(value);
+                        }
+                    }
+                }
+            }
             String actualColumnName = Utils.getColumnNameStr(baseComparator, column.name());
             ByteBuffer colValue = column.value();
             AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
@@ -130,7 +154,7 @@ public class Tuple extends BaseVariableResolverFactory {
                 newPositions.put(col, i);
             }
         }
-        Tuple retVal = new Tuple(newPositions, validators, simpleExpressions);
+        Tuple retVal = new Tuple(options, newPositions, validators, simpleExpressions);
         retVal.tuple = newTuple;
         return retVal;
     }
@@ -171,10 +195,11 @@ public class Tuple extends BaseVariableResolverFactory {
             String field = entry.getKey();
             generator.writeFieldName(field);
             AbstractType validator = getFieldValidator(field);
-            if (validator != null && isNumber(validator.asCQL3Type())) {
-                generator.writeNumber(((Number) tuple[entry.getValue()]).doubleValue());
+            Object value = tuple[entry.getValue()];
+            if (validator != null && isNumber(validator.asCQL3Type()) && value != null) {
+                generator.writeNumber(((Number) value).doubleValue());
             } else {
-                generator.writeString(tuple[entry.getValue()].toString());
+                generator.writeString(value == null ? null : value.toString());
             }
         }
         generator.writeEndObject();

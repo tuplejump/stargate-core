@@ -57,7 +57,12 @@ public class IndexingService {
         executorService.submit(new Runnable() {
             @Override
             public void run() {
-                rowIndexSupport.indexRow(rowkeyBuffer, columnFamily);
+                try {
+                    rowIndexSupport.indexRow(rowkeyBuffer, columnFamily);
+                } catch (Exception e) {
+                    logger.error("Error occurred while indexing row of [" + columnFamily.metadata().cfName + "]", e);
+                }
+
                 long readGen = reads.incrementAndGet();
                 if (logger.isDebugEnabled())
                     logger.debug("Read gen:" + readGen);

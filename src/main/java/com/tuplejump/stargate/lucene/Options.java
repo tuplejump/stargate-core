@@ -181,7 +181,8 @@ public class Options {
             }
             validators.put(columnName, colDef.getValidator());
             if (indexedColumnNames.contains(columnName)) {
-                partitionKeysIndexed.put(colDef.componentIndex, Pair.create(columnName, colDef.name));
+                int componentIndex = colDef.componentIndex == null ? 0 : colDef.componentIndex;
+                partitionKeysIndexed.put(componentIndex, Pair.create(columnName, colDef.name));
                 Properties properties = mapping.getFields().get(columnName.toLowerCase());
                 addFieldType(columnName, colDef.getValidator(), properties);
                 added.add(columnName.toLowerCase());

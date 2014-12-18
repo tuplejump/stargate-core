@@ -173,6 +173,9 @@ public class RowIndexSupport {
         long existingTS = timestamps.get(primaryKey);
         timestamps.put(primaryKey, Math.max(existingTS, column.maxTimestamp()));
         addField(fields, columnDefinition, keyColumnName, fieldType, value);
+        FieldType docValueType = options.fieldDocValueTypes.get(keyColumnName);
+        if (docValueType != null)
+            addField(fields, columnDefinition, keyColumnName, docValueType, value);
     }
 
     public Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndActualColumnName(boolean withPkBuilder, ByteBuffer rowKey, Column column) {
@@ -264,8 +267,12 @@ public class RowIndexSupport {
 
     protected void addField(List<Field> fields, ColumnDefinition columnDefinition, String name, FieldType fieldType, ByteBuffer value) {
         if (fieldType != null) {
-            Field field = Fields.field(name, columnDefinition.getValidator(), value, fieldType);
-            fields.add(field);
+            try {
+                Field field = Fields.field(name, columnDefinition.getValidator(), value, fieldType);
+                fields.add(field);
+            } catch (Exception e) {
+                logger.warn("Could not index column", e);
+            }
         }
     }
 

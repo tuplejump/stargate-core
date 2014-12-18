@@ -57,6 +57,7 @@ public class AggregatesTest extends IndexTestBase {
 
             countResults("TAG2", "magic = '" + "{" + fun(null, "count-star", "count", false) + "}" + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(fun(null, "count-star", "count", false), "tags", "tags:hello*") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "sum-value", "sum", false, "key"), "tags", "tags:hello*") + "'", true);
 
         } finally {
             dropTable(keyspace, "TAG2");
@@ -69,6 +70,7 @@ public class AggregatesTest extends IndexTestBase {
                 "\t\"numShards\":1024,\n" +
                 "\t\"metaColumn\":true,\n" +
                 "\t\"fields\":{\n" +
+                "\t\t\"key\":{},\n" +
                 "\t\t\"tags\":{\"type\":\"text\"},\n" +
                 "\t\t\"state\":{}\n" +
                 "\t}\n" +
@@ -117,6 +119,7 @@ public class AggregatesTest extends IndexTestBase {
 
             countResults("TAG2", "magic = '" + "{" + fun(null, "count-star", "count", false) + "}" + "'", true);
             countResults("TAG2", "magic = '" + funWithFilter(fun(null, "count-star", "count", false), "tags", "tags:hello*") + "'", true);
+            countResults("TAG2", "magic = '" + funWithFilter(gFun("value", "sum-value", "sum", false, "key"), "tags", "tags:hello*") + "'", true);
 
         } finally {
             dropTable(keyspace, "TAG2");
@@ -179,6 +182,7 @@ public class AggregatesTest extends IndexTestBase {
                 "\t\"numShards\":1024,\n" +
                 "\t\"metaColumn\":true,\n" +
                 "\t\"fields\":{\n" +
+                "\t\t\"key\":{ striped: \"also\"},\n" +
                 "\t\t\"tags\":{\"type\":\"text\"},\n" +
                 "\t\t\"state\":{ striped: \"also\"},\n" +
                 "\t\t\"value\":{ striped: \"only\"}\n" +

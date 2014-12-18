@@ -82,11 +82,11 @@ public class AggregateFunction implements Function {
             //this means it is a count-star. we can simply return the size of the index results
             Count count = new Count(aggregates[0], null, false);
             count.count = rowScanner.getCollector().docs().size();
-            group.groups.put(new Tuple(Collections.EMPTY_MAP, Collections.EMPTY_MAP, simpleExpressions), count);
+            group.groups.put(new Tuple(options, Collections.EMPTY_MAP, Collections.EMPTY_MAP, simpleExpressions), count);
             Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, group.toByteBuffer());
             return Collections.singletonList(row);
         }
-        Tuple tuple = new Tuple(positions, allValidators, simpleExpressions);
+        Tuple tuple = new Tuple(options, positions, allValidators, simpleExpressions);
         if (rowScanner.getCollector().canByPassRowFetch()) {
             Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
             while (indexIterator.hasNext()) {

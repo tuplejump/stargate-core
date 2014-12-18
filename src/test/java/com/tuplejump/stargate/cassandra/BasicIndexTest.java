@@ -126,7 +126,7 @@ public class BasicIndexTest extends IndexTestBase {
                 "\t}\n" +
                 "}\n";
         getSession().execute("USE " + keyspace + ";");
-        getSession().execute("CREATE TABLE TAG2(key int, tags varchar, state varchar, segment int, magic text, PRIMARY KEY(segment, key))");
+        getSession().execute("CREATE TABLE TAG2(key int, tags text, state varchar, segment int, magic text, PRIMARY KEY(segment, key))");
         int i = 0;
         while (i < 40) {
             if (i == 20) {
