@@ -16,35 +16,43 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import com.tuplejump.stargate.RowIndex;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Row;
-import org.apache.commons.lang3.StringUtils;
-import org.codehaus.jackson.annotate.JsonCreator;
-import org.codehaus.jackson.annotate.JsonProperty;
+import org.codehaus.jackson.JsonGenerator;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.HashSet;
 
 /**
  * User: satya
  */
-public class Values extends Aggregate {
+public class Values implements Aggregate {
 
-    @JsonCreator
-    public Values(@JsonProperty("field") String field, @JsonProperty("name") String name, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String groupBy) {
-        super(field, name, distinct, groupBy);
+    String field;
+    String alias;
+    Collection<Object> values;
+
+    public Values(AggregateFactory aggregateFactory, boolean distinct) {
+        this.field = aggregateFactory.getField();
+        this.alias = aggregateFactory.getAlias();
+        if (distinct) values = new HashSet<>();
+        else values = new ArrayList<>();
     }
-
-    public String getFunction() {
-        return "values";
-    }
-
 
     @Override
-    public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        Collection<Object> values = values(rows, table);
-        return singleRow("[" + StringUtils.join(values, ',') + "]", customColumnFactory, table, currentIndex);
+    public void aggregate(Tuple tuple) {
+        values.add(tuple.getValue(field));
+    }
+
+    @Override
+    public void writeJson(JsonGenerator generator) throws IOException {
+        generator.writeStartObject();
+        generator.writeFieldName(alias);
+        generator.writeStartArray();
+        for (Object value : values) {
+            generator.writeString(value == null ? null : value.toString());
+        }
+        generator.writeEndArray();
+        generator.writeEndObject();
     }
 }

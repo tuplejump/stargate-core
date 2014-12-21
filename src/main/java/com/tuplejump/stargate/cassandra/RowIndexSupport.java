@@ -17,12 +17,15 @@
 package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Fields;
-import com.tuplejump.stargate.Utils;
+import com.tuplejump.stargate.IndexContainer;
 import com.tuplejump.stargate.lucene.Indexer;
+import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.lucene.json.JsonDocument;
 import com.tuplejump.stargate.lucene.json.StreamingJsonDocument;
+import com.tuplejump.stargate.utils.Pair;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
@@ -31,7 +34,6 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
@@ -48,15 +50,26 @@ import java.util.*;
 public class RowIndexSupport {
     protected static final Logger logger = LoggerFactory.getLogger(RowIndexSupport.class);
     protected Options options;
-    protected ColumnFamilyStore table;
+    public final ColumnFamilyStore table;
     FieldType tsFieldType;
+    public final IndexContainer indexContainer;
+    public final String keyspace;
 
-    public RowIndexSupport(Options options, ColumnFamilyStore table) {
+    public RowIndexSupport(String keyspace, IndexContainer indexContainer, Options options, ColumnFamilyStore table) {
         this.options = options;
         this.table = table;
-        tsFieldType = Properties.fieldType(Properties.ID_FIELD, CQL3Type.Native.BIGINT.getType());
+        this.keyspace = keyspace;
+        this.indexContainer = indexContainer;
+        tsFieldType = CassandraUtils.fieldType(Properties.ID_FIELD, CQL3Type.Native.BIGINT.getType());
     }
 
+    public CFMetaData getCFMetaData() {
+        return this.table.metadata;
+    }
+
+    public Options getOptions() {
+        return options;
+    }
 
     /**
      * Writes one row to the lucene index.
@@ -65,7 +78,8 @@ public class RowIndexSupport {
      * @param cf     the row to write.
      */
 
-    public void indexRow(Indexer indexer, ByteBuffer rowKey, ColumnFamily cf) {
+    public void indexRow(ByteBuffer rowKey, ColumnFamily cf) {
+        Indexer indexer = indexContainer.indexer(table.partitioner.decorateKey(rowKey));
         Map<ByteBuffer, List<Field>> primaryKeysVsFields = new HashMap<>();
         DecoratedKey dk = table.partitioner.decorateKey(rowKey);
         Map<ByteBuffer, Long> timestamps = new HashMap<>();
@@ -84,7 +98,7 @@ public class RowIndexSupport {
             ByteBuffer pk = entry.getKey();
             String pkName = pkNames.get(pk);
             List<Field> fields = entry.getValue();
-            Term term = Fields.idTerm(pkName);
+            Term term = LuceneUtils.idTerm(pkName);
 
             if (cf.isMarkedForDelete() && options.collectionFieldTypes.isEmpty()) {
                 if (logger.isDebugEnabled())
@@ -159,6 +173,9 @@ public class RowIndexSupport {
         long existingTS = timestamps.get(primaryKey);
         timestamps.put(primaryKey, Math.max(existingTS, column.maxTimestamp()));
         addField(fields, columnDefinition, keyColumnName, fieldType, value);
+        FieldType docValueType = options.fieldDocValueTypes.get(keyColumnName);
+        if (docValueType != null)
+            addField(fields, columnDefinition, keyColumnName, docValueType, value);
     }
 
     public Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndActualColumnName(boolean withPkBuilder, ByteBuffer rowKey, Column column) {
@@ -202,7 +219,7 @@ public class RowIndexSupport {
 
     public String getActualColumnName(ByteBuffer name) {
         ByteBuffer colName = ((CompositeType) table.getComparator()).extractLastComponent(name);
-        return Utils.getColumnNameStr(colName);
+        return CassandraUtils.getColumnNameStr(colName);
     }
 
 
@@ -211,36 +228,51 @@ public class RowIndexSupport {
         ByteBuffer[] components = baseComparator.split(column.name());
         List<Field> fields = new ArrayList<>();
         FieldType[] fieldTypesArr = options.collectionFieldTypes.get(colName);
+        FieldType docValueType = options.collectionFieldDocValueTypes.get(colName);
         AbstractType keyType = validator.nameComparator();
         AbstractType valueType = validator.valueComparator();
         if (validator instanceof MapType) {
             ByteBuffer keyBuf = components[components.length - 1];
-            fields.add(Fields.field(colName + ".key", keyType, keyBuf, fieldTypesArr[0]));
-            fields.add(Fields.field(colName + ".value", valueType, column.value(), fieldTypesArr[1]));
-            fields.add(Fields.field(keyType.getString(keyBuf), valueType, column.value(), fieldTypesArr[1]));
+            if (fieldTypesArr != null) {
+                fields.add(Fields.field(colName + "._key", keyType, keyBuf, fieldTypesArr[0]));
+                fields.add(Fields.field(colName + "._value", valueType, column.value(), fieldTypesArr[1]));
+                fields.add(Fields.field((colName + "." + keyType.getString(keyBuf)).toLowerCase(), valueType, column.value(), fieldTypesArr[1]));
+            }
+            if (docValueType != null)
+                fields.add(Fields.field((colName + "." + keyType.getString(keyBuf)).toLowerCase(), valueType, column.value(), docValueType));
         } else if (validator instanceof SetType) {
-            fields.add(Fields.field(colName, keyType, components[components.length - 1], fieldTypesArr[0]));
+            if (fieldTypesArr != null)
+                fields.add(Fields.field(colName, keyType, components[components.length - 1], fieldTypesArr[0]));
+            if (docValueType != null)
+                fields.add(Fields.field(colName, keyType, components[components.length - 1], docValueType));
         } else if (validator instanceof ListType) {
-            fields.add(Fields.field(colName, valueType, column.value(), fieldTypesArr[0]));
+            if (fieldTypesArr != null)
+                fields.add(Fields.field(colName, valueType, column.value(), fieldTypesArr[0]));
+            if (docValueType != null)
+                fields.add(Fields.field(colName, valueType, column.value(), docValueType));
         } else throw new UnsupportedOperationException("Unsupported collection type " + validator);
 
         return fields;
     }
 
     protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pk, AbstractType rkValValidator) {
-        return Arrays.asList(Fields.idDocValues(rkValValidator, pk), Fields.pkNameDocValues(pkName), Fields.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
+        return Arrays.asList(LuceneUtils.idDocValue(pk), LuceneUtils.pkNameDocValue(pkName), LuceneUtils.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
     }
 
     protected List<Field> tsFields(long ts) {
-        Field tsField = Fields.tsField(ts, tsFieldType);
-        return Arrays.asList(Fields.tsDocValues(ts), tsField);
+        Field tsField = LuceneUtils.tsField(ts, tsFieldType);
+        return Arrays.asList(LuceneUtils.tsDocValues(ts), tsField);
     }
 
 
     protected void addField(List<Field> fields, ColumnDefinition columnDefinition, String name, FieldType fieldType, ByteBuffer value) {
         if (fieldType != null) {
-            Field field = Fields.field(name, columnDefinition.getValidator(), value, fieldType);
-            fields.add(field);
+            try {
+                Field field = Fields.field(name, columnDefinition.getValidator(), value, fieldType);
+                fields.add(field);
+            } catch (Exception e) {
+                logger.warn("Could not index column", e);
+            }
         }
     }
 
@@ -256,7 +288,11 @@ public class RowIndexSupport {
         } else {
             FieldType fieldType = options.fieldTypes.get(name);
             addField(fields, columnDefinition, name, fieldType, column.value());
+            FieldType docValueType = options.fieldDocValueTypes.get(name);
+            if (docValueType != null)
+                addField(fields, columnDefinition, name, docValueType, column.value());
         }
     }
+
 
 }

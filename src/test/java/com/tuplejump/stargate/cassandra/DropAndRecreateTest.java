@@ -66,7 +66,7 @@ public class DropAndRecreateTest extends IndexTestBase {
                 "}\n";
         getSession().execute("USE " + keyspace + ";");
         if (!isRecreate) {
-            getSession().execute("CREATE TABLE TAG(key varchar, key1 varchar, state varchar, category varchar,tags varchar, gdp bigint, PRIMARY KEY((key,key1),state,gdp))");
+            getSession().execute("CREATE TABLE TAG(key varchar, key1 varchar, state varchar, category varchar,tags varchar, gdp bigint, PRIMARY KEY((key,key1),state))");
         }
         getSession().execute("CREATE CUSTOM INDEX dropcreate ON TAG(category) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + (isRecreate ? options1 : options) + "'}");
         if (!isRecreate) {
@@ -78,7 +78,7 @@ public class DropAndRecreateTest extends IndexTestBase {
             getSession().execute("insert into TAG (key,key1,tags,state,category,gdp) values ('5','A','hello2 tag1 lol1', 'CA','second', 1)");
             getSession().execute("insert into TAG (key,key1,tags,state,category,gdp) values ('6','B','hello2 tag1 lol2', 'NY','second', 2)");
             getSession().execute("insert into TAG (key,key1,tags,state,category,gdp) values ('7','C','hello2 tag2 lol1', 'CA','second', 1)");
-            getSession().execute("insert into TAG (key,key1,tags,state,category,gdp) values ('8','D','hello2 tag2 lol2', 'TX','second',3)");
+            getSession().execute("insert into TAG (key,key1,tags,state,category,gdp) values ('8','D','hello2 tag2 lol2', 'TX','second',null)");
         }
     }
 }

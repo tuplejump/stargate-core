@@ -16,70 +16,70 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
+import com.clearspring.analytics.stream.quantile.TDigest;
 import com.tuplejump.stargate.lucene.Properties;
 import org.codehaus.jackson.JsonGenerator;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
  * User: satya
  */
-public class Sum implements Aggregate {
-
-    double sum = 0;
-
+public class Quantile implements Aggregate {
+    String alias;
+    TDigest accumulator;
     Properties.Type cqlType;
     String field;
-    String alias;
-    boolean distinct;
-    Values values;
 
-    public Sum(AggregateFactory aggregateFactory, Properties.Type type, boolean distinct) {
+    public Quantile(AggregateFactory aggregateFactory, Properties.Type type) {
         this.field = aggregateFactory.getField();
         this.alias = aggregateFactory.getAlias();
         this.cqlType = type;
-        this.distinct = distinct;
-        if (!type.isNumeric()) {
-            throw new UnsupportedOperationException("Sum function is available only on numeric types");
+        String compressionStr = aggregateFactory.dynamicProperties().get("compression");
+        int compression = 100;
+        if (compressionStr != null) {
+            try {
+                compression = Integer.parseInt(compressionStr);
+            } catch (Exception e) {
+                compression = 100;//do nothing
+            }
         }
-        if (distinct) {
-            values = new Values(aggregateFactory, distinct);
-        }
+        accumulator = new TDigest(compression);
     }
-
-
-    public String getFunction() {
-        return "sum";
-    }
-
 
     @Override
     public void aggregate(Tuple tuple) {
-        if (distinct) values.aggregate(tuple);
-        else add((Number) tuple.getValue(field));
+        add((Number) tuple.getValue(field));
     }
 
     private void add(Number obj) {
         if (cqlType == Properties.Type.integer) {
-            sum += obj.intValue();
+            accumulator.add((Integer) obj);
         } else if (cqlType == Properties.Type.bigint) {
-            sum += obj.longValue();
+            accumulator.add((Long) obj);
         } else if (cqlType == Properties.Type.decimal) {
-            sum += obj.floatValue();
+            accumulator.add((Float) obj);
         } else if (cqlType == Properties.Type.bigdecimal) {
-            sum += obj.doubleValue();
+            accumulator.add((Double) obj);
         }
     }
-
 
     @Override
     public void writeJson(JsonGenerator generator) throws IOException {
         generator.writeStartObject();
         generator.writeFieldName(alias);
-        if (distinct)
-            for (Object value : values.values)
-                add((Number) value);
-        generator.writeNumber(sum);
+        generator.writeString(javax.xml.bind.DatatypeConverter.printBase64Binary(getBytes(accumulator)));
         generator.writeEndObject();
+    }
+
+    private static byte[] getBytes(TDigest digest) throws IOException {
+        int l = digest.byteSize();
+        ByteBuffer bb = ByteBuffer.allocate(l);
+        digest.asSmallBytes(bb);
+        bb.flip();
+        byte[] b = new byte[bb.remaining()];
+        bb.get(b);
+        return b;
     }
 }

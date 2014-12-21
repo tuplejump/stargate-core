@@ -18,6 +18,8 @@ package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
+import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 import org.codehaus.jackson.annotate.JsonSubTypes;
@@ -32,12 +34,12 @@ import java.util.List;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = NoOp.class, name = "noOp"),
-        @JsonSubTypes.Type(value = Sum.class, name = "sum"),
-        @JsonSubTypes.Type(value = Max.class, name = "max"),
-        @JsonSubTypes.Type(value = Min.class, name = "min"),
-        @JsonSubTypes.Type(value = Values.class, name = "values"),
-        @JsonSubTypes.Type(value = Count.class, name = "count")})
+        @JsonSubTypes.Type(value = AggregateFunction.class, name = "aggregate")})
 public interface Function {
 
-    List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception;
+    void init(Options options);
+
+    boolean shouldLimit();
+
+    List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception;
 }

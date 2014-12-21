@@ -18,9 +18,11 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
+import com.tuplejump.stargate.lucene.IndexEntryCollector;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
 import com.tuplejump.stargate.lucene.query.Search;
+import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
@@ -29,6 +31,9 @@ import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.commons.lang3.StringEscapeUtils;
@@ -51,7 +56,7 @@ import java.util.Set;
  */
 public class SearchSupport extends SecondaryIndexSearcher {
 
-    protected static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
+    public static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
 
     protected RowIndex currentIndex;
 
@@ -74,7 +79,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
     protected Search getQuery(IndexExpression predicate) throws Exception {
         ColumnDefinition cd = baseCfs.metadata.getColumnDefinition(predicate.column_name);
         String predicateValue = cd.getValidator().getString(predicate.bufferForValue());
-        String columnName = Utils.getColumnName(cd);
+        String columnName = CassandraUtils.getColumnName(cd);
         if (logger.isDebugEnabled())
             logger.debug("Index Searcher - query - predicate value [" + predicateValue + "] column name [" + columnName + "]");
         logger.debug("Column name is {}", columnName);
@@ -109,6 +114,11 @@ public class SearchSupport extends SecondaryIndexSearcher {
 
     protected List<Row> getRows(final ExtendedFilter filter, final Search search) {
         final SearchSupport searchSupport = this;
+        AbstractBounds<RowPosition> keyRange = filter.dataRange.keyRange();
+        final Range<Token> filterRange = new Range<>(keyRange.left.getToken(), keyRange.right.getToken());
+        final boolean isSingleToken = filterRange.left.equals(filterRange.right);
+        final boolean isFullRange = isSingleToken && baseCfs.partitioner.getMinimumToken().equals(filterRange.left);
+
         SearcherCallback<List<Row>> sc = new SearcherCallback<List<Row>>() {
             @Override
             public List<Row> doWithSearcher(org.apache.lucene.search.IndexSearcher searcher) throws Exception {
@@ -118,31 +128,49 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     results = new ArrayList<>();
                 } else {
                     Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
-                    int maxResults = filter.maxRows();
-                    int limit = searcher.getIndexReader().maxDoc();
-                    if (limit == 0) {
-                        limit = 1;
-                    }
-                    maxResults = Math.min(maxResults, limit);
-                    Query query = search.query(options);
-                    org.apache.lucene.search.SortField[] sort = search.usesSorting() ? search.sort(options) : null;
-                    IndexEntryCollector collector = new IndexEntryCollector(sort, maxResults);
-                    searcher.search(query, collector);
-                    timer2.endLogTime("For TopDocs search for -" + collector.totalHits + " results");
-                    if (SearchSupport.logger.isDebugEnabled()) {
-                        SearchSupport.logger.debug(String.format("Search results [%s]", collector.totalHits));
-                    }
-                    ColumnFamilyStore.AbstractScanIterator iter = new RowScanner(searchSupport, baseCfs, filter, collector.docs().iterator());
-                    List<Row> inputToFunction = baseCfs.filter(iter, filter);
                     Function function = search.function(options);
-                    return function.process(inputToFunction, customColumnFactory, baseCfs, currentIndex);
+                    Query query = search.query(options);
+                    int resultsLimit = searcher.getIndexReader().maxDoc();
+                    if (function.shouldLimit()) {
+                        if (resultsLimit == 0) {
+                            resultsLimit = 1;
+                        }
+                        resultsLimit = Math.min(filter.currentLimit() + 1, resultsLimit);
+                    }
+                    function.init(options);
+                    IndexEntryCollector collector = new IndexEntryCollector(function, search, options, resultsLimit);
+                    searcher.search(query, collector);
+                    timer2.endLogTime("TopDocs search for [" + collector.getTotalHits() + "] results ");
+                    if (SearchSupport.logger.isDebugEnabled()) {
+                        SearchSupport.logger.debug(String.format("Search results [%s]", collector.getTotalHits()));
+                    }
+                    RowScanner iter = new RowScanner(searchSupport, baseCfs, filter, collector, function instanceof AggregateFunction ? false : search.isShowScore());
+                    Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
+                    results = function.process(iter, customColumnFactory, baseCfs, currentIndex);
+                    timer3.endLogTime("Aggregation [" + collector.getTotalHits() + "] results");
                 }
-                timer.endLogTime("SGIndex Search with results [" + results.size() + "]over all took -");
+                timer.endLogTime("Search with results [" + results.size() + "] ");
                 return results;
 
             }
+
+            @Override
+            public Range<Token> filterRange() {
+                return filterRange;
+            }
+
+            @Override
+            public boolean isSingleToken() {
+                return isSingleToken;
+            }
+
+            @Override
+            public boolean isFullRange() {
+                return isFullRange;
+            }
         };
-        return currentIndex.search(filter, sc);
+
+        return currentIndex.search(sc);
     }
 
     protected IndexExpression matchThisIndex(List<IndexExpression> clause) {
@@ -171,8 +199,8 @@ public class SearchSupport extends SecondaryIndexSearcher {
         Column lastColumn = null;
         for (ByteBuffer colKey : cf.getColumnNames()) {
             String name = currentIndex.getRowIndexSupport().getActualColumnName(colKey);
-            com.tuplejump.stargate.lucene.Properties option = options.getFields().get(name);
-            //if fieldType was not found then the column is not indexed
+            com.tuplejump.stargate.lucene.Properties option = options.fields.get(name);
+            //if option was not found then the column is not indexed
             if (option != null) {
                 lastColumn = cf.getColumn(colKey);
             }

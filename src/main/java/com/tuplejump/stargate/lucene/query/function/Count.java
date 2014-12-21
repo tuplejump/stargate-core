@@ -16,38 +16,41 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import com.tuplejump.stargate.RowIndex;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Row;
-import org.codehaus.jackson.annotate.JsonCreator;
-import org.codehaus.jackson.annotate.JsonProperty;
+import org.codehaus.jackson.JsonGenerator;
 
-import java.util.List;
+import java.io.IOException;
 
 /**
  * User: satya
  */
-public class Count extends Aggregate {
+public class Count implements Aggregate {
 
-    @JsonCreator
-    public Count(@JsonProperty("field") String field, @JsonProperty("name") String name, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String groupBy) {
-        super(field, name, distinct, groupBy);
+    long count = 0;
+    String alias;
+    boolean distinct;
+    Values values;
+
+    public Count(AggregateFactory aggregateFactory, boolean distinct) {
+        this.alias = aggregateFactory.getAlias();
+        this.distinct = distinct;
+        if (distinct) {
+            values = new Values(aggregateFactory, true);
+        }
     }
-
-    public String getFunction() {
-        return "count";
-    }
-
 
     @Override
-    public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        int count;
-        if (distinct && field != null) {
-            count = values(rows, table).size();
-        } else {
-            count = rows.size();
-        }
-        return singleRow("" + count, customColumnFactory, table, currentIndex);
+    public void aggregate(Tuple tuple) {
+        if (!distinct) count++;
+        else values.aggregate(tuple);
+    }
+
+    @Override
+    public void writeJson(JsonGenerator generator) throws IOException {
+        generator.writeStartObject();
+        generator.writeFieldName(alias);
+        if (distinct) count = values.values.size();
+        generator.writeNumber(count);
+        generator.writeEndObject();
     }
 }
+

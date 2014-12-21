@@ -14,24 +14,30 @@
  * limitations under the License.
  */
 
-package com.tuplejump.stargate.lucene.query.function;
+package com.tuplejump.stargate;
 
-import org.codehaus.jackson.annotate.JsonCreator;
-import org.codehaus.jackson.annotate.JsonProperty;
+import java.io.IOException;
 
 /**
  * User: satya
  */
-public class Max extends Min {
-    @JsonCreator
-    public Max(@JsonProperty("field") String field, @JsonProperty("name") String name, @JsonProperty("groupBy") String groupBy) {
-        super(field, name,groupBy);
-        this.reverse = true;
-    }
+public interface StargateMBean {
 
-    public  String getFunction(){
-        return "max";
-    }
+    public static final String MBEAN_NAME = "com.tuplejump.stargate:type=Super";
+
+    public String[] allIndexes();
+
+    public String[] indexShards(String indexName);
+
+    public String describeIndex(String indexName) throws IOException;
+
+    public long indexSize(String indexName);
+
+    public long indexLiveSize(String indexName);
+
+    public long writeGeneration();
+
+    public long readGeneration();
 
 
 }

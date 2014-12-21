@@ -16,10 +16,6 @@
 
 package com.tuplejump.stargate.lucene;
 
-import com.tuplejump.stargate.Fields;
-import com.tuplejump.stargate.Utils;
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
@@ -45,6 +41,18 @@ public class Properties {
     static {
         ID_FIELD.tokenized = false;
         ID_FIELD.indexed = true;
+    }
+
+    public String getAnalyzer() {
+        return analyzer;
+    }
+
+    public Striped getStriped() {
+        return striped;
+    }
+
+    public enum Striped {
+        also, only, none
     }
 
     public enum Type {
@@ -76,12 +84,17 @@ public class Properties {
     }
 
     @JsonProperty
+    boolean nearRealTime = false;
+
+    @JsonProperty
     boolean metaColumn = true;
 
     @JsonProperty
+    private
     Type type;
 
     @JsonProperty
+    private
     String analyzer;
 
     @JsonProperty
@@ -89,6 +102,10 @@ public class Properties {
 
     @JsonProperty
     Boolean stored = false;
+
+    @JsonProperty
+    private
+    Striped striped = Striped.none;
 
     @JsonProperty
     Boolean tokenized = true;
@@ -119,28 +136,29 @@ public class Properties {
     int numericPrecisionStep = NumericUtils.PRECISION_STEP_DEFAULT;
 
     @JsonProperty
+    private
     Map<String, Properties> fields = new HashMap<>();
 
     boolean lowerCased;
 
     public Type getType() {
         if (type == null) {
-            if (fields != null && !fields.isEmpty()) return Type.object;
+            if (getFields() != null && !getFields().isEmpty()) return Type.object;
         }
         return type;
     }
 
     Analyzer analyzerObj;
 
-    public Analyzer getAnalyzer() {
+    public Analyzer getLuceneAnalyzer() {
         if (analyzerObj == null) {
-            if (analyzer == null) {
-                if (type != null && !type.canTokenize())
+            if (getAnalyzer() == null) {
+                if (getType() != null && !getType().canTokenize())
                     analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.KeywordAnalyzer.name(), Properties.luceneVersion);
                 else
                     analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.StandardAnalyzer.name(), Properties.luceneVersion);
             } else {
-                analyzerObj = AnalyzerFactory.getAnalyzer(analyzer, Properties.luceneVersion);
+                analyzerObj = AnalyzerFactory.getAnalyzer(getAnalyzer(), Properties.luceneVersion);
             }
         }
         return analyzerObj;
@@ -165,11 +183,11 @@ public class Properties {
             for (Map.Entry<String, Properties> entry : fields.entrySet()) {
                 Properties val = entry.getValue();
                 String colName = entry.getKey();
-                if (val.type != null) {
-                    if (val.type == Type.object) {
+                if (val.getType() != null) {
+                    if (val.getType() == Type.object) {
                         dynamicNumericConfigMap.putAll(val.getDynamicNumericConfig());
-                    } else if (val.type.isNumeric()) {
-                        dynamicNumericConfigMap.put(colName, Utils.numericConfig(val.dynamicFieldType()));
+                    } else if (val.getType().isNumeric()) {
+                        dynamicNumericConfigMap.put(colName, LuceneUtils.numericConfig(val.dynamicFieldType()));
                     }
                 }
             }
@@ -183,7 +201,7 @@ public class Properties {
     public FieldType dynamicFieldType() {
         if (dynamicFieldType == null) {
             if (!(getType() == Type.object)) {
-                dynamicFieldType = dynamicFieldType(this);
+                dynamicFieldType = LuceneUtils.dynamicFieldType(this);
             }
         }
         return dynamicFieldType;
@@ -197,9 +215,21 @@ public class Properties {
         return stored != null ? stored : false;
     }
 
+    public Striped striped() {
+        return getStriped();
+    }
+
+    public boolean isNearRealTime() {
+        return nearRealTime;
+    }
+
+    public void setNearRealTime(boolean nearRealTime) {
+        this.nearRealTime = nearRealTime;
+    }
+
     public boolean isTokenized() {
         if (tokenized == null) {
-            if (type != null && type.canTokenize())
+            if (getType() != null && getType().canTokenize())
                 return true;
             return false;
         }
@@ -246,36 +276,6 @@ public class Properties {
         this.type = type;
     }
 
-    public void setFromAbstractType(AbstractType type) {
-        if (this.type != null) return;
-        CQL3Type cqlType = type.asCQL3Type();
-        if (cqlType == CQL3Type.Native.INT) {
-            this.type = Type.integer;
-        } else if (cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER) {
-            this.type = Type.bigint;
-        } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
-            this.type = Type.bigdecimal;
-        } else if (cqlType == CQL3Type.Native.FLOAT) {
-            this.type = Type.decimal;
-        } else if (cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.ASCII) {
-            this.type = Type.text;
-        } else if (cqlType == CQL3Type.Native.VARCHAR) {
-            this.type = Type.string;
-        } else if (cqlType == CQL3Type.Native.UUID) {
-            this.type = Type.string;
-        } else if (cqlType == CQL3Type.Native.TIMEUUID) {
-            //TODO TimeUUID toString is not comparable.
-            this.type = Type.string;
-        } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
-            this.type = Type.date;
-        } else if (cqlType == CQL3Type.Native.BOOLEAN) {
-            this.type = Type.bool;
-        } else {
-            this.type = Type.text;
-        }
-
-    }
-
     public void setAnalyzer(String analyzer) {
         this.analyzer = analyzer;
     }
@@ -286,8 +286,8 @@ public class Properties {
 
     public Map<String, Analyzer> perFieldAnalyzers() {
         Map<String, Analyzer> perFieldAnalyzers = new HashMap<>();
-        if (fields != null) {
-            for (Map.Entry<String, Properties> fieldOptions : fields.entrySet()) {
+        if (getFields() != null) {
+            for (Map.Entry<String, Properties> fieldOptions : getFields().entrySet()) {
                 String colName = fieldOptions.getKey();
                 Properties props = fieldOptions.getValue();
                 if (props.getType() == Properties.Type.object || props.getType() == Type.map) {
@@ -296,60 +296,11 @@ public class Properties {
                         perFieldAnalyzers.put(colName + "." + entry.getKey(), entry.getValue());
                     }
                 } else {
-                    perFieldAnalyzers.put(fieldOptions.getKey(), fieldOptions.getValue().getAnalyzer());
+                    perFieldAnalyzers.put(fieldOptions.getKey(), fieldOptions.getValue().getLuceneAnalyzer());
                 }
             }
         }
         return perFieldAnalyzers;
-    }
-
-    public static FieldType fieldType(Properties properties, AbstractType validator) {
-        FieldType fieldType = new FieldType();
-        fieldType.setIndexed(properties.isIndexed());
-        fieldType.setTokenized(properties.isTokenized());
-        fieldType.setStored(properties.isStored());
-        fieldType.setStoreTermVectors(properties.isStoreTermVectors());
-        fieldType.setStoreTermVectorOffsets(properties.isStoreTermVectorOffsets());
-        fieldType.setStoreTermVectorPayloads(properties.isStoreTermVectorPayloads());
-        fieldType.setStoreTermVectorPositions(properties.isStoreTermVectorPositions());
-        fieldType.setOmitNorms(properties.isOmitNorms());
-        fieldType.setIndexOptions(properties.getIndexOptions());
-        Fields.setNumericType(validator, fieldType);
-        if (fieldType.numericType() != null) {
-            fieldType.setNumericPrecisionStep(properties.getNumericPrecisionStep());
-        }
-        return fieldType;
-    }
-
-    public static FieldType dynamicFieldType(Properties properties) {
-        FieldType fieldType = new FieldType();
-        fieldType.setIndexed(properties.isIndexed());
-        fieldType.setTokenized(properties.isTokenized());
-        fieldType.setStored(properties.isStored());
-        fieldType.setStoreTermVectors(properties.isStoreTermVectors());
-        fieldType.setStoreTermVectorOffsets(properties.isStoreTermVectorOffsets());
-        fieldType.setStoreTermVectorPayloads(properties.isStoreTermVectorPayloads());
-        fieldType.setStoreTermVectorPositions(properties.isStoreTermVectorPositions());
-        fieldType.setOmitNorms(properties.isOmitNorms());
-        fieldType.setIndexOptions(properties.getIndexOptions());
-        if (properties.getType().isNumeric()) {
-            switch (properties.getType()) {
-                case integer:
-                    fieldType.setNumericType(FieldType.NumericType.INT);
-                    break;
-                case bigint:
-                    fieldType.setNumericType(FieldType.NumericType.LONG);
-                    break;
-                case decimal:
-                    fieldType.setNumericType(FieldType.NumericType.FLOAT);
-                    break;
-                default:
-                    fieldType.setNumericType(FieldType.NumericType.DOUBLE);
-                    break;
-            }
-            fieldType.setNumericPrecisionStep(properties.getNumericPrecisionStep());
-        }
-        return fieldType;
     }
 
 }

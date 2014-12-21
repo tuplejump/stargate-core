@@ -31,7 +31,8 @@ public interface Indexer {
 
     public boolean truncate(long l);
 
-    public long getLiveSize();
+    public long liveSize();
+    public long size();
 
     public void commit();
 
@@ -47,7 +48,4 @@ public interface Indexer {
 
     IndexSearcher acquire();
 
-    public <T> T search(SearcherCallback<T> searcherCallback);
-
-    void upsert(Iterable<Field> doc, Term idTerm);
 }

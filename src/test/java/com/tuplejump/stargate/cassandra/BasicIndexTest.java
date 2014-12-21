@@ -18,10 +18,14 @@ package com.tuplejump.stargate.cassandra;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
+import com.tuplejump.stargate.StargateMBean;
 import com.tuplejump.stargate.util.CQLUnitD;
 import junit.framework.Assert;
 import org.junit.Test;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import java.lang.management.ManagementFactory;
 import java.util.List;
 
 
@@ -73,9 +77,11 @@ public class BasicIndexTest extends IndexTestBase {
                 deleteTagData("TAG2", "segment", false, i);
             }
             Assert.assertEquals(16, countResults("TAG2", "magic = '" + q("tags", "hello*") + "'", true));
-            Assert.assertEquals(5, countResults("TAG2", "magic = '" + q("tags", "hello*") + "' limit 5", true));
             Assert.assertEquals(1, countResults("TAG2", "segment=30 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
             Assert.assertEquals(0, countResults("TAG2", "segment=20 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
+            Assert.assertEquals(5, countResults("TAG2", "magic = '" + q("tags", "hello*") + "' limit 5", true));
+
+            testJMX();
 
         } finally {
             dropTable(keyspace, "TAG2");
@@ -83,7 +89,34 @@ public class BasicIndexTest extends IndexTestBase {
         }
     }
 
-    private void createTableAndIndexForRow() {
+    private void testJMX() throws Exception {
+        MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
+        ObjectName objectName = new ObjectName(StargateMBean.MBEAN_NAME);
+        Assert.assertEquals(true, mBeanServer.isRegistered(objectName));
+        String[] values = (String[]) mBeanServer.invoke(objectName, "allIndexes", new Object[]{}, new String[]{});
+        for (String value : values) {
+            System.out.println(value);
+        }
+        String[] shards = (String[]) mBeanServer.invoke(objectName, "indexShards", new Object[]{"tagsandstate"}, new String[]{String.class.getName()});
+        for (String shard : shards) {
+            System.out.println(shard);
+        }
+        Assert.assertEquals(256, shards.length);
+        String desc = (String) mBeanServer.invoke(objectName, "describeIndex", new Object[]{"tagsandstate"}, new String[]{String.class.getName()});
+        System.out.println(desc);
+        Long size = (Long) mBeanServer.invoke(objectName, "indexSize", new Object[]{"tagsandstate"}, new String[]{String.class.getName()});
+        System.out.println(size);
+        Long liveSize = (Long) mBeanServer.invoke(objectName, "indexLiveSize", new Object[]{"tagsandstate"}, new String[]{String.class.getName()});
+        System.out.println(liveSize);
+        Long writeGen = (Long) mBeanServer.invoke(objectName, "writeGeneration", new Object[]{}, new String[]{});
+        System.out.println(writeGen);
+        Long readGen = (Long) mBeanServer.invoke(objectName, "readGeneration", new Object[]{}, new String[]{});
+        System.out.println(readGen);
+        Assert.assertEquals(true, readGen.equals(writeGen));
+
+    }
+
+    private void createTableAndIndexForRow() throws InterruptedException {
         String options = "{\n" +
                 "\t\"numShards\":1024,\n" +
                 "\t\"metaColumn\":true,\n" +
@@ -93,7 +126,7 @@ public class BasicIndexTest extends IndexTestBase {
                 "\t}\n" +
                 "}\n";
         getSession().execute("USE " + keyspace + ";");
-        getSession().execute("CREATE TABLE TAG2(key int, tags varchar, state varchar, segment int, magic text, PRIMARY KEY(segment, key))");
+        getSession().execute("CREATE TABLE TAG2(key int, tags text, state varchar, segment int, magic text, PRIMARY KEY(segment, key))");
         int i = 0;
         while (i < 40) {
             if (i == 20) {

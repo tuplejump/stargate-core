@@ -18,6 +18,8 @@ package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.cassandra.CustomColumnFactory;
+import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
 
@@ -29,9 +31,20 @@ import java.util.List;
 public class NoOp implements Function {
 
     @Override
-    public List<Row> process(List<Row> rows, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        return rows;
+    public void init(Options options) {
+        //do nothing.
     }
+
+    @Override
+    public boolean shouldLimit() {
+        return true;
+    }
+
+    @Override
+    public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
+        return rowScanner.getTable().filter(rowScanner, rowScanner.getFilter());
+    }
+
 
     public String getFunction() {
         return "no-op";

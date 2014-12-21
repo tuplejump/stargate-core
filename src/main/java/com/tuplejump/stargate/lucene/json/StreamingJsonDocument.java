@@ -19,7 +19,7 @@
 package com.tuplejump.stargate.lucene.json;
 
 import com.google.common.base.Joiner;
-import com.tuplejump.stargate.Fields;
+import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.document.FieldType;
 import org.codehaus.jackson.JsonParser;
@@ -82,43 +82,43 @@ public class StreamingJsonDocument extends JsonDocument {
 
                     case VALUE_STRING:
                         if (currentProps == null) {
-                            fields.add(Fields.textField(currentFieldName, jp.getText()));
+                            fields.add(LuceneUtils.textField(currentFieldName, jp.getText()));
                         } else {
-                            fields.add(Fields.field(currentFieldName, currentProps, jp.getText(), fieldType));
+                            fields.add(LuceneUtils.field(currentFieldName, currentProps, jp.getText(), fieldType));
                         }
                         popLevelFieldName(fieldName, levelFieldName);
                         break;
 
                     case VALUE_NUMBER_FLOAT:
                         if (currentProps == null) {
-                            fields.add(Fields.doubleField(currentFieldName, jp.getText()));
+                            fields.add(LuceneUtils.doubleField(currentFieldName, jp.getText()));
                         } else {
-                            fields.add(Fields.field(currentFieldName, currentProps, jp.getText(), fieldType));
+                            fields.add(LuceneUtils.field(currentFieldName, currentProps, jp.getText(), fieldType));
                         }
                         popLevelFieldName(fieldName, levelFieldName);
                         break;
 
                     case VALUE_NUMBER_INT:
                         if (currentProps == null) {
-                            fields.add(Fields.longField(currentFieldName, jp.getText()));
+                            fields.add(LuceneUtils.longField(currentFieldName, jp.getText()));
                         } else {
-                            fields.add(Fields.field(currentFieldName, currentProps, jp.getText(), fieldType));
+                            fields.add(LuceneUtils.field(currentFieldName, currentProps, jp.getText(), fieldType));
                         }
                         popLevelFieldName(fieldName, levelFieldName);
                         break;
 
                     case VALUE_TRUE:
-                        fields.add(Fields.stringField(currentFieldName, "true"));
+                        fields.add(LuceneUtils.stringField(currentFieldName, "true"));
                         popLevelFieldName(fieldName, levelFieldName);
                         break;
 
                     case VALUE_FALSE:
-                        fields.add(Fields.stringField(currentFieldName, "false"));
+                        fields.add(LuceneUtils.stringField(currentFieldName, "false"));
                         popLevelFieldName(fieldName, levelFieldName);
                         break;
 
                     case VALUE_NULL:
-                        fields.add(Fields.stringField(currentFieldName, "_NULL_"));
+                        fields.add(LuceneUtils.stringField(currentFieldName, "_NULL_"));
                         popLevelFieldName(fieldName, levelFieldName);
                         break;
 

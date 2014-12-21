@@ -1,5 +1,6 @@
 /*
- * Copyright 2014, Tuplejump Inc.
+ * Copyright 2014, Stratio.
+ * Modification and adapations - Copyright 2014, Tuplejump Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,6 +51,8 @@ public class Search {
 
     private final Function function;
 
+    private final boolean showScore;
+
     /**
      * Returns a new {@link Search} composed by the specified querying and filtering conditions.
      *
@@ -59,12 +62,13 @@ public class Search {
     @JsonCreator
     public Search(@JsonProperty("query") Condition queryCondition,
                   @JsonProperty("filter") Condition filterCondition,
-                  @JsonProperty("sort") Sort sort, @JsonProperty("function") Function function) {
+                  @JsonProperty("sort") Sort sort, @JsonProperty("function") Function function, @JsonProperty("score") boolean showScore) {
         this.queryCondition = queryCondition;
         this.filterCondition = filterCondition;
         this.sort = sort;
         if (function == null) this.function = new NoOp();
         else this.function = function;
+        this.showScore = showScore;
     }
 
     /**
@@ -83,6 +87,11 @@ public class Search {
 
     public Function function(Options schema) throws Exception {
         return this.function;
+    }
+
+
+    public boolean isShowScore() {
+        return showScore;
     }
 
     /**
@@ -118,7 +127,7 @@ public class Search {
      */
     public static Search fromJson(String json) {
         try {
-            return Options.jsonMapper.readValue(json, Search.class);
+            return Options.inputMapper.readValue(json, Search.class);
         } catch (Exception e) {
             String message = "Cannot parse JSON index expression: " + json;
             logger.error(message, e);

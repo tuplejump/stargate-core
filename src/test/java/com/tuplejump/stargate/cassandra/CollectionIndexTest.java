@@ -40,10 +40,10 @@ public class CollectionIndexTest extends IndexTestBase {
             Assert.assertEquals(16, countResults("TAG2", "magic = '" + q("tags", "hello1") + "'", true));
             Assert.assertEquals(28, countResults("TAG2", "magic = '" + q("tags2", "bad") + "'", true));
             Assert.assertEquals(16, countResults("TAG2", "magic = '" + q("tags2", "hot") + "'", true));
-            Assert.assertEquals(28, countResults("TAG2", "magic = '" + q("phones.key", "patricia") + "'", true));
-            //Assert.assertEquals(28, countResults("TAG2", "magic = '" + q("phones.patricia", "555-4326") + "'", true));
-            Assert.assertEquals(20, countResults("TAG2", "magic = '" + mq("phones.value", "555-4326") + "'", true));
-            Assert.assertEquals(40, countResults("TAG2", "magic = '" + pfq("phones.value", "555") + "'", true));
+            Assert.assertEquals(28, countResults("TAG2", "magic = '" + q("phones._key", "patricia") + "'", true));
+            Assert.assertEquals(28, countResults("TAG2", "magic = '" + q("phones.patricia", "555-4326") + "'", true));
+            Assert.assertEquals(20, countResults("TAG2", "magic = '" + mq("phones._value", "555-4326") + "'", true));
+            Assert.assertEquals(40, countResults("TAG2", "magic = '" + pfq("phones._value", "555") + "'", true));
             for (int i = 0; i < 20; i++) {
                 deleteTagData("TAG2", "key", false, i + 1);
             }
@@ -56,12 +56,12 @@ public class CollectionIndexTest extends IndexTestBase {
     }
 
 
-    private void createTableAndIndexForRow() {
+    private void createTableAndIndexForRow() throws InterruptedException {
         String options = "{\n" +
                 "\t\"fields\":{\n" +
                 "\t\t\"tags\":{},\n" +
                 "\t\t\"tags2\":{},\n" +
-                "\t\t\"phones\":{\"fields\":{\"value\":{\"type\":\"string\"}}}\n" +
+                "\t\t\"phones\":{\"fields\":{\"_value\":{\"type\":\"string\"}}}\n" +
                 "\t}\n" +
                 "}";
         getSession().execute("USE " + keyspace + ";");
@@ -79,6 +79,94 @@ public class CollectionIndexTest extends IndexTestBase {
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,tags2,phones) values (" + (i + 8) + ",{'hello2','tag2','lol1'},['good','nice','cool'],{'bill':'555-7382','patricia':'555-4346'})");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,tags2,phones) values (" + (i + 9) + ",{'hello2','tag2','lol2'},['bad', 'nice','cool'],{'daniel':'555-0453','jane':'555-8743'  })");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,tags2,phones) values(" + (i + 10) + ",{'hllo3 ','tag3','lol3'},['ugly','bad','hot'  ],{'patricia':'555-4326','doug':'555-1579'})");
+            i = i + 10;
+        }
+    }
+
+    @Test
+    public void shouldAggregateCollections() throws Exception {
+        try {
+            createKS(keyspace);
+            createTableAndIndexForRowAgg(false);
+            countResults("CUBE", "", false, false);
+            Assert.assertEquals(12, countResults("CUBE", "magic = '" + q("dimensions._browser", "Chrome") + "'", true));
+            Assert.assertEquals(24, countResults("CUBE", "magic = '" + q("dimensions._os", "Windows") + "'", true));
+
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Count", "count", false, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Count", "count", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Sum", "sum", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Max", "max", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Min", "min", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Values", "values", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(fun("dimensions._browser", "browser-values", "values", true), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + fun(null, null, "count", false) + "}'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + gFun(null, "count*", "count", false, "dimensions._browser") + "}'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + gFun(null, null, "count", false, "dimensions._browser") + "}'", true);
+
+        } finally {
+            dropTable(keyspace, "CUBE");
+            dropKS(keyspace);
+        }
+    }
+
+    @Test
+    public void shouldAggregateCollectionsStriped() throws Exception {
+        try {
+            createKS(keyspace);
+            createTableAndIndexForRowAgg(true);
+            countResults("CUBE", "", false, false);
+            Assert.assertEquals(12, countResults("CUBE", "magic = '" + q("dimensions._browser", "Chrome") + "'", true));
+            Assert.assertEquals(24, countResults("CUBE", "magic = '" + q("dimensions._os", "Windows") + "'", true));
+
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Sum", "count", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Sum", "sum", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Max", "max", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.loadTime", "loadTime-Min", "min", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(gFun("metrics.fetchTime", "fetchTime-Values", "values", true, "dimensions._browser"), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '" + funWithFilter(fun("dimensions._browser", "browser-values", "values", true), "dimensions._os", "Windows") + "'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + fun(null, null, "count", false) + "}'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + gFun(null, "count*", "count", false, "dimensions._browser") + "}'", true);
+            //countSGResults("magic", "CUBE", "magic = '{" + gFun(null, "count*", "count", false, "return StringUtils.lowerCase(dimensions._browser);") + "}'", true);
+            countSGResults("magic", "CUBE", "magic = '{" + gFun(null, null, "count", false, "dimensions._browser") + "}'", true);
+
+        } finally {
+            dropTable(keyspace, "CUBE");
+            dropKS(keyspace);
+        }
+    }
+
+
+    private void createTableAndIndexForRowAgg(boolean striped) {
+        String optionsStr = "{\n" +
+                "\t\"fields\":{\n" +
+                "\t\t\"metrics\":{\"fields\":{\"_value\":{striped:\"only\"}}},\n" +
+                "\t\t\"dimensions\":{\"fields\":{\"_value\":{striped:\"also\",\"type\":\"string\"}}}\n" +
+                "\t}\n" +
+                "}";
+        String optionsNor = "{\n" +
+                "\t\"fields\":{\n" +
+                "\t\t\"metrics\":{},\n" +
+                "\t\t\"dimensions\":{\"fields\":{\"_value\":{\"type\":\"string\"}}}\n" +
+                "\t}\n" +
+                "}";
+
+        String options = striped ? optionsStr : optionsNor;
+
+        getSession().execute("USE " + keyspace + ";");
+        getSession().execute("CREATE TABLE CUBE(key int, dimensions map<text,varchar>,metrics map<text,decimal>, magic text, PRIMARY KEY (key))");
+        getSession().execute("CREATE CUSTOM INDEX tagsIdx ON CUBE(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
+        int i = 0;
+        while (i < 40) {
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 1) + ",{'loadTime':20,'fetchTime':1},{'_browser':'Chrome','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 2) + ",{'loadTime':15,'fetchTime':3},{'_browser':'Firefox','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 3) + ",{'loadTime':10,'fetchTime':5},{'_browser':'UCBrowser','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 4) + ",{'loadTime':5,'fetchTime':7},{'_browser':'Opera','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 5) + ",{'loadTime':10,'fetchTime':2.5},{'_browser':'Chrome','_os':'Linux'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 6) + ",{'loadTime':25,'fetchTime':4},{'_browser':'Firefox','_os':'Linux'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 7) + ",{'loadTime':20,'fetchTime':6},{'_browser':'UCBrowser','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 8) + ",{'loadTime':30,'fetchTime':8},{'_browser':'Opera','_os':'Windows'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values (" + (i + 9) + ",{'loadTime':15,'fetchTime':9.5},{'_browser':'Chrome','_os':'Mac'})");
+            getSession().execute("insert into " + keyspace + ".CUBE (key,metrics,dimensions) values(" + (i + 10) + ",{'loadTime':5,'fetchTime':1.5},{'_browser':'Safari','_os':'Mac'})");
             i = i + 10;
         }
     }

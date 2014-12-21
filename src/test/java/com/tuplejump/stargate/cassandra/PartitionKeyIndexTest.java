@@ -38,6 +38,7 @@ public class PartitionKeyIndexTest extends IndexTestBase {
             createKS(keyspace);
             createTableAndIndexForRow();
             countResults("TAG2", "", false, true);
+            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("state", "state:CA") + "'", true));
             Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true));
             String q1 = "{ type:\"wildcard\", field:\"tags\", value:\"hello*\" }";
             String q2 = "{ type:\"match\", field:\"state\", value:\"CA\" }";
