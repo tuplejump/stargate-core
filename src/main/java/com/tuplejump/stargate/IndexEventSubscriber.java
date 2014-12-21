@@ -61,7 +61,7 @@ class IndexEventSubscriber extends Thread {
             try {
                 if (queue.peek() != null) {
                     IndexEntryEvent indexEntryEvent = queue.remove();
-                    indexingService.index(indexEntryEvent.getRowKey(), indexEntryEvent.getColumnFamily());
+                    indexingService.index(indexEntryEvent);
                 }
                 Thread.yield();
             } catch (Exception e) {

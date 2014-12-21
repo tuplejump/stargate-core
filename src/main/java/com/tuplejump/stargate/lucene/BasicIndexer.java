@@ -104,6 +104,20 @@ public class BasicIndexer implements Indexer {
     }
 
     @Override
+    public void upsert(Term term,Iterable<Field> doc) {
+        if (logger.isDebugEnabled())
+            logger.debug(indexName + " Indexing fields" + doc);
+
+        try {
+            indexWriter.updateDocument(term,doc);
+            searcherManager.maybeRefresh();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    @Override
     public void delete(Term... terms) {
         BooleanQuery q = new BooleanQuery();
         for (Term t : terms) {

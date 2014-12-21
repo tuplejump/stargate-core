@@ -30,29 +30,24 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 /**
-* User: satya
-*/
+ * User: satya
+ */
 public class IndexEntryEvent implements Serializable {
-    ByteBuffer rowKey;
-    ColumnFamily columnFamily;
+    public final ByteBuffer rowKey;
+    public final ColumnFamily columnFamily;
+    public final Type type;
 
-    public IndexEntryEvent(ByteBuffer rowKey, ColumnFamily columnFamily) {
+    public IndexEntryEvent(Type type, ByteBuffer rowKey, ColumnFamily columnFamily) {
+        this.type = type;
         this.rowKey = rowKey;
         this.columnFamily = columnFamily;
-    }
-
-    public ByteBuffer getRowKey() {
-        return rowKey;
-    }
-
-    public ColumnFamily getColumnFamily() {
-        return columnFamily;
     }
 
     public static class IndexEntryEventSerializer implements Serializer<IndexEntryEvent>, Serializable {
 
         @Override
         public void serialize(DataOutput appender, IndexEntryEvent value) throws IOException {
+            appender.writeByte(value.type.getByte());
             appender.writeInt(value.rowKey.remaining());
             ByteBufferUtil.write(value.rowKey, appender);
             ColumnFamily.serializer.serialize(value.columnFamily, appender, MessagingService.current_version);
@@ -60,10 +55,11 @@ public class IndexEntryEvent implements Serializable {
 
         @Override
         public IndexEntryEvent deserialize(DataInput in, int available) throws IOException {
+            Type type = Type.fromByte(in.readByte());
             int rowKeyLength = in.readInt();
             ByteBuffer rowKeyBuffer = ByteBufferUtil.read(in, rowKeyLength);
             ColumnFamily columnFamily = ColumnFamily.serializer.deserialize(in, TreeMapBackedSortedColumns.factory, ColumnSerializer.Flag.LOCAL, MessagingService.current_version);
-            return new IndexEntryEvent(rowKeyBuffer, columnFamily);
+            return new IndexEntryEvent(type, rowKeyBuffer, columnFamily);
         }
 
         @Override
@@ -72,4 +68,34 @@ public class IndexEntryEvent implements Serializable {
             return -1;
         }
     }
+
+    /**
+     * User: satya
+     */
+    public static enum Type {
+        UPSERT((byte) 0x01);
+
+        private final byte b;
+
+        Type(byte b) {
+            this.b = b;
+        }
+
+        // useful to write to a ChannelBuffer, when encoding
+        public byte getByte() {
+            return this.b;
+        }
+
+        // useful to determine which enum value matches byte, when decoding
+        public static Type fromByte(byte b) {
+            for (Type type : Type.values()) {
+                if (type.b == b) {
+                    return type;
+                }
+            }
+            throw new IllegalArgumentException("No Type for byte: " + b);
+        }
+
+    }
+
 }

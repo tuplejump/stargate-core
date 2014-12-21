@@ -84,6 +84,10 @@ public class RowIndex extends PerRowSecondaryIndex {
 
     @Override
     public void delete(DecoratedKey key) {
+        //base class method is never called. So nothing to do here.
+    }
+
+    public void deleteByKey(DecoratedKey key) {
         readLock.lock();
         try {
             AbstractType<?> rkValValidator = baseCfs.metadata.getKeyValidator();

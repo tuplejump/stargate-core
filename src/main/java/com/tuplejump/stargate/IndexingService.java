@@ -52,7 +52,10 @@ public class IndexingService {
         this.support.put(rowIndexSupport.getCFMetaData().cfName, rowIndexSupport);
     }
 
-    public void index(final ByteBuffer rowkeyBuffer, final ColumnFamily columnFamily) {
+    public void index(IndexEntryEvent entryEvent) {
+        final ByteBuffer rowkeyBuffer = entryEvent.rowKey;
+        final ColumnFamily columnFamily = entryEvent.columnFamily;
+        final IndexEntryEvent.Type type = entryEvent.type;
         final RowIndexSupport rowIndexSupport = support.get(columnFamily.metadata().cfName);
         executorService.submit(new Runnable() {
             @Override

@@ -111,7 +111,7 @@ public class RowIndexSupport {
                     logger.debug("Column family update -" + dk);
                 fields.addAll(idFields(dk, pkName, pk, rkValValidator));
                 fields.addAll(tsFields(timestamps.get(pk)));
-                indexer.insert(fields);
+                indexer.upsert(term, fields);
             }
         }
     }
