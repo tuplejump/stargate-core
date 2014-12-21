@@ -213,9 +213,9 @@ public class SearchSupport extends SecondaryIndexSearcher {
     }
 
     public boolean deleteRowIfNotLatest(DecoratedKey decoratedKey, ColumnFamily cf) {
-        if (!cf.getColumnNames().iterator().hasNext()) {
+        if (!cf.getColumnNames().iterator().hasNext()) {//no columns available
             if (currentIndex.getBaseCfs().metadata.getCfDef().iterator().hasNext())
-                currentIndex.delete(decoratedKey);
+                currentIndex.deleteByKey(decoratedKey);
             return true;
         }
         return false;

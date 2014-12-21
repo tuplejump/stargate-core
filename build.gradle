@@ -4,7 +4,7 @@ apply plugin: 'eclipse'
 apply plugin: 'maven'
 apply plugin: 'signing'
 
-version = '0.9.5'
+version = '0.9.9'
 group = 'com.tuplejump'
 
 sourceCompatibility = 1.7
@@ -128,8 +128,8 @@ task dist(type: Tar) {
 
 install {
     repositories.mavenInstaller {
-        pom.version = '0.9.5'
-        pom.groupId = 'com.tuplejump'
+        pom.version = version
+        pom.groupId = group
         pom.artifactId = 'stargate-core'
     }
 }

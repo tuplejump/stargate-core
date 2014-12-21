@@ -97,7 +97,7 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
     }
 
     public long publish(ByteBuffer rowKey, ColumnFamily columnFamily) {
-        queue.offer(new IndexEntryEvent(rowKey, columnFamily));
+        queue.offer(new IndexEntryEvent(IndexEntryEvent.Type.UPSERT, rowKey, columnFamily));
         long writeGen = writes.incrementAndGet();
         if (logger.isDebugEnabled())
             logger.debug("Write gen:" + writeGen);
