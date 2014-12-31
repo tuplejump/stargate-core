@@ -154,7 +154,24 @@ Here is a list of quick queries that can be made using the default options. For 
 	    }
 	}';
 
-
+	-- find people starting with m who belong to companies starting with a.
+	SELECT * FROM PERSON WHERE stargate ='{
+	    filter: {
+	        type: "boolean",
+	        must:[
+	        	{
+	        	 type:"wildcard",
+	        	 field: "name",
+	        	 value: "m*"
+	        	},
+	        	{
+	        	 type: "prefix",
+	        	 field: "company",
+	        	 value: "a"
+	        	}
+	              ]
+	    }
+	}';
 
 
 
