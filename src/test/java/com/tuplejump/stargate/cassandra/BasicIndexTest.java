@@ -55,6 +55,24 @@ public class BasicIndexTest extends IndexTestBase {
     }
 
     @Test
+    public void shouldIndexNulls() throws Exception {
+        //hack to always create new Index during testing
+        try {
+            createKS(keyspace);
+            createTableAndIndexForRowNulls();
+            countResults("TAG_NULL", "", false, true);
+            Assert.assertEquals(4, countResults("TAG_NULL", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true));
+            Assert.assertEquals(4, countResults("TAG_NULL", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
+            Assert.assertEquals(4, countResults("TAG_NULL", "magic = '" + q("tags", "tags:hello2 AND state:CA") + "'", true));
+            Assert.assertEquals(12, countResults("TAG_NULL", "magic = '" + mq("tags", "tag2") + "'", true));
+
+        } finally {
+            dropTable(keyspace, "TAG_NULL");
+            dropKS(keyspace);
+        }
+    }
+
+    @Test
     public void shouldIndexPerRow() throws Exception {
         //hack to always create new Index during testing
         try {
@@ -142,6 +160,36 @@ public class BasicIndexTest extends IndexTestBase {
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 8) + ",'hello2 tag2 lol1', 'CA'," + i + ")");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 9) + ",'hello2 tag2 lol2', 'TX'," + i + ")");
             getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 10) + ",'hllo3 tag3 lol3', 'TX'," + i + ")");
+            i = i + 10;
+        }
+    }
+
+    private void createTableAndIndexForRowNulls() throws InterruptedException {
+        String options = "{\n" +
+                "\t\"numShards\":1024,\n" +
+                "\t\"metaColumn\":true,\n" +
+                "\t\"fields\":{\n" +
+                "\t\t\"tags\":{\"type\":\"text\"},\n" +
+                "\t\t\"state\":{}\n" +
+                "\t}\n" +
+                "}\n";
+        getSession().execute("USE " + keyspace + ";");
+        getSession().execute("CREATE TABLE TAG_NULL(key int, tags text, state varchar, segment int, magic text, PRIMARY KEY(segment, key))");
+        int i = 0;
+        while (i < 40) {
+            if (i == 20) {
+                getSession().execute("CREATE CUSTOM INDEX ntagsandstate ON TAG_NULL(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
+            }
+            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 1) + ",null, 'CA'," + i + ")");
+            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 2) + ",'hello1 tag1 lol2', null," + i + ")");
+            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 3) + ",'hello1 tag2 lol1', 'NY'," + i + ")");
+            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 4) + ",null, 'TX'," + i + ")");
+            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 5) + ",'hllo3 tag3 lol3',  'TX'," + i + ")");
+            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 6) + ",'hello2 tag1 lol1', 'CA'," + i + ")");
+            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 7) + ",'hello2 tag1 lol2', 'NY'," + i + ")");
+            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 8) + ",'hello2 tag2 lol1', null," + i + ")");
+            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 9) + ",'hello2 tag2 lol2', 'TX'," + i + ")");
+            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 10) + ",'hllo3 tag3 lol3', 'TX'," + i + ")");
             i = i + 10;
         }
     }

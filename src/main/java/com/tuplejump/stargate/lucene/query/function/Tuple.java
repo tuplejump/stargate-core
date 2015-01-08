@@ -18,7 +18,6 @@ package com.tuplejump.stargate.lucene.query.function;
 
 
 import com.tuplejump.stargate.lucene.Constants;
-import com.tuplejump.stargate.lucene.Options;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.codehaus.jackson.JsonGenerator;

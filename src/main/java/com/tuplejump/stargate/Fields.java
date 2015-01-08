@@ -16,28 +16,20 @@
 
 package com.tuplejump.stargate;
 
-import com.tuplejump.stargate.lucene.LuceneUtils;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.BooleanType;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.lucene.document.*;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import static com.tuplejump.stargate.lucene.Constants.*;
+import static com.tuplejump.stargate.lucene.Constants.striped;
 
 /**
  * User: satya
@@ -46,6 +38,12 @@ import static com.tuplejump.stargate.lucene.Constants.*;
  */
 public class Fields {
 
+    public static final FieldType STRING_FIELD_TYPE = new FieldType();
+
+    static {
+        STRING_FIELD_TYPE.setIndexed(true);
+        STRING_FIELD_TYPE.setTokenized(false);
+    }
 
     public static Field field(String name, AbstractType type, ByteBuffer byteBufferValue, FieldType fieldType) {
         if (fieldType.docValueType() != null) {
@@ -53,29 +51,34 @@ public class Fields {
             else return stringDocValuesField(name, type, byteBufferValue);
         }
         CQL3Type cqlType = type.asCQL3Type();
-        if (cqlType == CQL3Type.Native.INT) {
-            return new IntField(name, (Integer) type.compose(byteBufferValue), fieldType);
-        } else if (cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER) {
-            return new LongField(name, ((Number) type.compose(byteBufferValue)).longValue(), fieldType);
-        } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
-            return new DoubleField(name, ((Number) type.compose(byteBufferValue)).doubleValue(), fieldType);
-        } else if (cqlType == CQL3Type.Native.FLOAT) {
-            return new FloatField(name, ((Number) type.compose(byteBufferValue)).floatValue(), fieldType);
-        } else if (cqlType == CQL3Type.Native.ASCII || cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.VARCHAR) {
-            return new Field(name, type.getString(byteBufferValue), fieldType);
-        } else if (cqlType == CQL3Type.Native.UUID) {
-            return new Field(name, type.getString(byteBufferValue), fieldType);
-        } else if (cqlType == CQL3Type.Native.TIMEUUID) {
-            //TimeUUID toString is not comparable. So we reorder to get a comparable value while searching
-            return new Field(name, reorderTimeUUId(type.getString(byteBufferValue)), fieldType);
-        } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
-            return new LongField(name, ((Date) type.compose(byteBufferValue)).getTime(), fieldType);
-        } else if (cqlType == CQL3Type.Native.BOOLEAN) {
-            Boolean val = ((Boolean) type.compose(byteBufferValue));
-            return new Field(name, val.toString(), fieldType);
-        } else {
-            return new Field(name, toString(byteBufferValue, type), fieldType);
+        try {
+            Object value = type.compose(byteBufferValue);
+            if (cqlType == CQL3Type.Native.INT) {
+                return new IntField(name, (Integer) value, fieldType);
+            } else if (cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER) {
+                return new LongField(name, ((Number) value).longValue(), fieldType);
+            } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
+                return new DoubleField(name, ((Number) value).doubleValue(), fieldType);
+            } else if (cqlType == CQL3Type.Native.FLOAT) {
+                return new FloatField(name, ((Number) value).floatValue(), fieldType);
+            } else if (cqlType == CQL3Type.Native.ASCII || cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.VARCHAR) {
+                return new Field(name, value.toString(), fieldType);
+            } else if (cqlType == CQL3Type.Native.UUID) {
+                return new Field(name, UUIDType.instance.getSerializer().toString((UUID) value), fieldType);
+            } else if (cqlType == CQL3Type.Native.TIMEUUID) {
+                //TimeUUID toString is not comparable. So we reorder to get a comparable value while searching
+                return new Field(name, reorderTimeUUId(TimeUUIDType.instance.getSerializer().toString((UUID) value)), fieldType);
+            } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
+                return new LongField(name, ((Date) value).getTime(), fieldType);
+            } else if (cqlType == CQL3Type.Native.BOOLEAN) {
+                return new Field(name, value.toString(), fieldType);
+            } else {
+                return new Field(name, toString(byteBufferValue, type), fieldType);
+            }
+        } catch (MarshalException e) {
+            return new Field(name, "_null_", STRING_FIELD_TYPE);
         }
+
     }
 
     public static String reorderTimeUUId(String originalTimeUUID) {
