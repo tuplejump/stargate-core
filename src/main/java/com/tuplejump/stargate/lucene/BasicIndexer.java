@@ -125,6 +125,11 @@ public class BasicIndexer implements Indexer {
                 logger.debug(indexName + " Delete term - " + t);
             q.add(new TermQuery(t), BooleanClause.Occur.MUST);
         }
+        delete(q);
+    }
+
+    @Override
+    public void delete(Query q) {
         try {
             indexWriter.deleteDocuments(q);
             searcherManager.maybeRefresh();

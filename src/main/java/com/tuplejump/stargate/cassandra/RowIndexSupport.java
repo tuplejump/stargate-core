@@ -29,14 +29,12 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,11 +84,34 @@ public class RowIndexSupport {
         AbstractType rowKeyValidator = table.getComparator();
         Iterator<Column> cols = cf.iterator();
         Map<ByteBuffer, String> pkNames = new HashMap<>();
-        while (cols.hasNext()) {
-            Column column = cols.next();
-            addColumn(rowKey, pkNames, primaryKeysVsFields, timestamps, column);
+        if (cols.hasNext()) {
+            while (cols.hasNext()) {
+                Column column = cols.next();
+                addColumn(rowKey, pkNames, primaryKeysVsFields, timestamps, column);
+            }
+            addToIndex(indexer, cf, dk, pkNames, primaryKeysVsFields, timestamps, rowKeyValidator);
+        } else {
+            DeletionInfo deletionInfo = cf.deletionInfo();
+            if (cf.isMarkedForDelete()) {
+                deleteRowsMarked(rowKey, indexer, deletionInfo);
+            }
         }
-        addToIndex(indexer, cf, dk, pkNames, primaryKeysVsFields, timestamps, rowKeyValidator);
+
+    }
+
+    public void deleteRowsMarked(ByteBuffer rowKey, Indexer indexer, DeletionInfo deletionInfo) {
+        //this is a delete
+        //get the range tombstones
+        Iterator<RangeTombstone> rangeIterator = deletionInfo.rangeIterator();
+        while (rangeIterator.hasNext()) {
+            RangeTombstone rangeTombstone = rangeIterator.next();
+            ByteBuffer start = rangeTombstone.min;
+            String startPK = primaryKeyAndActualColumnName(false, rowKey, start).right;
+            ByteBuffer end = rangeTombstone.max;
+            String endPK = primaryKeyAndActualColumnName(false, rowKey, end).right;
+            Query deleteQuery = LuceneUtils.getPKRangeDeleteQuery(startPK, endPK);
+            indexer.delete(deleteQuery);
+        }
     }
 
     private void addToIndex(Indexer indexer, ColumnFamily cf, DecoratedKey dk, Map<ByteBuffer, String> pkNames, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, AbstractType rkValValidator) {
@@ -100,25 +121,17 @@ public class RowIndexSupport {
             List<Field> fields = entry.getValue();
             Term term = LuceneUtils.idTerm(pkName);
 
-            if (cf.isMarkedForDelete() && options.collectionFieldTypes.isEmpty()) {
-                if (logger.isDebugEnabled())
-                    logger.debug("Column family marked for delete -" + dk);
-                if (logger.isDebugEnabled())
-                    logger.debug(String.format("RowIndex delete - Key [%s]", term));
-                indexer.delete(term);
-            } else {
-                if (logger.isDebugEnabled())
-                    logger.debug("Column family update -" + dk);
-                fields.addAll(idFields(dk, pkName, pk, rkValValidator));
-                fields.addAll(tsFields(timestamps.get(pk)));
-                indexer.upsert(term, fields);
-            }
+            if (logger.isDebugEnabled())
+                logger.debug("Column family update -" + dk);
+            fields.addAll(idFields(dk, pkName, pk, rkValValidator));
+            fields.addAll(tsFields(timestamps.get(pk)));
+            indexer.upsert(term, fields);
         }
     }
 
     private void addColumn(ByteBuffer rowKey, Map<ByteBuffer, String> pkNames, Map<ByteBuffer, List<Field>> primaryKeysVsFields, Map<ByteBuffer, Long> timestamps, Column column) {
         ByteBuffer columnNameBuf = column.name();
-        Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndName = primaryKeyAndActualColumnName(true, rowKey, column);
+        Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndName = primaryKeyAndActualColumnName(true, rowKey, column.name());
         String actualColName = primaryKeyAndName.right;
         if (logger.isTraceEnabled())
             logger.trace("Got column name {} from CF", actualColName);
@@ -178,14 +191,14 @@ public class RowIndexSupport {
             addField(fields, columnDefinition, keyColumnName, docValueType, value);
     }
 
-    public Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndActualColumnName(boolean withPkBuilder, ByteBuffer rowKey, Column column) {
+    public Pair<Pair<CompositeType.Builder, StringBuilder>, String> primaryKeyAndActualColumnName(boolean withPkBuilder, ByteBuffer rowKey, ByteBuffer columnName) {
         AbstractType<?> rowKeyComparator = table.metadata.getKeyValidator();
         CompositeType baseComparator = (CompositeType) table.getComparator();
         CFDefinition cfDef = table.metadata.getCfDef();
         int prefixSize = baseComparator.types.size() - (cfDef.hasCollections ? 2 : 1);
         List<AbstractType<?>> types = baseComparator.types;
         int idx = types.get(types.size() - 1) instanceof ColumnToCollectionType ? types.size() - 2 : types.size() - 1;
-        ByteBuffer[] components = baseComparator.split(column.name());
+        ByteBuffer[] components = baseComparator.split(columnName);
         String colName = CFDefinition.definitionType.getString(components[idx]);
         if (withPkBuilder) {
             Pair<CompositeType.Builder, StringBuilder> builder = pkBuilder(rowKeyComparator, rowKey, baseComparator, prefixSize, components);
@@ -256,7 +269,7 @@ public class RowIndexSupport {
     }
 
     protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pk, AbstractType rkValValidator) {
-        return Arrays.asList(LuceneUtils.idDocValue(pk), LuceneUtils.pkNameDocValue(pkName), LuceneUtils.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
+        return Arrays.asList(LuceneUtils.rkBytesDocValue(rowKey.key), LuceneUtils.pkBytesDocValue(pk), LuceneUtils.pkNameDocValue(pkName), LuceneUtils.rowKeyIndexed(table.metadata.getKeyValidator().getString(rowKey.key)));
     }
 
     protected List<Field> tsFields(long ts) {

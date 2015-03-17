@@ -95,6 +95,11 @@ public class LuceneCondition extends Condition {
         }
     }
 
+    @Override
+    public String getType() {
+        return "lucene";
+    }
+
     /**
      * {@inheritDoc}
      */

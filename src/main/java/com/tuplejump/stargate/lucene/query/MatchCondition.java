@@ -24,13 +24,17 @@ import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.BasicAutomata;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
+
+import java.text.ParseException;
 
 /**
  * A {@link Condition} implementation that matches documents containing a value for a field.
  */
-public class MatchCondition extends Condition {
+public class MatchCondition extends Condition implements Selector {
 
     /**
      * The field name
@@ -125,6 +129,11 @@ public class MatchCondition extends Condition {
         return query;
     }
 
+    @Override
+    public String getType() {
+        return "match";
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -142,4 +151,49 @@ public class MatchCondition extends Condition {
         return builder.toString();
     }
 
+    @Override
+    public Automaton getAutomaton(Options schema) {
+        if (field == null || field.trim().isEmpty()) {
+            throw new IllegalArgumentException("Field name required");
+        }
+        if (value == null || value instanceof String && ((String) value).trim().isEmpty()) {
+            throw new IllegalArgumentException("Field value required");
+        }
+        try {
+        NumericConfig numericConfig = schema.numericFieldOptions.get(field);
+        Properties properties = schema.getProperties(field);
+        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+        if (fieldType.isCharSeq()) {
+            String analyzedValue = analyze(field, value.toString(), schema.analyzer);
+            if (analyzedValue == null) {
+                throw new IllegalArgumentException("Value discarded by analyzer");
+            }
+            return BasicAutomata.makeString(analyzedValue);
+        } else if (fieldType == Properties.Type.integer) {
+            assert numericConfig != null;
+            Integer value = null;
+
+                value = numericConfig.getNumberFormat().parse(this.value.toString()).intValue();
+
+            return BasicAutomata.makeString(value.toString());
+        } else if (fieldType == Properties.Type.bigint || fieldType == Properties.Type.date) {
+            assert numericConfig != null;
+            Long value = numericConfig.getNumberFormat().parse(this.value.toString()).longValue();
+            return BasicAutomata.makeString(value.toString());
+        } else if (fieldType == Properties.Type.decimal) {
+            assert numericConfig != null;
+            Float value = numericConfig.getNumberFormat().parse(this.value.toString()).floatValue();
+            return BasicAutomata.makeString(value.toString());
+        } else if (fieldType == Properties.Type.bigdecimal) {
+            assert numericConfig != null;
+            Double value = numericConfig.getNumberFormat().parse(this.value.toString()).doubleValue();
+            return BasicAutomata.makeString(value.toString());
+        } else {
+            String message = String.format("Match pattern queries are not supported by %s mapper", fieldType);
+            throw new UnsupportedOperationException(message);
+        }
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

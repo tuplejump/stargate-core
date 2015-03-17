@@ -20,13 +20,17 @@ import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.query.function.Tuple;
 import com.tuplejump.stargate.utils.Pair;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
@@ -360,4 +364,99 @@ public class CassandraUtils {
         }
         return abstractType;
     }
+
+    public static ByteBuffer[] getCompositePKComponents(ColumnFamilyStore baseCfs, ByteBuffer pk) {
+        CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
+        return baseComparator.split(pk);
+    }
+
+    public static org.apache.cassandra.utils.Pair<ByteBuffer, CompositeType.Builder> rowKeyAndBuilder(ColumnFamilyStore table, ByteBuffer primaryKey) {
+        ByteBuffer[] components = CassandraUtils.getCompositePKComponents(table, primaryKey);
+        final CompositeType baseComparator = (CompositeType) table.getComparator();
+        int prefixSize = baseComparator.types.size() - (table.metadata.getCfDef().hasCollections ? 2 : 1);
+        CompositeType.Builder builder = baseComparator.builder();
+        for (int i = 0; i < prefixSize; i++)
+            builder.add(components[i + 1]);
+        ByteBuffer rowKey = components[0];
+        return org.apache.cassandra.utils.Pair.create(rowKey, builder);
+    }
+
+    /**
+     * Filter a cached row, which will not be modified by the filter, but may be modified by throwing out
+     * tombstones that are no longer relevant.
+     * The returned column family won't be thread safe.
+     */
+    public static ColumnFamily filterColumnFamily(ColumnFamilyStore table, ColumnFamily cached, QueryFilter filter) {
+        ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory, filter.filter.isReversed());
+        OnDiskAtomIterator ci = filter.getColumnFamilyIterator(cached);
+
+        int gcBefore = gcBefore(table, filter.timestamp);
+        filter.collateOnDiskAtom(cf, ci, gcBefore);
+        return table.removeDeletedCF(cf, gcBefore);
+    }
+
+    public static int gcBefore(ColumnFamilyStore table, long now) {
+        return (int) (now / 1000) - table.metadata.getGcGraceSeconds();
+    }
+
+    public static void load(Map<String, Integer> positions, Tuple tuple, Row row, ColumnFamilyStore table) {
+        CompositeType baseComparator = (CompositeType) table.getComparator();
+        ColumnFamily cf = row.cf;
+        ByteBuffer rowKey = row.key.key;
+
+        Collection<Column> cols = cf.getSortedColumns();
+        boolean keyColumnsAdded = false;
+        for (Column column : cols) {
+            if (!keyColumnsAdded) {
+                addKeyColumns(positions, tuple, table, rowKey);
+                keyColumnsAdded = true;
+            }
+            String actualColumnName = CassandraUtils.getColumnNameStr(baseComparator, column.name());
+            ByteBuffer colValue = column.value();
+            AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
+            if (valueValidator.isCollection()) {
+                CollectionType validator = (CollectionType) valueValidator;
+                AbstractType keyType = validator.nameComparator();
+                AbstractType valueType = validator.valueComparator();
+                ByteBuffer[] components = baseComparator.split(column.name());
+                ByteBuffer keyBuf = components[components.length - 1];
+                if (valueValidator instanceof MapType) {
+                    actualColumnName = actualColumnName + "." + keyType.compose(keyBuf);
+                    valueValidator = valueType;
+                } else if (valueValidator instanceof SetType) {
+                    colValue = keyBuf;
+                    valueValidator = keyType;
+                } else {
+                    valueValidator = valueType;
+                }
+            }
+            for (String field : positions.keySet()) {
+                if (actualColumnName.equalsIgnoreCase(field)) {
+                    tuple.getTuple()[positions.get(field)] = valueValidator.compose(colValue);
+                }
+            }
+        }
+    }
+
+    private static void addKeyColumns(Map<String, Integer> positions, Tuple tuple, ColumnFamilyStore table, ByteBuffer rowKey) {
+        CFDefinition cfDef = table.metadata.getCfDef();
+        AbstractType<?> keyValidator = table.metadata.getKeyValidator();
+        ByteBuffer[] keyComponents = cfDef.hasCompositeKey ? ((CompositeType) table.metadata.getKeyValidator()).split(rowKey) : new ByteBuffer[]{rowKey};
+        List<AbstractType<?>> keyValidators = keyValidator.getComponents();
+        List<ColumnDefinition> partitionKeys = table.metadata.partitionKeyColumns();
+
+        for (ColumnDefinition entry : partitionKeys) {
+            int componentIndex = entry.componentIndex == null ? 0 : entry.componentIndex;
+            ByteBuffer value = keyComponents[componentIndex];
+            AbstractType<?> validator = keyValidators.get(componentIndex);
+            String actualColumnName = CFDefinition.definitionType.getString(entry.name);
+            for (String field : positions.keySet()) {
+                if (actualColumnName.equalsIgnoreCase(field)) {
+                    tuple.getTuple()[positions.get(field)] = validator.compose(value);
+                }
+            }
+        }
+    }
+
+
 }

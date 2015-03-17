@@ -41,6 +41,11 @@ public class NoOp implements Function {
     }
 
     @Override
+    public boolean shouldTryScoring() {
+        return true;
+    }
+
+    @Override
     public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
         return rowScanner.getTable().filter(rowScanner, rowScanner.getFilter());
     }

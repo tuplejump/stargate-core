@@ -25,6 +25,7 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.collections.map.LRUMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +48,7 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
     int limit;
     int columnsCount = 0;
     boolean showScore = false;
+    LRUMap ephemeralCache = new LRUMap();
 
     public RowScanner(SearchSupport searchSupport, ColumnFamilyStore table, ExtendedFilter filter, IndexEntryCollector collector, boolean showScore) throws Exception {
         this.searchSupport = searchSupport;
@@ -71,11 +73,11 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
             try {
                 IndexEntryCollector.IndexEntry entry = indexIterator.next();
                 String pkNameString = entry.pkName;
-                ByteBuffer rowKey = entry.rowKey;
+                ByteBuffer primaryKey = entry.primaryKey;
                 long ts = entry.timestamp;
                 float score = entry.score;
 
-                Pair<DecoratedKey, IDiskAtomFilter> keyAndFilter = getFilterAndKey(rowKey, sliceQueryFilter);
+                Pair<DecoratedKey, IDiskAtomFilter> keyAndFilter = getFilterAndKey(primaryKey, sliceQueryFilter);
                 if (keyAndFilter == null) {
                     continue;
                 }
@@ -158,22 +160,14 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
 
 
     protected Pair<DecoratedKey, IDiskAtomFilter> getFilterAndKey(ByteBuffer primaryKey, SliceQueryFilter sliceQueryFilter) {
-        ByteBuffer[] components = getCompositePKComponents(table, primaryKey);
-        ByteBuffer rowKey = getRowKeyFromPKComponents(components);
-        DecoratedKey dk = table.partitioner.decorateKey(rowKey);
-        final CompositeType baseComparator = (CompositeType) table.getComparator();
-        int prefixSize = baseComparator.types.size() - (table.metadata.getCfDef().hasCollections ? 2 : 1);
+        Pair<ByteBuffer, CompositeType.Builder> rowKeyAndBuilder = CassandraUtils.rowKeyAndBuilder(table, primaryKey);
+        DecoratedKey dk = table.partitioner.decorateKey(rowKeyAndBuilder.left);
 
-        CompositeType.Builder builder = baseComparator.builder();
-
-        for (int i = 0; i < prefixSize; i++)
-            builder.add(components[i + 1]);
-
-        ByteBuffer start = builder.build();
+        ByteBuffer start = rowKeyAndBuilder.right.build();
         if (!sliceQueryFilter.maySelectPrefix(table.getComparator(), start)) return null;
 
         ArrayList<ColumnSlice> allSlices = new ArrayList<>();
-        ColumnSlice dataSlice = new ColumnSlice(start, builder.buildAsEndOfRange());
+        ColumnSlice dataSlice = new ColumnSlice(start, rowKeyAndBuilder.right.buildAsEndOfRange());
         if (table.metadata.hasStaticColumns()) {
             ColumnSlice staticSlice = new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, table.metadata.getStaticColumnNameBuilder().buildAsEndOfRange());
             allSlices.add(staticSlice);
@@ -185,14 +179,6 @@ public class RowScanner extends ColumnFamilyStore.AbstractScanIterator {
         return Pair.create(dk, dataFilter);
     }
 
-    public static ByteBuffer[] getCompositePKComponents(ColumnFamilyStore baseCfs, ByteBuffer pk) {
-        CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
-        return baseComparator.split(pk);
-    }
-
-    public static ByteBuffer getRowKeyFromPKComponents(ByteBuffer[] pkComponents) {
-        return pkComponents[0];
-    }
 
     @Override
     public void close() throws IOException {

@@ -131,4 +131,6 @@ public abstract class Condition {
         }
     }
 
+
+    public abstract String getType();
 }

@@ -206,6 +206,11 @@ public class RangeCondition extends Condition {
         return query;
     }
 
+    @Override
+    public String getType() {
+        return "range";
+    }
+
     /**
      * {@inheritDoc}
      */

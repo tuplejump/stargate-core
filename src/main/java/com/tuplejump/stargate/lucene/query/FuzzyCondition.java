@@ -178,6 +178,11 @@ public class FuzzyCondition extends Condition {
         throw new UnsupportedOperationException(message);
     }
 
+    @Override
+    public String getType() {
+        return "fuzzy";
+    }
+
     /**
      * {@inheritDoc}
      */

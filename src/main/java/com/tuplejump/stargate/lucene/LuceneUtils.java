@@ -19,6 +19,8 @@ package com.tuplejump.stargate.lucene;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.slf4j.Logger;
@@ -36,9 +38,10 @@ import java.util.Locale;
  * User: satya
  */
 public class LuceneUtils {
-    public static final String RK_NAME_INDEXED = "_row_key_";
-    public static final String PK_NAME_STORED = "_p_key";
-    public static final String PK_NAME_DOC_VAL = "_p_key_val";
+    public static final String RK_INDEXED = "_rk_idx";
+    public static final String RK_BYTES = "_rk_bytes";
+    public static final String PK_NAME = "_pk_name";
+    public static final String PK_BYTES = "_pk_bytes";
     public static final String CF_TS_DOC_VAL = "_cf_ts_val";
     public static final String CF_TS_INDEXED = "_cf_ts";
     private static final Logger logger = LoggerFactory.getLogger(LuceneUtils.class);
@@ -149,21 +152,25 @@ public class LuceneUtils {
     }
 
 
-    public static SortedDocValues getRKDocValues(AtomicReader atomicReader) throws IOException {
-        return atomicReader.getSortedDocValues(LuceneUtils.PK_NAME_DOC_VAL);
+    public static SortedDocValues getPKBytesDocValues(AtomicReader atomicReader) throws IOException {
+        return atomicReader.getSortedDocValues(LuceneUtils.PK_BYTES);
     }
 
-    public static SortedDocValues getPKDocValues(AtomicReader atomicReader) throws IOException {
-        return atomicReader.getSortedDocValues(LuceneUtils.PK_NAME_STORED);
+    public static SortedDocValues getPKNameDocValues(AtomicReader atomicReader) throws IOException {
+        return atomicReader.getSortedDocValues(LuceneUtils.PK_NAME);
+    }
+
+    public static SortedDocValues getRKBytesDocValues(AtomicReader atomicReader) throws IOException {
+        return atomicReader.getSortedDocValues(LuceneUtils.RK_BYTES);
     }
 
     public static NumericDocValues getTSDocValues(AtomicReader atomicReader) throws IOException {
         return atomicReader.getNumericDocValues(LuceneUtils.CF_TS_DOC_VAL);
     }
 
-    public static ByteBuffer byteBufferDocValue(BinaryDocValues rowKeyValues, int docId) throws IOException {
+    public static ByteBuffer byteBufferDocValue(BinaryDocValues docValues, int docId) throws IOException {
         BytesRef ref = new BytesRef();
-        rowKeyValues.get(docId, ref);
+        docValues.get(docId, ref);
         return ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
     }
 
@@ -179,14 +186,19 @@ public class LuceneUtils {
         return new String(ref.bytes, ref.offset, ref.length, StandardCharsets.UTF_8);
     }
 
-    public static Field idDocValue(final ByteBuffer byteBufferValue) {
+    public static Field pkBytesDocValue(final ByteBuffer byteBufferValue) {
         BytesRef bytesRef = new BytesRef(byteBufferValue.array(), byteBufferValue.arrayOffset(), byteBufferValue.limit());
-        return new SortedDocValuesField(PK_NAME_DOC_VAL, bytesRef);
+        return new SortedDocValuesField(PK_BYTES, bytesRef);
+    }
+
+    public static Field rkBytesDocValue(final ByteBuffer byteBufferValue) {
+        BytesRef bytesRef = new BytesRef(byteBufferValue.array(), byteBufferValue.arrayOffset(), byteBufferValue.limit());
+        return new SortedDocValuesField(RK_BYTES, bytesRef);
     }
 
     public static Field pkNameDocValue(final String pkName) {
         BytesRef bytesRef = new BytesRef(pkName.getBytes(StandardCharsets.UTF_8));
-        return new SortedDocValuesField(PK_NAME_STORED, bytesRef) {
+        return new SortedDocValuesField(PK_NAME, bytesRef) {
             @Override
             public String toString() {
                 return String.format("PK Name String->BinaryDocValuesField<%s>", pkName);
@@ -195,7 +207,7 @@ public class LuceneUtils {
     }
 
     public static Field rowKeyIndexed(String rkValue) {
-        return new StringField(RK_NAME_INDEXED, rkValue, Field.Store.NO);
+        return new StringField(RK_INDEXED, rkValue, Field.Store.NO);
     }
 
     public static Field textField(String name, String value) {
@@ -228,11 +240,11 @@ public class LuceneUtils {
     }
 
     public static Term idTerm(String pkString) {
-        return new Term(PK_NAME_STORED, pkString);
+        return new Term(PK_NAME, pkString);
     }
 
     public static Term rkTerm(String rkString) {
-        return new Term(RK_NAME_INDEXED, rkString);
+        return new Term(RK_INDEXED, rkString);
     }
 
     public static Term tsTerm(long ts) {
@@ -261,6 +273,10 @@ public class LuceneUtils {
         } else {
             return new Field(name, value, fieldType);
         }
+    }
+
+    public static Query getPKRangeDeleteQuery(String startPK, String endPK) {
+        return TermRangeQuery.newStringRange(PK_NAME, startPK, endPK, true, true);
     }
 
     public static class NumericConfigTL extends NumericConfig {

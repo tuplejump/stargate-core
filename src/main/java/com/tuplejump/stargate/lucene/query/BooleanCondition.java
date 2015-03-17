@@ -137,6 +137,11 @@ public class BooleanCondition extends Condition {
         return luceneQuery;
     }
 
+    @Override
+    public String getType() {
+        return "boolean";
+    }
+
     /**
      * {@inheritDoc}
      */

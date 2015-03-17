@@ -17,13 +17,12 @@
 
 package com.tuplejump.stargate.lucene;
 
-import com.tuplejump.stargate.lucene.Constants;
-import com.tuplejump.stargate.lucene.LuceneUtils;
-import com.tuplejump.stargate.lucene.Options;
-import com.tuplejump.stargate.lucene.Properties;
+import com.google.common.collect.Ordering;
+import com.google.common.collect.TreeMultimap;
 import com.tuplejump.stargate.lucene.query.Search;
 import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
 import com.tuplejump.stargate.lucene.query.function.Function;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
@@ -55,6 +54,7 @@ public class IndexEntryCollector extends Collector {
     int numHits;
     final int[] reverseMul;
     SortedDocValues pkNames;
+    SortedDocValues primaryKeys;
     SortedDocValues rowKeys;
     NumericDocValues timeStamps;
     List<String> numericDocValueNamesToFetch;
@@ -87,13 +87,14 @@ public class IndexEntryCollector extends Collector {
         reverseMul = hitQueue.getReverseMul();
         numericDocValueNamesToFetch = new ArrayList<>();
         binaryDocValueNamesToFetch = new ArrayList<>();
+
         if (function instanceof AggregateFunction) {
             AggregateFunction aggregateFunction = (AggregateFunction) function;
             List<String> groupByFields = aggregateFunction.getGroupByFields();
             List<String> aggregateFields = aggregateFunction.getAggregateFields();
             boolean abort = false;
             FieldType[] groupDocValueTypes = null;
-            if (groupByFields != null) {
+            if (groupByFields != null && !abort) {
                 groupDocValueTypes = new FieldType[groupByFields.size()];
                 for (int i = 0; i < groupByFields.size(); i++) {
                     String field = groupByFields.get(i).toLowerCase();
@@ -148,11 +149,29 @@ public class IndexEntryCollector extends Collector {
         }
     }
 
-    public List<IndexEntry> docs() {
+    public Collection<IndexEntry> docs() {
         List<IndexEntry> indexEntries = new ArrayList<>();
         IndexEntry entry;
         while ((entry = hitQueue.pop()) != null) {
             indexEntries.add(entry);
+        }
+        return indexEntries;
+    }
+
+    public TreeMultimap<ByteBuffer, IndexEntry> docsByRowKey() {
+        TreeMultimap indexEntries = TreeMultimap.create(Ordering.natural(), INDEX_ENTRY_BY_PK_COMPARATOR);
+        IndexEntry entry;
+        while ((entry = hitQueue.pop()) != null) {
+            indexEntries.put(entry.rowKey, entry);
+        }
+        return indexEntries;
+    }
+
+    public TreeMultimap<ByteBuffer, IndexEntry> docsByRowKey(AbstractType comparator) {
+        TreeMultimap indexEntries = TreeMultimap.create(Ordering.natural(), new IndexEntryComparator(comparator));
+        IndexEntry entry;
+        while ((entry = hitQueue.pop()) != null) {
+            indexEntries.put(entry.rowKey, entry);
         }
         return indexEntries;
     }
@@ -163,8 +182,9 @@ public class IndexEntryCollector extends Collector {
         for (int i = 0; i < comparators.length; i++) {
             hitQueue.setComparator(i, comparators[i].setNextReader(context));
         }
-        pkNames = LuceneUtils.getPKDocValues(context.reader());
-        rowKeys = LuceneUtils.getRKDocValues(context.reader());
+        pkNames = LuceneUtils.getPKNameDocValues(context.reader());
+        primaryKeys = LuceneUtils.getPKBytesDocValues(context.reader());
+        rowKeys = LuceneUtils.getRKBytesDocValues(context.reader());
         timeStamps = LuceneUtils.getTSDocValues(context.reader());
         for (String docValName : numericDocValueNamesToFetch) {
             numericDocValuesMap.put(docValName, context.reader().getNumericDocValues(Constants.striped + docValName));
@@ -256,6 +276,7 @@ public class IndexEntryCollector extends Collector {
 
     IndexEntry getIndexEntry(int slot, int doc, float score) throws IOException {
         String pkName = LuceneUtils.primaryKeyName(pkNames, doc);
+        ByteBuffer primaryKey = LuceneUtils.byteBufferDocValue(primaryKeys, doc);
         ByteBuffer rowKey = LuceneUtils.byteBufferDocValue(rowKeys, doc);
         long timeStamp = timeStamps.get(doc);
         Map<String, Number> numericDocValues = new HashMap<>();
@@ -268,12 +289,13 @@ public class IndexEntryCollector extends Collector {
         for (Map.Entry<String, BinaryDocValues> entry : binaryDocValuesMap.entrySet()) {
             binaryDocValues.put(entry.getKey(), LuceneUtils.stringDocValue(entry.getValue(), doc));
         }
-        return new IndexEntry(pkName, rowKey, timeStamp, slot, docBase + doc, score, numericDocValues, binaryDocValues);
+        return new IndexEntry(rowKey, pkName, primaryKey, timeStamp, slot, docBase + doc, score, numericDocValues, binaryDocValues);
     }
 
 
     public static class IndexEntry extends FieldValueHitQueue.Entry {
         public final String pkName;
+        public final ByteBuffer primaryKey;
         public final ByteBuffer rowKey;
         public final long timestamp;
         public float score;
@@ -281,10 +303,11 @@ public class IndexEntryCollector extends Collector {
         Map<String, String> binaryDocValuesMap;
 
 
-        public IndexEntry(String pkName, ByteBuffer rowKey, long timestamp, int slot, int doc, float score, Map<String, Number> numericDocValuesMap, Map<String, String> binaryDocValuesMap) {
+        public IndexEntry(ByteBuffer rowKey, String pkName, ByteBuffer primaryKey, long timestamp, int slot, int doc, float score, Map<String, Number> numericDocValuesMap, Map<String, String> binaryDocValuesMap) {
             super(slot, doc, score);
-            this.pkName = pkName;
             this.rowKey = rowKey;
+            this.pkName = pkName;
+            this.primaryKey = primaryKey;
             this.timestamp = timestamp;
             this.score = score;
             this.binaryDocValuesMap = binaryDocValuesMap;
@@ -301,7 +324,30 @@ public class IndexEntryCollector extends Collector {
 
         @Override
         public String toString() {
-            return super.toString() + "pkName[" + pkName + "]" + "rowKey[" + rowKey + "]" + "timestamp[" + timestamp + "]";
+            return super.toString() + "pkName[" + pkName + "]" + "timestamp[" + timestamp + "]";
+        }
+    }
+
+    static final IndexEntryByPKComparator indexEntryByPKComparator = new IndexEntryByPKComparator();
+    public static final IndexEntryByPKComparator INDEX_ENTRY_BY_PK_COMPARATOR = indexEntryByPKComparator;
+
+    public static class IndexEntryByPKComparator implements Comparator<IndexEntry> {
+        @Override
+        public int compare(IndexEntry o1, IndexEntry o2) {
+            return o1.pkName.compareTo(o2.pkName);
+        }
+    }
+
+    public static class IndexEntryComparator implements Comparator<IndexEntry> {
+        AbstractType compositeType;
+
+        public IndexEntryComparator(AbstractType compositeType) {
+            this.compositeType = compositeType;
+        }
+
+        @Override
+        public int compare(IndexEntry o1, IndexEntry o2) {
+            return compositeType.compare(o1.primaryKey, o2.primaryKey);
         }
     }
 }

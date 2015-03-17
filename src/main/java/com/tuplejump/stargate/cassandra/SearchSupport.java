@@ -144,7 +144,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     if (SearchSupport.logger.isDebugEnabled()) {
                         SearchSupport.logger.debug(String.format("Search results [%s]", collector.getTotalHits()));
                     }
-                    RowScanner iter = new RowScanner(searchSupport, baseCfs, filter, collector, function instanceof AggregateFunction ? false : search.isShowScore());
+                    RowScanner iter = new RowScanner(searchSupport, baseCfs, filter, collector, function.shouldTryScoring()? search.isShowScore():false);
                     Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
                     results = function.process(iter, customColumnFactory, baseCfs, currentIndex);
                     timer3.endLogTime("Aggregation [" + collector.getTotalHits() + "] results");

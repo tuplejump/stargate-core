@@ -56,6 +56,13 @@ public class Tuple extends BaseVariableResolverFactory {
         }
     }
 
+    public Object[] getTuple() {
+        return tuple;
+    }
+
+    public void setValue(String field, Object value) {
+        tuple[this.positions.get(field)] = value;
+    }
 
     public Object getValue(String field) {
         return tuple[this.positions.get(field)];

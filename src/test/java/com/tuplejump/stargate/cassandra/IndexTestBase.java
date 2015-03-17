@@ -19,6 +19,7 @@ package com.tuplejump.stargate.cassandra;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
+import com.google.common.base.Joiner;
 import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.util.CQLUnitD;
 import junit.framework.Assert;
@@ -195,6 +196,31 @@ public class IndexTestBase {
             return String.format(query1, compression, field, name, distinct, groupBy);
 
         }
+    }
+
+    protected String state(String stateName, String type, String field, String value, Integer nextWithin) {
+        if (nextWithin != null) {
+            String query = "{name:\"%s\", caseCondition:{ type:\"%s\", field:\"%s\", value:\"%s\"}, nextWithin:%s}";
+            return String.format(query, stateName, type, field, value, nextWithin);
+        } else {
+            String query = "{name:\"%s\", caseCondition:{ type:\"%s\", field:\"%s\", value:\"%s\"}}";
+            return String.format(query, stateName, type, field, value);
+        }
+    }
+
+    protected String pattern(List<String> states) {
+        Joiner joiner = Joiner.on(",\n");
+        return "pattern:[\n" + joiner.join(states) + "\n]";
+    }
+
+    protected String aggregate(String field, String name, String type, boolean distinct, String groupBy) {
+        String query1 = "aggregate:{ aggregates:[{type:\"%s\",field:\"%s\",alias:\"%s\",distinct:%b}], groupBy:[\"%s\"]  }";
+        return String.format(query1, type, field, name, distinct, groupBy);
+    }
+
+    protected String patternAggregate(String pattern, String aggregate) {
+        String query = "{ function:{ type:\"matchPartition\", %s, %s}}";
+        return String.format(query, pattern, aggregate);
     }
 
 
