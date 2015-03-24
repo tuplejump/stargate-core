@@ -19,19 +19,22 @@ package com.tuplejump.stargate;
 import com.tuplejump.stargate.cassandra.CassandraUtils;
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
 import com.tuplejump.stargate.cassandra.SearchSupport;
+import com.tuplejump.stargate.cassandra.TableMapper;
 import com.tuplejump.stargate.lucene.Constants;
 import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.lucene.index.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,7 +59,8 @@ public class RowIndex extends PerRowSecondaryIndex {
     protected String tableName;
     protected Options options;
     protected RowIndexSupport rowIndexSupport;
-    protected CFDefinition tableDefinition;
+    protected TableMapper tableMapper;
+    protected CFMetaData cfMetaData;
     private ReadWriteLock indexLock = new ReentrantReadWriteLock();
     private final Lock readLock = indexLock.readLock();
     private final Lock writeLock = indexLock.writeLock();
@@ -64,17 +68,8 @@ public class RowIndex extends PerRowSecondaryIndex {
     boolean nearRealTime = false;
     protected volatile long latest;
 
-
-    public RowIndexSupport getRowIndexSupport() {
-        return rowIndexSupport;
-    }
-
-    public String getPrimaryColumnName() {
-        return primaryColumnName;
-    }
-
-    public boolean isMetaColumn() {
-        return options.primary.isMetaColumn();
+    public TableMapper getTableMapper() {
+        return tableMapper;
     }
 
     @Override
@@ -83,15 +78,15 @@ public class RowIndex extends PerRowSecondaryIndex {
     }
 
     @Override
-    public void delete(DecoratedKey key) {
-        //base class method is never called. So nothing to do here.
+    public void delete(DecoratedKey key, OpOrder.Group opGroup) {
+        deleteByKey(key);
     }
 
     public void deleteByKey(DecoratedKey key) {
         readLock.lock();
         try {
             AbstractType<?> rkValValidator = baseCfs.metadata.getKeyValidator();
-            Term term = LuceneUtils.rkTerm(rkValValidator.getString(key.key));
+            Term term = LuceneUtils.rowkeyTerm(rkValValidator.getString(key.getKey()));
             indexContainer.indexer(key).delete(term);
         } finally {
             readLock.unlock();
@@ -101,7 +96,7 @@ public class RowIndex extends PerRowSecondaryIndex {
     public void delete(DecoratedKey decoratedKey, String pkString, Long ts) {
         readLock.lock();
         try {
-            indexContainer.indexer(decoratedKey).delete(LuceneUtils.idTerm(pkString), LuceneUtils.tsTerm(ts));
+            indexContainer.indexer(decoratedKey).delete(LuceneUtils.primaryKeyTerm(pkString), LuceneUtils.tsTerm(ts));
         } finally {
             readLock.unlock();
         }
@@ -126,7 +121,7 @@ public class RowIndex extends PerRowSecondaryIndex {
         while (true) {
             //spin busy
             //don't give the searcher out till this happens
-            if (isIndexBuilt(columnDefinition.name)) break;
+            if (isIndexBuilt(columnDefinition.name.bytes)) break;
         }
         if (!nearRealTime)
             Stargate.getInstance().catchUp(latest);
@@ -145,15 +140,16 @@ public class RowIndex extends PerRowSecondaryIndex {
             keyspace = baseCfs.metadata.ksName;
             indexName = columnDefinition.getIndexName();
             tableName = baseCfs.name;
-            tableDefinition = baseCfs.metadata.getCfDef();
-            primaryColumnName = CFDefinition.definitionType.getString(columnDefinition.name).toLowerCase();
+            cfMetaData = baseCfs.metadata;
+            primaryColumnName = columnDefinition.name.toString().toLowerCase();
             String optionsJson = columnDefinition.getIndexOptions().get(Constants.INDEX_OPTIONS_JSON);
             this.options = CassandraUtils.getOptions(primaryColumnName, baseCfs, optionsJson);
             this.nearRealTime = options.primary.isNearRealTime();
 
             logger.warn("Creating new RowIndex for {}", indexName);
             indexContainer = new IndexContainer(options.analyzer, keyspace, tableName, indexName);
-            rowIndexSupport = new RowIndexSupport(keyspace, indexContainer, options, baseCfs);
+            this.tableMapper = new TableMapper(baseCfs, options.primary.isMetaColumn(), columnDefinition);
+            rowIndexSupport = new RowIndexSupport(keyspace, indexContainer, options, tableMapper);
             Stargate.getInstance().register(rowIndexSupport);
         } finally {
             writeLock.unlock();
@@ -174,10 +170,10 @@ public class RowIndex extends PerRowSecondaryIndex {
 
 
     @Override
-    public boolean indexes(ByteBuffer name) {
-        String toCheck = rowIndexSupport.getActualColumnName(name);
+    public boolean indexes(CellName name) {
+        String toCheck = name.cql3ColumnName(cfMetaData).toString().trim();
         for (String columnName : this.options.fields.keySet()) {
-            boolean areEqual = toCheck.trim().equalsIgnoreCase(columnName.trim());
+            boolean areEqual = toCheck.equalsIgnoreCase(columnName.trim());
             if (logger.isDebugEnabled())
                 logger.debug(String.format("Comparing name for index - This column name [%s] - Passed column name [%s] - Equal [%s]", columnName, toCheck, areEqual));
             if (areEqual)
@@ -187,10 +183,15 @@ public class RowIndex extends PerRowSecondaryIndex {
     }
 
     @Override
+    public long estimateResultRows() {
+        return indexContainer.rowCount();
+    }
+
+    @Override
     public void forceBlockingFlush() {
         readLock.lock();
         try {
-            if (isIndexBuilt(columnDefinition.name)) {
+            if (isIndexBuilt(columnDefinition.name.bytes)) {
                 indexContainer.commit();
             }
         } finally {
@@ -198,18 +199,6 @@ public class RowIndex extends PerRowSecondaryIndex {
         }
     }
 
-    @Override
-    public long getLiveSize() {
-        readLock.lock();
-        try {
-            if (isIndexBuilt(columnDefinition.name)) {
-                return indexContainer.size();
-            }
-            return 0;
-        } finally {
-            readLock.unlock();
-        }
-    }
 
     /**
      * This is not backed by a CF. Instead it is backed by a lucene index.

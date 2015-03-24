@@ -40,7 +40,8 @@ import java.util.Locale;
 public class LuceneUtils {
     public static final String RK_INDEXED = "_rk_idx";
     public static final String RK_BYTES = "_rk_bytes";
-    public static final String PK_NAME = "_pk_name";
+    public static final String PK_NAME_DOC_VAL = "_pk_name_val";
+    public static final String PK_INDEXED = "_pk_idx";
     public static final String PK_BYTES = "_pk_bytes";
     public static final String CF_TS_DOC_VAL = "_cf_ts_val";
     public static final String CF_TS_INDEXED = "_cf_ts";
@@ -157,7 +158,7 @@ public class LuceneUtils {
     }
 
     public static SortedDocValues getPKNameDocValues(AtomicReader atomicReader) throws IOException {
-        return atomicReader.getSortedDocValues(LuceneUtils.PK_NAME);
+        return atomicReader.getSortedDocValues(LuceneUtils.PK_NAME_DOC_VAL);
     }
 
     public static SortedDocValues getRKBytesDocValues(AtomicReader atomicReader) throws IOException {
@@ -198,16 +199,12 @@ public class LuceneUtils {
 
     public static Field pkNameDocValue(final String pkName) {
         BytesRef bytesRef = new BytesRef(pkName.getBytes(StandardCharsets.UTF_8));
-        return new SortedDocValuesField(PK_NAME, bytesRef) {
+        return new SortedDocValuesField(PK_NAME_DOC_VAL, bytesRef) {
             @Override
             public String toString() {
                 return String.format("PK Name String->BinaryDocValuesField<%s>", pkName);
             }
         };
-    }
-
-    public static Field rowKeyIndexed(String rkValue) {
-        return new StringField(RK_INDEXED, rkValue, Field.Store.NO);
     }
 
     public static Field textField(String name, String value) {
@@ -239,12 +236,21 @@ public class LuceneUtils {
         };
     }
 
-    public static Term idTerm(String pkString) {
-        return new Term(PK_NAME, pkString);
+
+    public static Term primaryKeyTerm(String pkString) {
+        return new Term(PK_INDEXED, pkString);
     }
 
-    public static Term rkTerm(String rkString) {
+    public static Field primaryKeyField(String pkString) {
+        return new StringField(PK_INDEXED, pkString, Field.Store.NO);
+    }
+
+    public static Term rowkeyTerm(String rkString) {
         return new Term(RK_INDEXED, rkString);
+    }
+
+    public static Field rowKeyIndexed(String rkValue) {
+        return new StringField(RK_INDEXED, rkValue, Field.Store.NO);
     }
 
     public static Term tsTerm(long ts) {
@@ -276,7 +282,7 @@ public class LuceneUtils {
     }
 
     public static Query getPKRangeDeleteQuery(String startPK, String endPK) {
-        return TermRangeQuery.newStringRange(PK_NAME, startPK, endPK, true, true);
+        return TermRangeQuery.newStringRange(PK_INDEXED, startPK, endPK, true, true);
     }
 
     public static class NumericConfigTL extends NumericConfig {

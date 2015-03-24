@@ -17,8 +17,7 @@
 package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.RowIndex;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.cassandra.ResultMapper;
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
@@ -45,5 +44,5 @@ public interface Function {
 
     boolean shouldTryScoring();
 
-    List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception;
+    List<Row> process(ResultMapper resultMapper, ColumnFamilyStore table, RowIndex currentIndex) throws Exception;
 }

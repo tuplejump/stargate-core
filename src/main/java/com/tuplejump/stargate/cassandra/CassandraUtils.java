@@ -17,22 +17,19 @@
 package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Fields;
+import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.lucene.query.function.Tuple;
-import com.tuplejump.stargate.utils.Pair;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.document.FieldType;
@@ -111,9 +108,9 @@ public class CassandraUtils {
 
         Map<String, FieldType> fieldTypes = new TreeMap<>();
         Map<String, FieldType[]> collectionFieldTypes = new TreeMap<>();
-        Map<String, AbstractType> validators = new TreeMap<>();
-        Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed = new LinkedHashMap<>();
-        Map<Integer, Pair<String, ByteBuffer>> partitionKeysIndexed = new LinkedHashMap<>();
+        Map<String, ColumnDefinition> validators = new TreeMap<>();
+        Map<String, ColumnDefinition> clusteringKeysIndexed = new LinkedHashMap<>();
+        Map<String, ColumnDefinition> partitionKeysIndexed = new LinkedHashMap<>();
         Map<String, Analyzer> perFieldAnalyzers;
         Set<String> indexedColumnNames;
 
@@ -124,34 +121,33 @@ public class CassandraUtils {
 
         Set<String> added = new HashSet<>(indexedColumnNames.size());
         List<ColumnDefinition> partitionKeys = baseCfs.metadata.partitionKeyColumns();
-        List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
+        List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringColumns();
 
         for (ColumnDefinition colDef : partitionKeys) {
-            String columnName = CFDefinition.definitionType.getString(colDef.name);
+            String columnName = colDef.name.toString();
             if (Options.logger.isDebugEnabled()) {
-                Options.logger.debug("Partition key name is {} and index is {}", colName, colDef.componentIndex);
+                Options.logger.debug("Partition key name is {} and index is {}", colName, colDef.position());
             }
-            validators.put(columnName, colDef.getValidator());
+            validators.put(columnName, colDef);
             if (indexedColumnNames.contains(columnName)) {
-                int componentIndex = colDef.componentIndex == null ? 0 : colDef.componentIndex;
-                partitionKeysIndexed.put(componentIndex, Pair.create(columnName, colDef.name));
+                partitionKeysIndexed.put(colName, colDef);
                 Properties properties = mapping.getFields().get(columnName.toLowerCase());
-                addFieldType(columnName, colDef.getValidator(), properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
+                addFieldType(columnName, colDef.type, properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
                 added.add(columnName.toLowerCase());
             }
         }
 
 
         for (ColumnDefinition colDef : clusteringKeys) {
-            String columnName = CFDefinition.definitionType.getString(colDef.name);
+            String columnName = colDef.name.toString();
             if (Options.logger.isDebugEnabled()) {
-                Options.logger.debug("Clustering key name is {} and index is {}", colName, colDef.componentIndex + 1);
+                Options.logger.debug("Clustering key name is {} and index is {}", colName, colDef.position() + 1);
             }
-            validators.put(columnName, colDef.getValidator());
+            validators.put(columnName, colDef);
             if (indexedColumnNames.contains(columnName)) {
-                clusteringKeysIndexed.put(colDef.componentIndex + 1, Pair.create(columnName, colDef.name));
+                clusteringKeysIndexed.put(columnName, colDef);
                 Properties properties = mapping.getFields().get(columnName.toLowerCase());
-                addFieldType(columnName, colDef.getValidator(), properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
+                addFieldType(columnName, colDef.type, properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
                 added.add(columnName.toLowerCase());
             }
         }
@@ -161,8 +157,8 @@ public class CassandraUtils {
                 Properties options = mapping.getFields().get(columnName);
                 ColumnDefinition colDef = getColumnDefinition(baseCfs, columnName);
                 if (colDef != null) {
-                    validators.put(columnName, colDef.getValidator());
-                    addFieldType(columnName, colDef.getValidator(), options, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
+                    validators.put(columnName, colDef);
+                    addFieldType(columnName, colDef.type, options, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
                 } else {
                     throw new IllegalArgumentException(String.format("Column Definition for %s not found", columnName));
                 }
@@ -174,8 +170,8 @@ public class CassandraUtils {
         }
         Set<ColumnDefinition> otherColumns = baseCfs.metadata.regularColumns();
         for (ColumnDefinition colDef : otherColumns) {
-            String columnName = CFDefinition.definitionType.getString(colDef.name);
-            validators.put(columnName, colDef.getValidator());
+            String columnName = UTF8Type.instance.getString(colDef.name.bytes);
+            validators.put(columnName, colDef);
         }
 
         numericFieldOptions.putAll(primary.getDynamicNumericConfig());
@@ -185,8 +181,8 @@ public class CassandraUtils {
         Analyzer analyzer = new PerFieldAnalyzerWrapper(defaultAnalyzer, perFieldAnalyzers);
         Map<String, Properties.Type> types = new TreeMap<>();
         Set<String> nestedFields = new TreeSet<>();
-        for (Map.Entry<String, AbstractType> entry : validators.entrySet()) {
-            CQL3Type cql3Type = entry.getValue().asCQL3Type();
+        for (Map.Entry<String, ColumnDefinition> entry : validators.entrySet()) {
+            CQL3Type cql3Type = entry.getValue().type.asCQL3Type();
             AbstractType inner = getValueValidator(cql3Type.getType());
             if (cql3Type.isCollection()) {
                 types.put(entry.getKey(), fromAbstractType(inner.asCQL3Type()));
@@ -203,8 +199,7 @@ public class CassandraUtils {
     private static ColumnDefinition getColumnDefinition(ColumnFamilyStore baseCfs, String columnName) {
         Iterable<ColumnDefinition> cols = baseCfs.metadata.regularAndStaticColumns();
         for (ColumnDefinition columnDefinition : cols) {
-            String fromColDef = CFDefinition.definitionType.getString(columnDefinition.name);
-            if (fromColDef.equalsIgnoreCase(columnName)) return columnDefinition;
+            if (columnDefinition.name.toString().equalsIgnoreCase(columnName)) return columnDefinition;
         }
         return null;
     }
@@ -218,8 +213,8 @@ public class CassandraUtils {
             if (validator instanceof MapType) {
                 properties.setType(Properties.Type.map);
                 MapType mapType = (MapType) validator;
-                AbstractType keyValidator = mapType.keys;
-                AbstractType valueValidator = mapType.values;
+                AbstractType keyValidator = mapType.getKeysType();
+                AbstractType valueValidator = mapType.getValuesType();
                 Properties keyProps = properties.getFields().get("_key");
                 Properties valueProps = properties.getFields().get("_value");
                 if (keyProps == null) {
@@ -248,10 +243,10 @@ public class CassandraUtils {
                 AbstractType elementValidator;
                 if (validator instanceof SetType) {
                     SetType setType = (SetType) validator;
-                    elementValidator = setType.elements;
+                    elementValidator = setType.getElementsType();
                 } else {
                     ListType listType = (ListType) validator;
-                    elementValidator = listType.elements;
+                    elementValidator = listType.getElementsType();
                 }
                 setFromAbstractType(properties, elementValidator);
 
@@ -316,21 +311,6 @@ public class CassandraUtils {
         return fromAbstractType;
     }
 
-    public static String getColumnNameStr(CompositeType validator, ByteBuffer colNameBuf) {
-        ByteBuffer colName = validator.extractLastComponent(colNameBuf);
-        return CFDefinition.definitionType.getString(colName);
-    }
-
-    public static String getColumnNameStr(ByteBuffer colName) {
-        String s = CFDefinition.definitionType.getString(colName);
-        s = StringUtils.removeStart(s, ".").trim();
-        return s;
-    }
-
-    public static String getColumnName(ColumnDefinition cd) {
-        return CFDefinition.definitionType.getString(cd.name);
-    }
-
     public static FieldType fieldType(Properties properties, AbstractType validator) {
         FieldType fieldType = new FieldType();
         fieldType.setIndexed(properties.isIndexed());
@@ -365,98 +345,6 @@ public class CassandraUtils {
         return abstractType;
     }
 
-    public static ByteBuffer[] getCompositePKComponents(ColumnFamilyStore baseCfs, ByteBuffer pk) {
-        CompositeType baseComparator = (CompositeType) baseCfs.getComparator();
-        return baseComparator.split(pk);
-    }
-
-    public static org.apache.cassandra.utils.Pair<ByteBuffer, CompositeType.Builder> rowKeyAndBuilder(ColumnFamilyStore table, ByteBuffer primaryKey) {
-        ByteBuffer[] components = CassandraUtils.getCompositePKComponents(table, primaryKey);
-        final CompositeType baseComparator = (CompositeType) table.getComparator();
-        int prefixSize = baseComparator.types.size() - (table.metadata.getCfDef().hasCollections ? 2 : 1);
-        CompositeType.Builder builder = baseComparator.builder();
-        for (int i = 0; i < prefixSize; i++)
-            builder.add(components[i + 1]);
-        ByteBuffer rowKey = components[0];
-        return org.apache.cassandra.utils.Pair.create(rowKey, builder);
-    }
-
-    /**
-     * Filter a cached row, which will not be modified by the filter, but may be modified by throwing out
-     * tombstones that are no longer relevant.
-     * The returned column family won't be thread safe.
-     */
-    public static ColumnFamily filterColumnFamily(ColumnFamilyStore table, ColumnFamily cached, QueryFilter filter) {
-        ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory, filter.filter.isReversed());
-        OnDiskAtomIterator ci = filter.getColumnFamilyIterator(cached);
-
-        int gcBefore = gcBefore(table, filter.timestamp);
-        filter.collateOnDiskAtom(cf, ci, gcBefore);
-        return table.removeDeletedCF(cf, gcBefore);
-    }
-
-    public static int gcBefore(ColumnFamilyStore table, long now) {
-        return (int) (now / 1000) - table.metadata.getGcGraceSeconds();
-    }
-
-    public static void load(Map<String, Integer> positions, Tuple tuple, Row row, ColumnFamilyStore table) {
-        CompositeType baseComparator = (CompositeType) table.getComparator();
-        ColumnFamily cf = row.cf;
-        ByteBuffer rowKey = row.key.key;
-
-        Collection<Column> cols = cf.getSortedColumns();
-        boolean keyColumnsAdded = false;
-        for (Column column : cols) {
-            if (!keyColumnsAdded) {
-                addKeyColumns(positions, tuple, table, rowKey);
-                keyColumnsAdded = true;
-            }
-            String actualColumnName = CassandraUtils.getColumnNameStr(baseComparator, column.name());
-            ByteBuffer colValue = column.value();
-            AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
-            if (valueValidator.isCollection()) {
-                CollectionType validator = (CollectionType) valueValidator;
-                AbstractType keyType = validator.nameComparator();
-                AbstractType valueType = validator.valueComparator();
-                ByteBuffer[] components = baseComparator.split(column.name());
-                ByteBuffer keyBuf = components[components.length - 1];
-                if (valueValidator instanceof MapType) {
-                    actualColumnName = actualColumnName + "." + keyType.compose(keyBuf);
-                    valueValidator = valueType;
-                } else if (valueValidator instanceof SetType) {
-                    colValue = keyBuf;
-                    valueValidator = keyType;
-                } else {
-                    valueValidator = valueType;
-                }
-            }
-            for (String field : positions.keySet()) {
-                if (actualColumnName.equalsIgnoreCase(field)) {
-                    tuple.getTuple()[positions.get(field)] = valueValidator.compose(colValue);
-                }
-            }
-        }
-    }
-
-    private static void addKeyColumns(Map<String, Integer> positions, Tuple tuple, ColumnFamilyStore table, ByteBuffer rowKey) {
-        CFDefinition cfDef = table.metadata.getCfDef();
-        AbstractType<?> keyValidator = table.metadata.getKeyValidator();
-        ByteBuffer[] keyComponents = cfDef.hasCompositeKey ? ((CompositeType) table.metadata.getKeyValidator()).split(rowKey) : new ByteBuffer[]{rowKey};
-        List<AbstractType<?>> keyValidators = keyValidator.getComponents();
-        List<ColumnDefinition> partitionKeys = table.metadata.partitionKeyColumns();
-
-        for (ColumnDefinition entry : partitionKeys) {
-            int componentIndex = entry.componentIndex == null ? 0 : entry.componentIndex;
-            ByteBuffer value = keyComponents[componentIndex];
-            AbstractType<?> validator = keyValidators.get(componentIndex);
-            String actualColumnName = CFDefinition.definitionType.getString(entry.name);
-            for (String field : positions.keySet()) {
-                if (actualColumnName.equalsIgnoreCase(field)) {
-                    tuple.getTuple()[positions.get(field)] = validator.compose(value);
-                }
-            }
-        }
-    }
 
 
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
+import org.mapdb.Atomic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,8 +59,11 @@ public class BasicIndexer implements Indexer {
 
     protected SearcherManager searcherManager;
 
-    public BasicIndexer(Analyzer analyzer, String keyspaceName, String cfName, String indexName, String vNodeName) {
+    protected Atomic.Long records;
+
+    public BasicIndexer(Atomic.Long records, Analyzer analyzer, String keyspaceName, String cfName, String indexName, String vNodeName) {
         try {
+            this.records = records;
             init(analyzer, keyspaceName, cfName, indexName, vNodeName);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -96,6 +100,7 @@ public class BasicIndexer implements Indexer {
             logger.debug(indexName + " Indexing fields" + doc);
 
         try {
+            records.incrementAndGet();
             indexWriter.addDocument(doc);
             searcherManager.maybeRefresh();
         } catch (IOException e) {
@@ -104,12 +109,13 @@ public class BasicIndexer implements Indexer {
     }
 
     @Override
-    public void upsert(Term term,Iterable<Field> doc) {
+    public void upsert(Term term, Iterable<Field> doc) {
         if (logger.isDebugEnabled())
             logger.debug(indexName + " Indexing fields" + doc);
 
         try {
-            indexWriter.updateDocument(term,doc);
+            records.incrementAndGet();
+            indexWriter.updateDocument(term, doc);
             searcherManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -216,6 +222,11 @@ public class BasicIndexer implements Indexer {
         } else {
             return 0;
         }
+    }
+
+    @Override
+    public long approxRowCount() {
+        return records.get();
     }
 
     @Override

@@ -16,9 +16,11 @@
 
 package com.tuplejump.stargate;
 
+import org.apache.cassandra.db.AtomicBTreeColumns;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnSerializer;
-import org.apache.cassandra.db.TreeMapBackedSortedColumns;
+import org.apache.cassandra.io.util.AbstractDataOutput;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.mapdb.Serializer;
@@ -46,11 +48,22 @@ public class IndexEntryEvent implements Serializable {
     public static class IndexEntryEventSerializer implements Serializer<IndexEntryEvent>, Serializable {
 
         @Override
-        public void serialize(DataOutput appender, IndexEntryEvent value) throws IOException {
+        public void serialize(final DataOutput appender, IndexEntryEvent value) throws IOException {
             appender.writeByte(value.type.getByte());
             appender.writeInt(value.rowKey.remaining());
-            ByteBufferUtil.write(value.rowKey, appender);
-            ColumnFamily.serializer.serialize(value.columnFamily, appender, MessagingService.current_version);
+            Utils.write(value.rowKey, appender);
+            DataOutputPlus dataOutputPlus = new AbstractDataOutput() {
+                @Override
+                public void write(byte[] buffer, int offset, int count) throws IOException {
+                    appender.write(buffer, offset, count);
+                }
+
+                @Override
+                public void write(int oneByte) throws IOException {
+                    appender.write(oneByte);
+                }
+            };
+            ColumnFamily.serializer.serialize(value.columnFamily, dataOutputPlus, MessagingService.current_version);
         }
 
         @Override
@@ -58,7 +71,7 @@ public class IndexEntryEvent implements Serializable {
             Type type = Type.fromByte(in.readByte());
             int rowKeyLength = in.readInt();
             ByteBuffer rowKeyBuffer = ByteBufferUtil.read(in, rowKeyLength);
-            ColumnFamily columnFamily = ColumnFamily.serializer.deserialize(in, TreeMapBackedSortedColumns.factory, ColumnSerializer.Flag.LOCAL, MessagingService.current_version);
+            ColumnFamily columnFamily = ColumnFamily.serializer.deserialize(in, AtomicBTreeColumns.factory, ColumnSerializer.Flag.LOCAL, MessagingService.current_version);
             return new IndexEntryEvent(type, rowKeyBuffer, columnFamily);
         }
 

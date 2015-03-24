@@ -35,6 +35,8 @@ public interface Indexer {
     public long liveSize();
     public long size();
 
+    public long approxRowCount();
+
     public void commit();
 
     public void close();

@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.mapdb.Atomic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +42,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * User: satya
  */
 public class IndexContainer {
+    public static final String INDEX_RECORDS = "index-num-records";
     protected static final Logger logger = LoggerFactory.getLogger(RowIndex.class);
     static ExecutorService executorService = Executors.newFixedThreadPool(10);
     Map<Range<Token>, Indexer> indexers = new HashMap<>();
@@ -65,7 +67,9 @@ public class IndexContainer {
             if (indexers.isEmpty()) {
                 logger.warn("Adding VNode indexers");
                 for (Range<Token> range : ranges) {
-                    Indexer indexer = new BasicIndexer(analyzer, keyspace, cf, indexName, range.left.toString());
+                    String rangeStr = range.left.toString();
+                    Atomic.Long records = Stargate.getInstance().getAtomicLong(INDEX_RECORDS + "-" + indexName + "-" + rangeStr);
+                    Indexer indexer = new BasicIndexer(records, analyzer, keyspace, cf, indexName, rangeStr);
                     indexers.put(range, indexer);
                     logger.warn("Added VNode indexers for range {}", range);
                 }
@@ -157,6 +161,15 @@ public class IndexContainer {
             size += (indexer == null) ? 0 : indexer.liveSize();
         }
         return size;
+    }
+
+    public long rowCount() {
+        long size = 0;
+        for (Indexer indexer : indexers.values()) {
+            size += (indexer == null) ? 0 : indexer.approxRowCount();
+        }
+        return size;
+
     }
 
     public void remove() {

@@ -17,17 +17,18 @@
 package com.tuplejump.stargate;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.lucene.document.*;
 import org.apache.lucene.util.BytesRef;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Date;
+import java.util.List;
+import java.util.StringTokenizer;
+import java.util.UUID;
 
 import static com.tuplejump.stargate.lucene.Constants.striped;
 
@@ -77,8 +78,9 @@ public class Fields {
             }
         } catch (MarshalException e) {
             return new Field(name, "_null_", STRING_FIELD_TYPE);
+        } catch (IndexOutOfBoundsException e) {
+            return new Field(name, "_null_", STRING_FIELD_TYPE);
         }
-
     }
 
     public static String reorderTimeUUId(String originalTimeUUID) {
@@ -119,12 +121,6 @@ public class Fields {
             return ByteBufferUtil.bytes(0l);
         } else if (cqlType == CQL3Type.Native.BOOLEAN) {
             return BooleanType.instance.decompose(min ? false : true);
-        } else if (type.isCollection()) {
-            CollectionType collectionType = (CollectionType) type;
-            List<Pair<ByteBuffer, Column>> collection = new ArrayList<>();
-            ByteBuffer dummyColumn = defaultValue(collectionType.nameComparator());
-            collection.add(Pair.create(dummyColumn, new Column(dummyColumn, defaultValue(collectionType.valueComparator(), min))));
-            return collectionType.serialize(collection);
         } else {
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
         }

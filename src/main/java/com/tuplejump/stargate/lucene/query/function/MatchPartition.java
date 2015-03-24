@@ -19,18 +19,14 @@ package com.tuplejump.stargate.lucene.query.function;
 import com.google.common.collect.Lists;
 import com.google.common.collect.TreeMultimap;
 import com.tuplejump.stargate.RowIndex;
-import com.tuplejump.stargate.cassandra.CassandraUtils;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.cassandra.ResultMapper;
 import com.tuplejump.stargate.lucene.IndexEntryCollector;
 import com.tuplejump.stargate.lucene.Options;
-import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.BasicOperations;
 import org.codehaus.jackson.annotate.JsonCreator;
@@ -86,7 +82,7 @@ public class MatchPartition implements Function {
     }
 
     @Override
-    public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, final ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
+    public List<Row> process(final ResultMapper resultMapper, final ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
         Set<String> automatonFields = new HashSet<>();
         for (int i = 0; i < states.length; i++) {
             automatonFields.add(states[i].getAutomatonField());
@@ -112,26 +108,20 @@ public class MatchPartition implements Function {
         aggregateFunction.simpleExpressions = allExpressions;
 
 
-        TreeMultimap<ByteBuffer, IndexEntryCollector.IndexEntry> docs = rowScanner.getCollector().docsByRowKey(table.getComparator());
+        TreeMultimap<ByteBuffer, IndexEntryCollector.IndexEntry> docs = resultMapper.collector.docsByRowKey(table.metadata.getKeyValidator());
         NavigableSet<ByteBuffer> rowKeys = docs.keySet();
         List<Tuple> allMatches = new ArrayList<>();
         for (ByteBuffer rowKey : rowKeys) {
-            ArrayList<IndexEntryCollector.IndexEntry> entries = new ArrayList<>(docs.get(rowKey));
-            IndexEntryCollector.IndexEntry first = entries.get(0);
-            IndexEntryCollector.IndexEntry last = entries.get(entries.size() - 1);
             final DecoratedKey dk = table.partitioner.decorateKey(rowKey);
-            CompositeType.Builder firstBuilder = CassandraUtils.rowKeyAndBuilder(table, first.primaryKey).right;
-            CompositeType.Builder lastBuilder = CassandraUtils.rowKeyAndBuilder(table, last.primaryKey).right;
-            QueryFilter sliceQueryFilter = QueryFilter.getSliceFilter(dk, table.name, firstBuilder.buildForRelation(Relation.Type.GTE), lastBuilder.buildForRelation(Relation.Type.LTE), false, Integer.MAX_VALUE, now);
-            final ColumnFamily fullSlice = table.getColumnFamily(sliceQueryFilter);
+            ArrayList<IndexEntryCollector.IndexEntry> entries = new ArrayList<>(docs.get(rowKey));
+            final ColumnFamily fullSlice = resultMapper.fetchRangeSlice(entries, dk);
             List<Tuple> tuples = Lists.transform(entries, new com.google.common.base.Function<IndexEntryCollector.IndexEntry, Tuple>() {
                 @Override
                 public Tuple apply(IndexEntryCollector.IndexEntry input) {
-                    CompositeType.Builder builder = CassandraUtils.rowKeyAndBuilder(table, input.primaryKey).right;
-                    QueryFilter queryFilter = QueryFilter.getSliceFilter(dk, table.name, builder.build(), builder.buildAsEndOfRange(), false, Integer.MAX_VALUE, now);
-                    ColumnFamily cf = CassandraUtils.filterColumnFamily(table, fullSlice, queryFilter);
+                    CellName cellName = resultMapper.clusteringKey(input.primaryKey);
+                    ColumnFamily cf = resultMapper.fetchSingleRow(dk, fullSlice, cellName);
                     Tuple tuple = aggregateFunction.createTuple(options);
-                    CassandraUtils.load(positions, tuple, new Row(dk, cf), table);
+                    resultMapper.tableMapper.load(positions, tuple, new Row(dk, cf));
                     return tuple;
                 }
             });
@@ -142,7 +132,7 @@ public class MatchPartition implements Function {
         for (Tuple match : allMatches) {
             aggregateFunction.getGroup().addTuple(match);
         }
-        Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, aggregateFunction.getGroup().toByteBuffer());
+        Row row = resultMapper.tableMapper.getRowWithMetaColumn(aggregateFunction.getGroup().toByteBuffer());
         return Collections.singletonList(row);
     }
 

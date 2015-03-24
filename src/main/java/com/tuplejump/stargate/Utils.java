@@ -18,6 +18,10 @@ package com.tuplejump.stargate;
 
 import org.slf4j.Logger;
 
+import java.io.DataOutput;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
 /**
  * User: satya
  */
@@ -77,6 +81,30 @@ public class Utils {
             return timeNano();
         }
 
+    }
+
+    public static String stringify(ByteBuffer byteBuffer) {
+        return javax.xml.bind.DatatypeConverter.printBase64Binary(getBytes(byteBuffer));
+    }
+
+    public static byte[] getBytes(ByteBuffer bb) {
+        byte[] b = new byte[bb.remaining()];
+        bb.get(b);
+        return b;
+    }
+    public static void write(ByteBuffer buffer, DataOutput out) throws IOException
+    {
+        if (buffer.hasArray())
+        {
+            out.write(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+        }
+        else
+        {
+            for (int i = buffer.position(); i < buffer.limit(); i++)
+            {
+                out.writeByte(buffer.get(i));
+            }
+        }
     }
 
 
