@@ -72,16 +72,6 @@ dependencies {
 
 }
 
-/*test {
-    systemProperty "cluster", System.getProperty("cluster")
-    jvmArgs '-javaagent:ext/jamm-0.2.5.jar'
-}
-
-task perfTest(type: Test) << {
-    jvmArgs '-javaagent:ext/jamm-0.2.5.jar'
-    include 'com/tuplejump/perf/**'
-}*/
-
 task javadocJar(type: Jar) {
     classifier = 'javadoc'
     from javadoc
