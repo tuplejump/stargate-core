@@ -139,8 +139,8 @@ public class RowIndexSupport {
         List<Field> fields = primaryKeysVsFields.get(primaryKey);
         if (fields == null) {
             // new pk found
-            if (logger.isWarnEnabled()) {
-                logger.warn("New PK found {}", primaryKey);
+            if (logger.isTraceEnabled()) {
+                logger.trace("New PK found {}", primaryKey);
             }
             fields = new LinkedList<>();
             primaryKeysVsFields.put(primaryKey, fields);

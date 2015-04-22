@@ -114,23 +114,28 @@ public class MatchPartition implements Function {
         for (ByteBuffer rowKey : rowKeys) {
             final DecoratedKey dk = table.partitioner.decorateKey(rowKey);
             ArrayList<IndexEntryCollector.IndexEntry> entries = new ArrayList<>(docs.get(rowKey));
-            final ColumnFamily fullSlice = resultMapper.fetchRangeSlice(entries, dk);
+            final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchRangeSlice(entries, dk);
             List<Tuple> tuples = Lists.transform(entries, new com.google.common.base.Function<IndexEntryCollector.IndexEntry, Tuple>() {
                 @Override
                 public Tuple apply(IndexEntryCollector.IndexEntry input) {
-                    CellName cellName = resultMapper.clusteringKey(input.primaryKey);
-                    ColumnFamily cf = resultMapper.fetchSingleRow(dk, fullSlice, cellName);
-                    Tuple tuple = aggregateFunction.createTuple(options);
-                    resultMapper.tableMapper.load(positions, tuple, new Row(dk, cf));
-                    return tuple;
+                    CellName cellName = resultMapper.makeClusteringKey(input.primaryKey);
+                    ColumnFamily cf = fullSlice.get(cellName);
+                    if (cf != null) {
+                        Tuple tuple = aggregateFunction.createTuple(options);
+                        resultMapper.tableMapper.load(positions, tuple, new Row(dk, cf));
+                        return tuple;
+                    }
+                    return null;
                 }
+
             });
             ListIterator<Tuple> iter = tuples.listIterator();
             allMatches.addAll(matchPartition(maxMatches, iter));
         }
         //now that all rows have been matched,lets run the matches through the group
         for (Tuple match : allMatches) {
-            aggregateFunction.getGroup().addTuple(match);
+            if (match != null)
+                aggregateFunction.getGroup().addTuple(match);
         }
         Row row = resultMapper.tableMapper.getRowWithMetaColumn(aggregateFunction.getGroup().toByteBuffer());
         return Collections.singletonList(row);

@@ -144,7 +144,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     ResultMapper iter = new ResultMapper(tableMapper, searchSupport, filter, collector, function.shouldTryScoring() && search.isShowScore());
                     Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
                     results = function.process(iter, baseCfs, currentIndex);
-                    timer3.endLogTime("Aggregation [" + collector.getTotalHits() + "] results");
+                    timer3.endLogTime("Aggregation [" + results.size() + "] results");
                 }
                 timer.endLogTime("Search with results [" + results.size() + "] ");
                 return results;

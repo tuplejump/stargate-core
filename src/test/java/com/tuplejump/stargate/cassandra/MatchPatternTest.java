@@ -46,7 +46,10 @@ public class MatchPatternTest extends IndexTestBase {
             String aggregate = aggregate("user", "steps", "count", true, "$match");
             String fap = patternAggregate(matchPattern, aggregate);
             countResults("MP", "magic = '" + fap + "'", true);
-
+            String matchPattern2 = pattern(Arrays.asList(home, browse));
+            String aggregate2 = aggregate("state", "state", "values", false, "$match");
+            String fap2 = patternAggregate(matchPattern2, aggregate2);
+            countResults("MP", "magic = '" + fap2 + "'", true);
         } finally {
             dropTable(keyspace, "MP");
             dropKS(keyspace);

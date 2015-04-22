@@ -98,7 +98,7 @@ public class MatchCondition extends Condition implements Selector {
         Properties properties = schema.getProperties(field);
         Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
         Query query;
-        if (fieldType.isCharSeq()) {
+        if (fieldType.isCharSeq() || fieldType == Properties.Type.bool) {
             String analyzedValue = analyze(field, value.toString(), schema.analyzer);
             if (analyzedValue == null) {
                 throw new IllegalArgumentException("Value discarded by analyzer");
@@ -160,38 +160,38 @@ public class MatchCondition extends Condition implements Selector {
             throw new IllegalArgumentException("Field value required");
         }
         try {
-        NumericConfig numericConfig = schema.numericFieldOptions.get(field);
-        Properties properties = schema.getProperties(field);
-        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
-        if (fieldType.isCharSeq()) {
-            String analyzedValue = analyze(field, value.toString(), schema.analyzer);
-            if (analyzedValue == null) {
-                throw new IllegalArgumentException("Value discarded by analyzer");
-            }
-            return BasicAutomata.makeString(analyzedValue);
-        } else if (fieldType == Properties.Type.integer) {
-            assert numericConfig != null;
-            Integer value = null;
+            NumericConfig numericConfig = schema.numericFieldOptions.get(field);
+            Properties properties = schema.getProperties(field);
+            Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+            if (fieldType.isCharSeq()) {
+                String analyzedValue = analyze(field, value.toString(), schema.analyzer);
+                if (analyzedValue == null) {
+                    throw new IllegalArgumentException("Value discarded by analyzer");
+                }
+                return BasicAutomata.makeString(analyzedValue);
+            } else if (fieldType == Properties.Type.integer) {
+                assert numericConfig != null;
+                Integer value = null;
 
                 value = numericConfig.getNumberFormat().parse(this.value.toString()).intValue();
 
-            return BasicAutomata.makeString(value.toString());
-        } else if (fieldType == Properties.Type.bigint || fieldType == Properties.Type.date) {
-            assert numericConfig != null;
-            Long value = numericConfig.getNumberFormat().parse(this.value.toString()).longValue();
-            return BasicAutomata.makeString(value.toString());
-        } else if (fieldType == Properties.Type.decimal) {
-            assert numericConfig != null;
-            Float value = numericConfig.getNumberFormat().parse(this.value.toString()).floatValue();
-            return BasicAutomata.makeString(value.toString());
-        } else if (fieldType == Properties.Type.bigdecimal) {
-            assert numericConfig != null;
-            Double value = numericConfig.getNumberFormat().parse(this.value.toString()).doubleValue();
-            return BasicAutomata.makeString(value.toString());
-        } else {
-            String message = String.format("Match pattern queries are not supported by %s mapper", fieldType);
-            throw new UnsupportedOperationException(message);
-        }
+                return BasicAutomata.makeString(value.toString());
+            } else if (fieldType == Properties.Type.bigint || fieldType == Properties.Type.date) {
+                assert numericConfig != null;
+                Long value = numericConfig.getNumberFormat().parse(this.value.toString()).longValue();
+                return BasicAutomata.makeString(value.toString());
+            } else if (fieldType == Properties.Type.decimal) {
+                assert numericConfig != null;
+                Float value = numericConfig.getNumberFormat().parse(this.value.toString()).floatValue();
+                return BasicAutomata.makeString(value.toString());
+            } else if (fieldType == Properties.Type.bigdecimal) {
+                assert numericConfig != null;
+                Double value = numericConfig.getNumberFormat().parse(this.value.toString()).doubleValue();
+                return BasicAutomata.makeString(value.toString());
+            } else {
+                String message = String.format("Match pattern queries are not supported by %s mapper", fieldType);
+                throw new UnsupportedOperationException(message);
+            }
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }

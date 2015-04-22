@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 
 /**
@@ -54,8 +55,6 @@ public class RowFetcher {
         TreeMultimap<ByteBuffer, IndexEntryCollector.IndexEntry> docs = resultMapper.collector.docsByRowKey(table.metadata.getKeyValidator());
         NavigableSet<ByteBuffer> rowKeys = docs.keySet();
         for (ByteBuffer rowKey : rowKeys) {
-            if (columnsCount >= limit) break;
-
             ArrayList<IndexEntryCollector.IndexEntry> entries = new ArrayList<>(docs.get(rowKey));
             final DecoratedKey dk = table.partitioner.decorateKey(rowKey);
             if (!resultMapper.filter.dataRange.contains(dk)) {
@@ -64,24 +63,24 @@ public class RowFetcher {
                 }
                 continue;
             }
-            final ColumnFamily fullSlice = resultMapper.fetchRangeSlice(entries, dk);
+            final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchRangeSlice(entries, dk);
             for (IndexEntryCollector.IndexEntry input : entries) {
-                if (columnsCount >= limit) break;
-                CellName cellName = resultMapper.clusteringKey(input.primaryKey);
+
+                CellName cellName = resultMapper.makeClusteringKey(input.primaryKey);
                 if (!resultMapper.filter.columnFilter(dk.getKey()).maySelectPrefix(table.getComparator(), cellName.start())) {
                     continue;
                 }
-                ColumnFamily data = resultMapper.fetchSingleRow(dk, fullSlice, cellName);
-
-                if (resultMapper.searchSupport.deleteIfNotLatest(dk, data.maxTimestamp(), input.pkName, data))
+                ColumnFamily data = fullSlice.get(cellName);
+                if (data == null || resultMapper.searchSupport.deleteIfNotLatest(dk, data.maxTimestamp(), input.pkName, data))
                     continue;
-
                 float score = input.score;
                 ColumnFamily cleanColumnFamily = resultMapper.showScore ? scored(score, data) : data;
                 resultMapper.removeDroppedColumns(cleanColumnFamily);
                 rows.add(new Row(dk, cleanColumnFamily));
                 columnsCount++;
+                if (columnsCount >= limit) break;
             }
+            if (columnsCount >= limit) break;
         }
 
         return rows;
