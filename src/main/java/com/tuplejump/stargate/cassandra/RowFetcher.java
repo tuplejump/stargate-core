@@ -28,7 +28,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +37,7 @@ import java.util.NavigableSet;
  * User: satya
  */
 public class RowFetcher {
-    protected static final Logger logger = LoggerFactory.getLogger(ResultMapper.class);
+    protected static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
     ResultMapper resultMapper;
     int columnsCount;
     int limit;
@@ -52,21 +51,21 @@ public class RowFetcher {
 
     public List<Row> fetchRows() throws IOException {
         List<Row> rows = new ArrayList<>();
-        TreeMultimap<ByteBuffer, IndexEntryCollector.IndexEntry> docs = resultMapper.collector.docsByRowKey(table.metadata.getKeyValidator());
-        NavigableSet<ByteBuffer> rowKeys = docs.keySet();
-        for (ByteBuffer rowKey : rowKeys) {
-            ArrayList<IndexEntryCollector.IndexEntry> entries = new ArrayList<>(docs.get(rowKey));
-            final DecoratedKey dk = table.partitioner.decorateKey(rowKey);
+        TreeMultimap<DecoratedKey, IndexEntryCollector.IndexEntry> docs = resultMapper.docsByRowKey();
+
+        for (DecoratedKey dk : docs.keySet()) {
+            NavigableSet<IndexEntryCollector.IndexEntry> entries = docs.get(dk);
+
             if (!resultMapper.filter.dataRange.contains(dk)) {
-                if (SearchSupport.logger.isTraceEnabled()) {
-                    SearchSupport.logger.trace("Skipping entry {} outside of assigned scan range", dk.getToken());
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Skipping entry {} outside of assigned scan range", dk.getToken());
                 }
                 continue;
             }
             final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchRangeSlice(entries, dk);
-            for (IndexEntryCollector.IndexEntry input : entries) {
 
-                CellName cellName = resultMapper.makeClusteringKey(input.primaryKey);
+            for (IndexEntryCollector.IndexEntry input : entries) {
+                CellName cellName = input.clusteringKey;
                 if (!resultMapper.filter.columnFilter(dk.getKey()).maySelectPrefix(table.getComparator(), cellName.start())) {
                     continue;
                 }
@@ -75,12 +74,11 @@ public class RowFetcher {
                     continue;
                 float score = input.score;
                 ColumnFamily cleanColumnFamily = resultMapper.showScore ? scored(score, data) : data;
-                resultMapper.removeDroppedColumns(cleanColumnFamily);
                 rows.add(new Row(dk, cleanColumnFamily));
                 columnsCount++;
-                if (columnsCount >= limit) break;
+                if (columnsCount > limit) break;
             }
-            if (columnsCount >= limit) break;
+            if (columnsCount > limit) break;
         }
 
         return rows;

@@ -36,11 +36,6 @@ public class NoOp implements Function {
     }
 
     @Override
-    public boolean shouldLimit() {
-        return true;
-    }
-
-    @Override
     public boolean shouldTryScoring() {
         return true;
     }

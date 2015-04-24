@@ -16,7 +16,9 @@
 
 package com.tuplejump.stargate.cassandra;
 
+import com.google.common.collect.TreeMultimap;
 import com.tuplejump.stargate.lucene.IndexEntryCollector;
+import com.tuplejump.stargate.lucene.IndexEntryCollector.IndexEntry;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.Cell;
@@ -29,10 +31,11 @@ import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -41,6 +44,8 @@ import java.util.Map;
  * A mapper which helps in reading the actual rows from Cassandra using the search results
  */
 public class ResultMapper {
+
+    public static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
     public final ExtendedFilter filter;
     public final IndexEntryCollector collector;
     public final int limit;
@@ -57,11 +62,6 @@ public class ResultMapper {
         this.showScore = showScore;
     }
 
-    public ColumnFamily fetchSingleRow(DecoratedKey dk, ColumnFamily fullSlice, CellName cellName) {
-        QueryFilter queryFilter = QueryFilter.getSliceFilter(dk, tableMapper.table.name, start(cellName), end(cellName), false, Integer.MAX_VALUE, filter.timestamp);
-        return tableMapper.filterColumnFamily(fullSlice, queryFilter);
-    }
-
 
     private final Composite start(CellName cellName) {
         CBuilder builder = tableMapper.clusteringCType.builder();
@@ -72,12 +72,12 @@ public class ResultMapper {
         return builder.build();
     }
 
-    private final Composite end(CellName cellName) {
-        return start(cellName).withEOC(Composite.EOC.END);
+    private final Composite end(Composite start) {
+        return start.withEOC(Composite.EOC.END);
     }
 
 
-    public Map<CellName, ColumnFamily> fetchRangeSlice(ArrayList<IndexEntryCollector.IndexEntry> entries, DecoratedKey dk) {
+    public Map<CellName, ColumnFamily> fetchRangeSlice(Collection<IndexEntry> entries, DecoratedKey dk) {
         ColumnSlice[] columnSlices = getColumnSlices(entries);
         SliceQueryFilter sliceQueryFilter = new SliceQueryFilter(columnSlices, false, Integer.MAX_VALUE);
         QueryFilter queryFilter = new QueryFilter(dk, tableMapper.table.name, sliceQueryFilter, filter.timestamp);
@@ -86,30 +86,36 @@ public class ResultMapper {
     }
 
 
+    public TreeMultimap docsByRowKey() {
+        return collector.docsByRowKey();
+    }
+
     public final Map<CellName, ColumnFamily> getRows(ColumnFamily columnFamily) {
         Map<CellName, ColumnFamily> columnFamilies = new LinkedHashMap<>();
         for (Cell cell : columnFamily) {
             CellName cellName = cell.name();
             CellName clusteringKey = tableMapper.extractClusteringKey(cellName);
-            ColumnFamily rowColumnFamily = columnFamilies.get(clusteringKey);
-            if (rowColumnFamily == null) {
-                rowColumnFamily = ArrayBackedSortedColumns.factory.create(tableMapper.cfMetaData);
-                columnFamilies.put(clusteringKey, rowColumnFamily);
+            ColumnFamily row = columnFamilies.get(clusteringKey);
+
+            if (row == null) {
+                row = ArrayBackedSortedColumns.factory.create(tableMapper.cfMetaData);
+                columnFamilies.put(clusteringKey, row);
             }
-            rowColumnFamily.addColumn(cell);
+            if (!isDroppedColumn(cell, tableMapper.cfMetaData)) {
+                row.addColumn(cell);
+            }
 
         }
         return columnFamilies;
     }
 
 
-    private final ColumnSlice[] getColumnSlices(ArrayList<IndexEntryCollector.IndexEntry> entries) {
+    private final ColumnSlice[] getColumnSlices(Collection<IndexEntry> entries) {
         ColumnSlice[] columnSlices = new ColumnSlice[entries.size()];
         int i = 0;
-        for (IndexEntryCollector.IndexEntry entry : entries) {
-            CellName clusteringKey = makeClusteringKey(entry.primaryKey);
-            Composite start = start(clusteringKey);
-            Composite end = end(clusteringKey);
+        for (IndexEntry entry : entries) {
+            Composite start = start(entry.clusteringKey);
+            Composite end = end(start);
             ColumnSlice columnSlice = new ColumnSlice(start, end);
             columnSlices[i++] = columnSlice;
 
@@ -117,28 +123,9 @@ public class ResultMapper {
         return columnSlices;
     }
 
-    public void removeDroppedColumns(ColumnFamily cf) {
-        CFMetaData metadata = cf.metadata();
-        if (metadata.getDroppedColumns().isEmpty())
-            return;
-
-        Iterator<Cell> iter = cf.iterator();
-        while (iter.hasNext())
-            if (isDroppedColumn(iter.next(), metadata)) {
-                iter.remove();
-            }
-    }
-
-
-    public CellName makeClusteringKey(ByteBuffer primaryKey) {
-        ByteBuffer clusteringKeyBuf = tableMapper.primaryKeyType.extractLastComponent(primaryKey);
-        return tableMapper.clusteringCType.cellFromByteBuffer(clusteringKeyBuf);
-    }
-
     private boolean isDroppedColumn(Cell c, CFMetaData meta) {
         Long droppedAt = meta.getDroppedColumns().get(c.name().cql3ColumnName(meta));
         return droppedAt != null && c.timestamp() <= droppedAt;
     }
-
 
 }

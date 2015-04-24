@@ -128,14 +128,11 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     Function function = search.function(options);
                     Query query = search.query(options);
                     int resultsLimit = searcher.getIndexReader().maxDoc();
-                    if (function.shouldLimit()) {
-                        if (resultsLimit == 0) {
-                            resultsLimit = 1;
-                        }
-                        resultsLimit = Math.min(filter.currentLimit() + 1, resultsLimit);
+                    if (resultsLimit == 0) {
+                        resultsLimit = 1;
                     }
                     function.init(options);
-                    IndexEntryCollector collector = new IndexEntryCollector(function, search, options, resultsLimit);
+                    IndexEntryCollector collector = new IndexEntryCollector(tableMapper, function, search, options, resultsLimit);
                     searcher.search(query, collector);
                     timer2.endLogTime("TopDocs search for [" + collector.getTotalHits() + "] results ");
                     if (SearchSupport.logger.isDebugEnabled()) {

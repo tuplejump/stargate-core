@@ -22,7 +22,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.*;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -36,7 +35,7 @@ import java.util.Map;
  */
 public class TableMapper {
 
-    public final AbstractType rowKeyType;
+    public final AbstractType primaryKeyAbstractType;
     public final AbstractType clusteringKeyType;
     public final CompositeType primaryKeyType;
     public final CellNameType clusteringCType;
@@ -50,9 +49,9 @@ public class TableMapper {
         this.table = table;
         this.cfMetaData = table.metadata;
         this.clusteringCType = table.getComparator();
-        this.rowKeyType = table.metadata.getKeyValidator();
+        this.primaryKeyAbstractType = table.metadata.getKeyValidator();
         this.clusteringKeyType = table.getComparator().asAbstractType();
-        this.primaryKeyType = CompositeType.getInstance(rowKeyType, clusteringKeyType);
+        this.primaryKeyType = CompositeType.getInstance(primaryKeyAbstractType, clusteringKeyType);
         this.defaultPartitionKey = defaultPartitionKey();
         this.isMetaColumn = isMetaColumn;
         this.primaryColumnDefinition = primaryColumnDefinition;
@@ -64,22 +63,6 @@ public class TableMapper {
 
     public DecoratedKey decorateKey(ByteBuffer rowKey) {
         return table.partitioner.decorateKey(rowKey);
-    }
-
-    /**
-     * Filter a cached row, which will not be modified by the filter, but may be modified by throwing out
-     * tombstones that are no longer relevant.
-     * The returned column family won't be thread safe.
-     */
-    public ColumnFamily filterColumnFamily(ColumnFamily cached, QueryFilter filter) {
-        ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory, filter.filter.isReversed());
-        int gcBefore = gcBefore(table, filter.timestamp);
-        filter.collateOnDiskAtom(cf, filter.getIterator(cached), gcBefore);
-        return table.removeDeletedCF(cf, gcBefore);
-    }
-
-    static int gcBefore(ColumnFamilyStore table, long now) {
-        return (int) (now / 1000) - table.metadata.getGcGraceSeconds();
     }
 
     public void load(Map<String, Integer> positions, Tuple tuple, Row row) {
@@ -199,13 +182,19 @@ public class TableMapper {
     }
 
     public CellName extractClusteringKey(CellName cellName) {
-        int numClusteringColumns = table.metadata.clusteringColumns().size();
-        Object[] components = new ByteBuffer[numClusteringColumns + 1];
-        for (int i = 0; i < numClusteringColumns; i++) {
+        int clusterColumns = table.metadata.clusteringColumns().size();
+        Object[] components = new ByteBuffer[clusterColumns + 1];
+        for (int i = 0; i < clusterColumns; i++) {
             components[i] = cellName.get(i);
         }
-        components[numClusteringColumns] = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        components[clusterColumns] = ByteBufferUtil.EMPTY_BYTE_BUFFER;
         return clusteringCType.makeCellName(components);
     }
+
+    public CellName makeClusteringKey(ByteBuffer primaryKey) {
+        ByteBuffer clusteringKeyBuf = primaryKeyType.extractLastComponent(primaryKey);
+        return clusteringCType.cellFromByteBuffer(clusteringKeyBuf);
+    }
+
 
 }

@@ -32,7 +32,6 @@ import org.apache.lucene.util.automaton.BasicOperations;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 /**
@@ -71,10 +70,6 @@ public class MatchPartition implements Function {
         }
     }
 
-    @Override
-    public boolean shouldLimit() {
-        return false;
-    }
 
     @Override
     public boolean shouldTryScoring() {
@@ -106,19 +101,16 @@ public class MatchPartition implements Function {
             allExpressions[i] = true;
         }
         aggregateFunction.simpleExpressions = allExpressions;
+        TreeMultimap<DecoratedKey, IndexEntryCollector.IndexEntry> docs = resultMapper.docsByRowKey();
 
-
-        TreeMultimap<ByteBuffer, IndexEntryCollector.IndexEntry> docs = resultMapper.collector.docsByRowKey(table.metadata.getKeyValidator());
-        NavigableSet<ByteBuffer> rowKeys = docs.keySet();
         List<Tuple> allMatches = new ArrayList<>();
-        for (ByteBuffer rowKey : rowKeys) {
-            final DecoratedKey dk = table.partitioner.decorateKey(rowKey);
-            ArrayList<IndexEntryCollector.IndexEntry> entries = new ArrayList<>(docs.get(rowKey));
+        for (final DecoratedKey dk : docs.keySet()) {
+            List<IndexEntryCollector.IndexEntry> entries = new ArrayList<>(docs.get(dk));
             final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchRangeSlice(entries, dk);
             List<Tuple> tuples = Lists.transform(entries, new com.google.common.base.Function<IndexEntryCollector.IndexEntry, Tuple>() {
                 @Override
                 public Tuple apply(IndexEntryCollector.IndexEntry input) {
-                    CellName cellName = resultMapper.makeClusteringKey(input.primaryKey);
+                    CellName cellName = input.clusteringKey;
                     ColumnFamily cf = fullSlice.get(cellName);
                     if (cf != null) {
                         Tuple tuple = aggregateFunction.createTuple(options);

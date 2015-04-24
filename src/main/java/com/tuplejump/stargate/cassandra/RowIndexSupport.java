@@ -220,7 +220,7 @@ public class RowIndexSupport {
     }
 
     protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pk) {
-        return Arrays.asList(LuceneUtils.rkBytesDocValue(rowKey.getKey()), LuceneUtils.primaryKeyField(pkName), LuceneUtils.pkBytesDocValue(pk), LuceneUtils.pkNameDocValue(pkName), LuceneUtils.rowKeyIndexed(tableMapper.rowKeyType.getString(rowKey.getKey())));
+        return Arrays.asList(LuceneUtils.rkBytesDocValue(rowKey.getKey()), LuceneUtils.primaryKeyField(pkName), LuceneUtils.pkBytesDocValue(pk), LuceneUtils.pkNameDocValue(pkName), LuceneUtils.rowKeyIndexed(tableMapper.primaryKeyAbstractType.getString(rowKey.getKey())));
     }
 
     protected List<Field> tsFields(long ts) {

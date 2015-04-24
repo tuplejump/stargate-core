@@ -70,11 +70,6 @@ public class AggregateFunction implements Function {
 
 
     @Override
-    public boolean shouldLimit() {
-        return false;
-    }
-
-    @Override
     public boolean shouldTryScoring() {
         return false;
     }

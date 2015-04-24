@@ -40,8 +40,6 @@ public interface Function {
 
     void init(Options options) throws Exception;
 
-    boolean shouldLimit();
-
     boolean shouldTryScoring();
 
     List<Row> process(ResultMapper resultMapper, ColumnFamilyStore table, RowIndex currentIndex) throws Exception;

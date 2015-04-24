@@ -19,10 +19,12 @@ package com.tuplejump.stargate.lucene;
 
 import com.google.common.collect.Ordering;
 import com.google.common.collect.TreeMultimap;
+import com.tuplejump.stargate.cassandra.TableMapper;
 import com.tuplejump.stargate.lucene.query.Search;
 import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
 import com.tuplejump.stargate.lucene.query.function.Function;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
@@ -44,7 +46,7 @@ import java.util.*;
  */
 public class IndexEntryCollector extends Collector {
 
-    FieldValueHitQueue<IndexEntry> hitQueue;
+    public final FieldValueHitQueue<IndexEntry> hitQueue;
     FieldComparator<?>[] comparators;
     int docBase;
     int totalHits;
@@ -62,6 +64,9 @@ public class IndexEntryCollector extends Collector {
     Map<String, NumericDocValues> numericDocValuesMap = new HashMap<>();
     Map<String, BinaryDocValues> binaryDocValuesMap = new HashMap<>();
     Options options;
+    List<IndexEntry> indexEntries;
+    TreeMultimap<DecoratedKey, IndexEntry> indexEntryTreeMultiMap;
+    TableMapper tableMapper;
 
 
     boolean canByPassRowFetch;
@@ -74,7 +79,8 @@ public class IndexEntryCollector extends Collector {
         return totalHits;
     }
 
-    public IndexEntryCollector(Function function, Search search, Options options, int maxResults) throws IOException {
+    public IndexEntryCollector(TableMapper tableMapper, Function function, Search search, Options options, int maxResults) throws IOException {
+        this.tableMapper = tableMapper;
         this.options = options;
         org.apache.lucene.search.SortField[] sortFields = search.usesSorting() ? search.sort(options) : null;
         if (sortFields == null) {
@@ -149,31 +155,33 @@ public class IndexEntryCollector extends Collector {
         }
     }
 
-    public Collection<IndexEntry> docs() {
-        List<IndexEntry> indexEntries = new ArrayList<>();
-        IndexEntry entry;
-        while ((entry = hitQueue.pop()) != null) {
-            indexEntries.add(entry);
+    public List<IndexEntry> docs() {
+        if (indexEntries == null) {
+            indexEntries = new ArrayList<>();
+            IndexEntry entry;
+            while ((entry = hitQueue.pop()) != null) {
+                indexEntries.add(entry);
+            }
         }
         return indexEntries;
     }
 
-    public TreeMultimap<ByteBuffer, IndexEntry> docsByRowKey() {
-        TreeMultimap indexEntries = TreeMultimap.create(Ordering.natural(), INDEX_ENTRY_BY_PK_COMPARATOR);
-        IndexEntry entry;
-        while ((entry = hitQueue.pop()) != null) {
-            indexEntries.put(entry.rowKey, entry);
-        }
-        return indexEntries;
-    }
+    public TreeMultimap<DecoratedKey, IndexEntry> docsByRowKey() {
+        if (indexEntries != null) throw new IllegalStateException("Hit queue already traversed");
+        if (indexEntryTreeMultiMap == null) {
+            indexEntryTreeMultiMap = TreeMultimap.create(Ordering.natural(), new Comparator<IndexEntry>() {
+                @Override
+                public int compare(IndexEntry o1, IndexEntry o2) {
+                    return tableMapper.clusteringCType.compare(o1.clusteringKey, o2.clusteringKey);
+                }
+            });
+            IndexEntry entry;
+            while ((entry = hitQueue.pop()) != null) {
+                indexEntryTreeMultiMap.put(entry.decoratedKey, entry);
+            }
 
-    public TreeMultimap<ByteBuffer, IndexEntry> docsByRowKey(AbstractType comparator) {
-        TreeMultimap indexEntries = TreeMultimap.create(Ordering.natural(), new IndexEntryComparator(comparator));
-        IndexEntry entry;
-        while ((entry = hitQueue.pop()) != null) {
-            indexEntries.put(entry.rowKey, entry);
         }
-        return indexEntries;
+        return indexEntryTreeMultiMap;
     }
 
     @Override
@@ -293,7 +301,7 @@ public class IndexEntryCollector extends Collector {
     }
 
 
-    public static class IndexEntry extends FieldValueHitQueue.Entry {
+    public class IndexEntry extends FieldValueHitQueue.Entry {
         public final String pkName;
         public final ByteBuffer primaryKey;
         public final ByteBuffer rowKey;
@@ -301,7 +309,8 @@ public class IndexEntryCollector extends Collector {
         public float score;
         Map<String, Number> numericDocValuesMap;
         Map<String, String> binaryDocValuesMap;
-
+        public final CellName clusteringKey;
+        public final DecoratedKey decoratedKey;
 
         public IndexEntry(ByteBuffer rowKey, String pkName, ByteBuffer primaryKey, long timestamp, int slot, int doc, float score, Map<String, Number> numericDocValuesMap, Map<String, String> binaryDocValuesMap) {
             super(slot, doc, score);
@@ -312,7 +321,10 @@ public class IndexEntryCollector extends Collector {
             this.score = score;
             this.binaryDocValuesMap = binaryDocValuesMap;
             this.numericDocValuesMap = numericDocValuesMap;
+            this.clusteringKey = tableMapper.makeClusteringKey(primaryKey);
+            this.decoratedKey = tableMapper.decorateKey(rowKey);
         }
+
 
         public Number getNumber(String field) {
             return numericDocValuesMap.get(field);
@@ -328,26 +340,5 @@ public class IndexEntryCollector extends Collector {
         }
     }
 
-    static final IndexEntryByPKComparator indexEntryByPKComparator = new IndexEntryByPKComparator();
-    public static final IndexEntryByPKComparator INDEX_ENTRY_BY_PK_COMPARATOR = indexEntryByPKComparator;
 
-    public static class IndexEntryByPKComparator implements Comparator<IndexEntry> {
-        @Override
-        public int compare(IndexEntry o1, IndexEntry o2) {
-            return o1.pkName.compareTo(o2.pkName);
-        }
-    }
-
-    public static class IndexEntryComparator implements Comparator<IndexEntry> {
-        AbstractType compositeType;
-
-        public IndexEntryComparator(AbstractType compositeType) {
-            this.compositeType = compositeType;
-        }
-
-        @Override
-        public int compare(IndexEntry o1, IndexEntry o2) {
-            return compositeType.compare(o1.primaryKey, o2.primaryKey);
-        }
-    }
 }
