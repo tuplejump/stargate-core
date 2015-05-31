@@ -16,3 +16,6 @@ We use github issues for feature and bug tracking.
 Issues may be reported at https://github.com/tuplejump/stargate-core/issues
 
 If you would like a feature to be added or have more questions please feel free to mail us at opensource at tuplejump dot com
+
+
+[![Join the chat at https://gitter.im/tuplejump/stargate-core](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tuplejump/stargate-core?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
