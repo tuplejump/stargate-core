@@ -20,6 +20,7 @@ import com.tuplejump.stargate.lucene.Options;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.automaton.Automaton;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -30,7 +31,7 @@ import java.util.List;
  * A {@link Condition} that matches documents matching boolean combinations of other queries, e.g.
  * {@link MatchCondition}s, {@link RangeCondition}s or other {@link BooleanCondition}s.
  */
-public class BooleanCondition extends Condition {
+public class BooleanCondition extends Condition implements Selector {
 
     private List<Condition> must;
 
@@ -161,4 +162,13 @@ public class BooleanCondition extends Condition {
         return builder.toString();
     }
 
+    @Override
+    public Automaton getAutomaton(Options options) {
+        return null;
+    }
+
+    @Override
+    public String getField() {
+        return null;
+    }
 }

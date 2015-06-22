@@ -14,32 +14,33 @@
  * limitations under the License.
  */
 
-package com.tuplejump.stargate.lucene.query.function;
+package com.tuplejump.stargate.lucene.query.fsm;
 
 import com.tuplejump.stargate.lucene.Options;
-import com.tuplejump.stargate.lucene.query.Selector;
 import com.tuplejump.stargate.lucene.query.Condition;
+import com.tuplejump.stargate.lucene.query.Selector;
+import com.tuplejump.stargate.lucene.query.function.MatchPartition;
+import com.tuplejump.stargate.lucene.query.function.Tuple;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.BasicOperations;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
 /**
  * User: satya
  */
-public class State {
+public class NamedCondition implements Transition<Tuple> {
 
     Selector caseCondition;
-    Integer nextWithin;
 
     Automaton automaton;
     String automatonField;
 
-    String name;
+    public final String name;
 
     @JsonCreator
-    public State(@JsonProperty("name") String name, @JsonProperty("caseCondition") Condition caseCondition, @JsonProperty("nextWithin") Integer nextWithin) {
+    public NamedCondition(@JsonProperty("name") String name, @JsonProperty("condition") Condition caseCondition) {
         this.caseCondition = (Selector) caseCondition;
-        this.nextWithin = nextWithin;
         this.name = name;
     }
 
@@ -53,4 +54,19 @@ public class State {
     }
 
 
+    @Override
+    public boolean matches(Tuple tuple) {
+        String value = tuple.getValue(getAutomatonField()).toString();
+        return BasicOperations.run(automaton, value);
+    }
+
+    @Override
+    public double weight() {
+        return 1;
+    }
+
+    @Override
+    public void onMatch(Tuple tuple) {
+        tuple.setValue(MatchPartition.MATCH, name);
+    }
 }

@@ -53,6 +53,7 @@ import java.io.IOException;
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
 @JsonSubTypes({@JsonSubTypes.Type(value = BooleanCondition.class, name = "boolean"),
+        @JsonSubTypes.Type(value = SimpleBooleanCondition.class, name = "bool"),
         @JsonSubTypes.Type(value = FuzzyCondition.class, name = "fuzzy"),
         @JsonSubTypes.Type(value = LuceneCondition.class, name = "lucene"),
         @JsonSubTypes.Type(value = MatchCondition.class, name = "match"),

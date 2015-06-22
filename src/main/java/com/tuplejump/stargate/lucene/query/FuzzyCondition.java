@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
@@ -32,7 +33,7 @@ import org.codehaus.jackson.annotate.JsonProperty;
  * Damerau-Levenshtein (optimal string alignment) algorithm, though you can explicitly choose classic Levenshtein by
  * passing {@code false} to the {@code transpositions} parameter.
  */
-public class FuzzyCondition extends Condition {
+public class FuzzyCondition extends Condition implements Selector {
 
     public final static int DEFAULT_MAX_EDITS = LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE;
     public final static int DEFAULT_PREFIX_LENGTH = 0;
@@ -86,6 +87,20 @@ public class FuzzyCondition extends Condition {
         this.prefixLength = prefixLength == null ? DEFAULT_PREFIX_LENGTH : prefixLength;
         this.maxExpansions = maxExpansions == null ? DEFAULT_MAX_EXPANSIONS : maxExpansions;
         this.transpositions = transpositions == null ? DEFAULT_TRANSPOSITIONS : transpositions;
+    }
+
+    @Override
+    public Automaton getAutomaton(Options schema) {
+        Properties properties = schema.getProperties(field);
+        String message;
+        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+        if (fieldType == Properties.Type.string || fieldType == Properties.Type.text) {
+            String analyzedValue = analyze(field, value, schema.analyzer);
+            LevenshteinAutomata levenshteinAutomata = new LevenshteinAutomata(analyzedValue, transpositions);
+            return levenshteinAutomata.toAutomaton(maxEdits);
+        }
+        message = String.format("Fuzzy queries cannot be supported for field type %s", fieldType);
+        throw new UnsupportedOperationException(message);
     }
 
     /**

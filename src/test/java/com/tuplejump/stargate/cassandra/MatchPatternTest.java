@@ -39,17 +39,22 @@ public class MatchPatternTest extends IndexTestBase {
             createKS(keyspace);
             createTableAndIndexForRow();
             countResults("MP", "", false, true);
-            String home = state("home", "match", "event_type", "hom", null);
-            String browse = state("browse", "wildcard", "event_type", "p*", 1);
-            String buy = state("buy", "match", "event_type", "buy", null);
-            String matchPattern = pattern(Arrays.asList(home, browse, buy));
+            String home = cond("home", "match", "event_type", "hom");
+            String browse = cond("browse", "wildcard", "event_type", "p*");
+            String buy = cond("buy", "match", "event_type", "buy");
+            String definition = define(Arrays.asList(home, browse, buy));
+            String pattern = pattern(new String[]{"home", "browse", "buy"}, new boolean[]{true, false, false}, new boolean[]{true, true, false});
             String aggregate = aggregate("user", "steps", "count", true, "$match");
-            String fap = patternAggregate(matchPattern, aggregate);
+            String fap = patternAggregate(definition, pattern, aggregate);
             countResults("MP", "magic = '" + fap + "'", true);
-            String matchPattern2 = pattern(Arrays.asList(home, browse));
+            String definition2 = define(Arrays.asList(home, browse, buy));
+            String pattern2 = pattern(new String[]{"home", "browse"}, new boolean[]{true, false}, new boolean[]{true, true});
             String aggregate2 = aggregate("state", "state", "values", false, "$match");
-            String fap2 = patternAggregate(matchPattern2, aggregate2);
+            String fap2 = patternAggregate(definition2, pattern2, aggregate);
             countResults("MP", "magic = '" + fap2 + "'", true);
+            String fap3 = patternAggregate(definition2, pattern2, aggregate2);
+            countResults("MP", "magic = '" + fap3 + "'", true);
+
         } finally {
             dropTable(keyspace, "MP");
             dropKS(keyspace);

@@ -198,29 +198,35 @@ public class IndexTestBase {
         }
     }
 
-    protected String state(String stateName, String type, String field, String value, Integer nextWithin) {
-        if (nextWithin != null) {
-            String query = "{name:\"%s\", caseCondition:{ type:\"%s\", field:\"%s\", value:\"%s\"}, nextWithin:%s}";
-            return String.format(query, stateName, type, field, value, nextWithin);
-        } else {
-            String query = "{name:\"%s\", caseCondition:{ type:\"%s\", field:\"%s\", value:\"%s\"}}";
-            return String.format(query, stateName, type, field, value);
-        }
+    protected String cond(String stateName, String type, String field, String value) {
+        String query = "{name:\"%s\", condition:{ type:\"%s\", field:\"%s\", value:\"%s\"}}";
+        return String.format(query, stateName, type, field, value);
     }
 
-    protected String pattern(List<String> states) {
+    protected String define(List<String> steps) {
         Joiner joiner = Joiner.on(",\n");
-        return "pattern:[\n" + joiner.join(states) + "\n]";
+        return "define:[\n" + joiner.join(steps) + "\n]";
     }
+
+    protected String pattern(String[] refs, boolean[] optional, boolean[] repeat) {
+        Joiner joiner = Joiner.on(",\n");
+        String template = "{ref:\"%s\",optional:\"%s\",repeat:\"%s\"}";
+        List<String> steps = new ArrayList<>(refs.length);
+        for (int i = 0; i < refs.length; i++) {
+            steps.add(String.format(template, refs[i], optional[i], repeat[i]));
+        }
+        return "pattern:{steps:[\n" + joiner.join(steps) + "\n]}";
+    }
+
 
     protected String aggregate(String field, String name, String type, boolean distinct, String groupBy) {
         String query1 = "aggregate:{ aggregates:[{type:\"%s\",field:\"%s\",alias:\"%s\",distinct:%b}], groupBy:[\"%s\"]  }";
         return String.format(query1, type, field, name, distinct, groupBy);
     }
 
-    protected String patternAggregate(String pattern, String aggregate) {
-        String query = "{ function:{ type:\"matchPartition\", %s, %s}}";
-        return String.format(query, pattern, aggregate);
+    protected String patternAggregate(String definition, String pattern, String aggregate) {
+        String query = "{ function:{ type:\"matchPartition\", %s, %s, %s}}";
+        return String.format(query, definition, pattern, aggregate);
     }
 
 
