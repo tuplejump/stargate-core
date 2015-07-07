@@ -4,7 +4,7 @@ apply plugin: 'eclipse'
 apply plugin: 'maven'
 apply plugin: 'signing'
 
-version = '1.0.0.M1'
+version = '1.0.0'
 group = 'com.tuplejump'
 
 sourceCompatibility = 1.7
