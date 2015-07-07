@@ -104,6 +104,11 @@ public class PrefixCondition extends Condition {
         return query;
     }
 
+    @Override
+    public String getType() {
+        return "prefix";
+    }
+
     /**
      * {@inheritDoc}
      */

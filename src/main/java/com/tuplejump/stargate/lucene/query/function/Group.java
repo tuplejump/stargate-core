@@ -89,7 +89,7 @@ public class Group {
         return ByteBuffer.wrap(bytes.toByteArray());
     }
 
-    private void writeJson(JsonGenerator gen) throws IOException {
+    public void writeJson(JsonGenerator gen) throws IOException {
         gen.writeStartObject();
         gen.writeFieldName("groups");
         gen.writeStartArray();

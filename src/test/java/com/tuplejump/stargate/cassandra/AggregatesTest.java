@@ -31,7 +31,8 @@ import org.junit.Test;
 public class AggregatesTest extends IndexTestBase {
     String keyspace = "dummyksAggr";
 
-    public AggregatesTest() {
+
+    public AggregatesTest() throws Exception {
         cassandraCQLUnit = CQLUnitD.getCQLUnit(null);
     }
 
@@ -96,7 +97,7 @@ public class AggregatesTest extends IndexTestBase {
         }
     }
 
-    @Test
+    //    @Test
     public void shouldCalculateAggregatesOnStriped() throws Exception {
         //hack to always create new Index during testing
         try {
@@ -127,7 +128,7 @@ public class AggregatesTest extends IndexTestBase {
         }
     }
 
-    @Test
+    //    @Test
     public void shouldCalculateQuantileAggregate() throws Exception {
         try {
             createEventStoreSchema(keyspace);
@@ -143,7 +144,7 @@ public class AggregatesTest extends IndexTestBase {
     }
 
 
-    @Test
+    //    @Test
     public void shouldReturnJSONString() throws Exception {
         try {
             createEventStoreSchema(keyspace);
@@ -160,7 +161,7 @@ public class AggregatesTest extends IndexTestBase {
         }
     }
 
-    @Test
+    //    @Test
     public void shouldReturnSumZeroIfNoEntriesFound() throws Exception {
         try {
             createEventStoreSchema(keyspace);

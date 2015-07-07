@@ -37,11 +37,11 @@ public class DropAndRecreateTest extends IndexTestBase {
         createTableAndIndex(false);
         try {
             Assert.assertEquals(8, countResults("TAG", "", false, false));
-            Assert.assertEquals(3, countResults("TAG", "category = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
+            Assert.assertEquals(3, countResults("TAG", "category = '" + mq("state", "CA") + "'", true));
             getSession().execute("DROP INDEX dropcreate;");
             createTableAndIndex(true);
             Assert.assertEquals(8, countResults("TAG", "", false, false));
-            Assert.assertEquals(3, countResults("TAG", "category = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
+            Assert.assertEquals(3, countResults("TAG", "category = '" + mq("state", "CA") + "'", true));
         } finally {
             dropKS(keyspace);
         }
@@ -66,7 +66,7 @@ public class DropAndRecreateTest extends IndexTestBase {
                 "}\n";
         getSession().execute("USE " + keyspace + ";");
         if (!isRecreate) {
-            getSession().execute("CREATE TABLE TAG(key varchar, key1 varchar, state varchar, category varchar,tags varchar, gdp bigint, PRIMARY KEY((key,key1),state))");
+            getSession().execute("CREATE TABLE TAG(key varchar, key1 varchar, state varchar, category varchar,tags text, gdp bigint, PRIMARY KEY((key,key1),state))");
         }
         getSession().execute("CREATE CUSTOM INDEX dropcreate ON TAG(category) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + (isRecreate ? options1 : options) + "'}");
         if (!isRecreate) {

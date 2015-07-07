@@ -17,8 +17,8 @@
 package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.RowIndex;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.cassandra.ResultMapper;
+import com.tuplejump.stargate.cassandra.RowFetcher;
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
@@ -36,13 +36,14 @@ public class NoOp implements Function {
     }
 
     @Override
-    public boolean shouldLimit() {
+    public boolean shouldTryScoring() {
         return true;
     }
 
     @Override
-    public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        return rowScanner.getTable().filter(rowScanner, rowScanner.getFilter());
+    public List<Row> process(ResultMapper resultMapper, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
+        RowFetcher rowFetcher = new RowFetcher(resultMapper);
+        return rowFetcher.fetchRows();
     }
 
 
@@ -52,3 +53,4 @@ public class NoOp implements Function {
 
 
 }
+

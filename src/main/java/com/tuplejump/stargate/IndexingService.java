@@ -49,7 +49,7 @@ public class IndexingService {
     }
 
     public void register(RowIndexSupport rowIndexSupport) {
-        this.support.put(rowIndexSupport.getCFMetaData().cfName, rowIndexSupport);
+        this.support.put(rowIndexSupport.tableMapper.cfMetaData.cfName, rowIndexSupport);
     }
 
     public void index(IndexEntryEvent entryEvent) {

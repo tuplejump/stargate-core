@@ -18,7 +18,7 @@ package com.tuplejump.stargate.lucene;
 
 import com.google.common.base.Splitter;
 import com.tuplejump.stargate.cassandra.CassandraUtils;
-import com.tuplejump.stargate.utils.Pair;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
@@ -32,7 +32,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -112,8 +111,8 @@ public class Options {
     public final Map<String, FieldType[]> collectionFieldTypes;
     public final Set<String> nestedFields;
     public final Map<String, Properties.Type> types;
-    public final Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed;
-    public final Map<Integer, Pair<String, ByteBuffer>> partitionKeysIndexed;
+    public final Map<String, ColumnDefinition> clusteringKeysIndexed;
+    public final Map<String, ColumnDefinition> partitionKeysIndexed;
     public final Map<String, Analyzer> perFieldAnalyzers;
     public final Set<String> indexedColumnNames;
     public final Analyzer analyzer;
@@ -122,8 +121,8 @@ public class Options {
     public Options(Properties primary, Map<String, NumericConfig> numericFieldOptions,
                    Map<String, FieldType> fieldDocValueTypes, Map<String, FieldType> collectionFieldDocValueTypes,
                    Map<String, FieldType> fieldTypes, Map<String, FieldType[]> collectionFieldTypes,
-                   Map<String, Properties.Type> types, Set<String> nestedFields, Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed,
-                   Map<Integer, Pair<String, ByteBuffer>> partitionKeysIndexed, Map<String, Analyzer> perFieldAnalyzers,
+                   Map<String, Properties.Type> types, Set<String> nestedFields, Map<String, ColumnDefinition> clusteringKeysIndexed,
+                   Map<String, ColumnDefinition> partitionKeysIndexed, Map<String, Analyzer> perFieldAnalyzers,
                    Set<String> indexedColumnNames, Analyzer analyzer, String defaultField) {
         this.primary = primary;
         this.fields = primary.getFields();

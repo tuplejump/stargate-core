@@ -20,15 +20,12 @@ import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
-import com.tuplejump.stargate.utils.Pair;
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.CFDefinition;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.document.FieldType;
@@ -38,7 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URL;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 /**
@@ -47,45 +43,10 @@ import java.util.*;
 public class CassandraUtils {
     private static final Logger logger = LoggerFactory.getLogger(CassandraUtils.class);
     private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
-    private static Config conf;
 
 
     public static String[] getDataDirs() throws IOException, ConfigurationException {
-        if (conf == null) {
-            loadYaml();
-        }
-        return conf.data_file_directories;
-    }
-
-
-    static URL getStorageConfigURL() throws ConfigurationException {
-        String configUrl = System.getProperty("cassandra.config");
-        if (configUrl == null)
-            configUrl = DEFAULT_CONFIGURATION;
-
-        URL url;
-        try {
-            url = new URL(configUrl);
-            url.openStream().close(); // catches well-formed but bogus URLs
-        } catch (Exception e) {
-            ClassLoader loader = DatabaseDescriptor.class.getClassLoader();
-            url = loader.getResource(configUrl);
-            if (url == null)
-                throw new ConfigurationException("Cannot locate " + configUrl);
-        }
-
-        return url;
-    }
-
-    static void loadYaml() throws ConfigurationException, IOException {
-        URL url = CassandraUtils.getStorageConfigURL();
-        logger.info("Loading settings from " + url);
-        String loaderClass = System.getProperty("cassandra.config.loader");
-        ConfigurationLoader loader = loaderClass == null
-                ? new YamlConfigurationLoader()
-                : FBUtilities.<ConfigurationLoader>construct(loaderClass, "configuration loading");
-        conf = loader.loadConfig();
-        logger.info("Data files directories: " + Arrays.toString(conf.data_file_directories));
+        return DatabaseDescriptor.getAllDataFileLocations();
     }
 
     public static Options getOptions(String columnName, ColumnFamilyStore baseCfs, String json) {
@@ -107,9 +68,9 @@ public class CassandraUtils {
 
         Map<String, FieldType> fieldTypes = new TreeMap<>();
         Map<String, FieldType[]> collectionFieldTypes = new TreeMap<>();
-        Map<String, AbstractType> validators = new TreeMap<>();
-        Map<Integer, Pair<String, ByteBuffer>> clusteringKeysIndexed = new LinkedHashMap<>();
-        Map<Integer, Pair<String, ByteBuffer>> partitionKeysIndexed = new LinkedHashMap<>();
+        Map<String, ColumnDefinition> validators = new TreeMap<>();
+        Map<String, ColumnDefinition> clusteringKeysIndexed = new LinkedHashMap<>();
+        Map<String, ColumnDefinition> partitionKeysIndexed = new LinkedHashMap<>();
         Map<String, Analyzer> perFieldAnalyzers;
         Set<String> indexedColumnNames;
 
@@ -120,34 +81,33 @@ public class CassandraUtils {
 
         Set<String> added = new HashSet<>(indexedColumnNames.size());
         List<ColumnDefinition> partitionKeys = baseCfs.metadata.partitionKeyColumns();
-        List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringKeyColumns();
+        List<ColumnDefinition> clusteringKeys = baseCfs.metadata.clusteringColumns();
 
         for (ColumnDefinition colDef : partitionKeys) {
-            String columnName = CFDefinition.definitionType.getString(colDef.name);
+            String columnName = colDef.name.toString();
             if (Options.logger.isDebugEnabled()) {
-                Options.logger.debug("Partition key name is {} and index is {}", colName, colDef.componentIndex);
+                Options.logger.debug("Partition key name is {} and index is {}", colName, colDef.position());
             }
-            validators.put(columnName, colDef.getValidator());
+            validators.put(columnName, colDef);
             if (indexedColumnNames.contains(columnName)) {
-                int componentIndex = colDef.componentIndex == null ? 0 : colDef.componentIndex;
-                partitionKeysIndexed.put(componentIndex, Pair.create(columnName, colDef.name));
+                partitionKeysIndexed.put(colName, colDef);
                 Properties properties = mapping.getFields().get(columnName.toLowerCase());
-                addFieldType(columnName, colDef.getValidator(), properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
+                addFieldType(columnName, colDef.type, properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
                 added.add(columnName.toLowerCase());
             }
         }
 
 
         for (ColumnDefinition colDef : clusteringKeys) {
-            String columnName = CFDefinition.definitionType.getString(colDef.name);
+            String columnName = colDef.name.toString();
             if (Options.logger.isDebugEnabled()) {
-                Options.logger.debug("Clustering key name is {} and index is {}", colName, colDef.componentIndex + 1);
+                Options.logger.debug("Clustering key name is {} and index is {}", colName, colDef.position() + 1);
             }
-            validators.put(columnName, colDef.getValidator());
+            validators.put(columnName, colDef);
             if (indexedColumnNames.contains(columnName)) {
-                clusteringKeysIndexed.put(colDef.componentIndex + 1, Pair.create(columnName, colDef.name));
+                clusteringKeysIndexed.put(columnName, colDef);
                 Properties properties = mapping.getFields().get(columnName.toLowerCase());
-                addFieldType(columnName, colDef.getValidator(), properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
+                addFieldType(columnName, colDef.type, properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
                 added.add(columnName.toLowerCase());
             }
         }
@@ -157,8 +117,8 @@ public class CassandraUtils {
                 Properties options = mapping.getFields().get(columnName);
                 ColumnDefinition colDef = getColumnDefinition(baseCfs, columnName);
                 if (colDef != null) {
-                    validators.put(columnName, colDef.getValidator());
-                    addFieldType(columnName, colDef.getValidator(), options, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
+                    validators.put(columnName, colDef);
+                    addFieldType(columnName, colDef.type, options, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
                 } else {
                     throw new IllegalArgumentException(String.format("Column Definition for %s not found", columnName));
                 }
@@ -170,8 +130,8 @@ public class CassandraUtils {
         }
         Set<ColumnDefinition> otherColumns = baseCfs.metadata.regularColumns();
         for (ColumnDefinition colDef : otherColumns) {
-            String columnName = CFDefinition.definitionType.getString(colDef.name);
-            validators.put(columnName, colDef.getValidator());
+            String columnName = UTF8Type.instance.getString(colDef.name.bytes);
+            validators.put(columnName, colDef);
         }
 
         numericFieldOptions.putAll(primary.getDynamicNumericConfig());
@@ -181,8 +141,8 @@ public class CassandraUtils {
         Analyzer analyzer = new PerFieldAnalyzerWrapper(defaultAnalyzer, perFieldAnalyzers);
         Map<String, Properties.Type> types = new TreeMap<>();
         Set<String> nestedFields = new TreeSet<>();
-        for (Map.Entry<String, AbstractType> entry : validators.entrySet()) {
-            CQL3Type cql3Type = entry.getValue().asCQL3Type();
+        for (Map.Entry<String, ColumnDefinition> entry : validators.entrySet()) {
+            CQL3Type cql3Type = entry.getValue().type.asCQL3Type();
             AbstractType inner = getValueValidator(cql3Type.getType());
             if (cql3Type.isCollection()) {
                 types.put(entry.getKey(), fromAbstractType(inner.asCQL3Type()));
@@ -199,8 +159,7 @@ public class CassandraUtils {
     private static ColumnDefinition getColumnDefinition(ColumnFamilyStore baseCfs, String columnName) {
         Iterable<ColumnDefinition> cols = baseCfs.metadata.regularAndStaticColumns();
         for (ColumnDefinition columnDefinition : cols) {
-            String fromColDef = CFDefinition.definitionType.getString(columnDefinition.name);
-            if (fromColDef.equalsIgnoreCase(columnName)) return columnDefinition;
+            if (columnDefinition.name.toString().equalsIgnoreCase(columnName)) return columnDefinition;
         }
         return null;
     }
@@ -214,8 +173,8 @@ public class CassandraUtils {
             if (validator instanceof MapType) {
                 properties.setType(Properties.Type.map);
                 MapType mapType = (MapType) validator;
-                AbstractType keyValidator = mapType.keys;
-                AbstractType valueValidator = mapType.values;
+                AbstractType keyValidator = mapType.getKeysType();
+                AbstractType valueValidator = mapType.getValuesType();
                 Properties keyProps = properties.getFields().get("_key");
                 Properties valueProps = properties.getFields().get("_value");
                 if (keyProps == null) {
@@ -244,10 +203,10 @@ public class CassandraUtils {
                 AbstractType elementValidator;
                 if (validator instanceof SetType) {
                     SetType setType = (SetType) validator;
-                    elementValidator = setType.elements;
+                    elementValidator = setType.getElementsType();
                 } else {
                     ListType listType = (ListType) validator;
-                    elementValidator = listType.elements;
+                    elementValidator = listType.getElementsType();
                 }
                 setFromAbstractType(properties, elementValidator);
 
@@ -312,21 +271,6 @@ public class CassandraUtils {
         return fromAbstractType;
     }
 
-    public static String getColumnNameStr(CompositeType validator, ByteBuffer colNameBuf) {
-        ByteBuffer colName = validator.extractLastComponent(colNameBuf);
-        return CFDefinition.definitionType.getString(colName);
-    }
-
-    public static String getColumnNameStr(ByteBuffer colName) {
-        String s = CFDefinition.definitionType.getString(colName);
-        s = StringUtils.removeStart(s, ".").trim();
-        return s;
-    }
-
-    public static String getColumnName(ColumnDefinition cd) {
-        return CFDefinition.definitionType.getString(cd.name);
-    }
-
     public static FieldType fieldType(Properties properties, AbstractType validator) {
         FieldType fieldType = new FieldType();
         fieldType.setIndexed(properties.isIndexed());
@@ -360,4 +304,6 @@ public class CassandraUtils {
         }
         return abstractType;
     }
+
+
 }

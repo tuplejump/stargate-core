@@ -22,11 +22,11 @@ import com.tuplejump.stargate.lucene.IndexEntryCollector;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
 import com.tuplejump.stargate.lucene.query.Search;
-import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.CFDefinition;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
@@ -34,8 +34,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
@@ -60,26 +58,25 @@ public class SearchSupport extends SecondaryIndexSearcher {
 
     protected RowIndex currentIndex;
 
+    protected TableMapper tableMapper;
+
     protected Options options;
 
     protected Set<String> fieldNames;
-
-    protected CustomColumnFactory customColumnFactory;
 
     public SearchSupport(SecondaryIndexManager indexManager, RowIndex currentIndex, Set<ByteBuffer> columns, Options options) {
         super(indexManager, columns);
         this.options = options;
         this.currentIndex = currentIndex;
         this.fieldNames = options.fieldTypes.keySet();
-        this.customColumnFactory = new CustomColumnFactory();
-
+        this.tableMapper = currentIndex.getTableMapper();
     }
 
 
     protected Search getQuery(IndexExpression predicate) throws Exception {
-        ColumnDefinition cd = baseCfs.metadata.getColumnDefinition(predicate.column_name);
-        String predicateValue = cd.getValidator().getString(predicate.bufferForValue());
-        String columnName = CassandraUtils.getColumnName(cd);
+        ColumnDefinition cd = baseCfs.metadata.getColumnDefinition(predicate.column);
+        String predicateValue = cd.type.getString(predicate.value);
+        String columnName = cd.name.toString();
         if (logger.isDebugEnabled())
             logger.debug("Index Searcher - query - predicate value [" + predicateValue + "] column name [" + columnName + "]");
         logger.debug("Column name is {}", columnName);
@@ -97,10 +94,10 @@ public class SearchSupport extends SecondaryIndexSearcher {
             Search search = getQuery(matchThisIndex(clause));
             return getRows(mainFilter, search);
         } catch (Exception e) {
-            if (currentIndex.isMetaColumn()) {
+            if (tableMapper.isMetaColumn) {
                 logger.error("Exception occurred while querying", e);
                 ByteBuffer errorMsg = UTF8Type.instance.decompose("{\"error\":\"" + StringEscapeUtils.escapeEcmaScript(e.getMessage()) + "\"}");
-                Row row = customColumnFactory.getRowWithMetaColumn(baseCfs, currentIndex, errorMsg);
+                Row row = tableMapper.getRowWithMetaColumn(errorMsg);
                 if (row != null) {
                     return Collections.singletonList(row);
                 } else {
@@ -131,23 +128,20 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     Function function = search.function(options);
                     Query query = search.query(options);
                     int resultsLimit = searcher.getIndexReader().maxDoc();
-                    if (function.shouldLimit()) {
-                        if (resultsLimit == 0) {
-                            resultsLimit = 1;
-                        }
-                        resultsLimit = Math.min(filter.currentLimit() + 1, resultsLimit);
+                    if (resultsLimit == 0) {
+                        resultsLimit = 1;
                     }
                     function.init(options);
-                    IndexEntryCollector collector = new IndexEntryCollector(function, search, options, resultsLimit);
+                    IndexEntryCollector collector = new IndexEntryCollector(tableMapper, function, search, options, resultsLimit);
                     searcher.search(query, collector);
                     timer2.endLogTime("TopDocs search for [" + collector.getTotalHits() + "] results ");
                     if (SearchSupport.logger.isDebugEnabled()) {
                         SearchSupport.logger.debug(String.format("Search results [%s]", collector.getTotalHits()));
                     }
-                    RowScanner iter = new RowScanner(searchSupport, baseCfs, filter, collector, function instanceof AggregateFunction ? false : search.isShowScore());
+                    ResultMapper iter = new ResultMapper(tableMapper, searchSupport, filter, collector, function.shouldTryScoring() && search.isShowScore());
                     Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
-                    results = function.process(iter, customColumnFactory, baseCfs, currentIndex);
-                    timer3.endLogTime("Aggregation [" + collector.getTotalHits() + "] results");
+                    results = function.process(iter, baseCfs, currentIndex);
+                    timer3.endLogTime("Aggregation [" + results.size() + "] results");
                 }
                 timer.endLogTime("Search with results [" + results.size() + "] ");
                 return results;
@@ -175,12 +169,12 @@ public class SearchSupport extends SecondaryIndexSearcher {
 
     protected IndexExpression matchThisIndex(List<IndexExpression> clause) {
         for (IndexExpression expression : clause) {
-            ColumnDefinition cfDef = baseCfs.metadata.getColumnDefinition(expression.column_name);
-            String colName = CFDefinition.definitionType.getString(cfDef.name);
+            ColumnDefinition cfDef = baseCfs.metadata.getColumnDefinition(expression.column);
+            String colName = cfDef.name.toString();
             //we only support Equal - Operators should be a part of the lucene query
-            if (fieldNames.contains(colName) && expression.op == IndexOperator.EQ) {
+            if (fieldNames.contains(colName) && expression.operator == Operator.EQ) {
                 return expression;
-            } else if (colName.equalsIgnoreCase(this.currentIndex.getPrimaryColumnName())) {
+            } else if (colName.equalsIgnoreCase(tableMapper.primaryColumnName())) {
                 return expression;
             }
         }
@@ -188,24 +182,18 @@ public class SearchSupport extends SecondaryIndexSearcher {
     }
 
 
-    @Override
-    public boolean isIndexing(List<IndexExpression> clause) {
-        IndexExpression expr = matchThisIndex(clause);
-        return expr != null;
-    }
-
     public boolean deleteIfNotLatest(DecoratedKey decoratedKey, long timestamp, String pkString, ColumnFamily cf) throws IOException {
         if (deleteRowIfNotLatest(decoratedKey, cf)) return true;
-        Column lastColumn = null;
-        for (ByteBuffer colKey : cf.getColumnNames()) {
-            String name = currentIndex.getRowIndexSupport().getActualColumnName(colKey);
+        Cell lastColumn = null;
+        for (CellName colKey : cf.getColumnNames()) {
+            String name = colKey.cql3ColumnName(tableMapper.cfMetaData).toString();
             com.tuplejump.stargate.lucene.Properties option = options.fields.get(name);
             //if option was not found then the column is not indexed
             if (option != null) {
                 lastColumn = cf.getColumn(colKey);
             }
         }
-        if (lastColumn != null && lastColumn.maxTimestamp() > timestamp) {
+        if (lastColumn != null && lastColumn.timestamp() > timestamp) {
             currentIndex.delete(decoratedKey, pkString, timestamp);
             return true;
         }
@@ -214,12 +202,22 @@ public class SearchSupport extends SecondaryIndexSearcher {
 
     public boolean deleteRowIfNotLatest(DecoratedKey decoratedKey, ColumnFamily cf) {
         if (!cf.getColumnNames().iterator().hasNext()) {//no columns available
-            if (currentIndex.getBaseCfs().metadata.getCfDef().iterator().hasNext())
-                currentIndex.deleteByKey(decoratedKey);
+            currentIndex.deleteByKey(decoratedKey);
             return true;
         }
         return false;
     }
 
+    protected IndexExpression highestSelectivityPredicate(List<IndexExpression> clause) {
+        return matchThisIndex(clause);
+    }
 
+    @Override
+    public boolean canHandleIndexClause(List<IndexExpression> clause) {
+        return matchThisIndex(clause) != null;
+    }
+
+    public Options getOptions() {
+        return options;
+    }
 }

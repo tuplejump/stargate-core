@@ -4,7 +4,7 @@ apply plugin: 'eclipse'
 apply plugin: 'maven'
 apply plugin: 'signing'
 
-version = '0.9.9'
+version = '1.0.0'
 group = 'com.tuplejump'
 
 sourceCompatibility = 1.7
@@ -39,12 +39,12 @@ dependencies {
     //provided dependencies - do not copy into dist
     compile('org.codehaus.jackson:jackson-mapper-asl:1.9.2')
     compile('org.codehaus.jackson:jackson-core-asl:1.9.2')
-    compile('com.google.guava:guava:15.0')
+    compile('com.google.guava:guava:16.0')
     compile('org.apache.commons:commons-lang3:3.1')
     compile('org.slf4j:slf4j-api:1.7.2')
     compile('org.slf4j:slf4j-log4j12:1.7.2')
 
-    compile('org.apache.cassandra:cassandra-all:2.0.11') {
+    compile('org.apache.cassandra:cassandra-all:2.1.3') {
         exclude group: 'asm'
         exclude group: 'org.apache.mina'
         exclude group: 'com.google.guava'
@@ -53,14 +53,14 @@ dependencies {
     //testing dependencies
     testCompile group: 'junit', name: 'junit', version: '4.11'
 
-    testCompile('com.datastax.cassandra:cassandra-driver-core:2.0.3') {
+    testCompile('com.datastax.cassandra:cassandra-driver-core:2.1.5') {
         exclude group: 'org.apache.cassandra', module: 'cassandra-all'
         exclude group: 'log4j'
         exclude group: 'io.netty'
         exclude group: 'com.google.guava'
     }
 
-    testCompile('org.cassandraunit:cassandra-unit:2.0.2.0') {
+    testCompile('org.cassandraunit:cassandra-unit:2.0.2.2') {
         exclude group: 'org.apache.cassandra', module: 'cassandra-all'
         exclude group: 'log4j'
         exclude group: 'org.sl4j'
@@ -70,16 +70,6 @@ dependencies {
 
     testCompile group: 'net.sourceforge.argo', name: 'argo', version: '3.7'
 
-}
-
-test {
-    systemProperty "cluster", System.getProperty("cluster")
-    jvmArgs '-javaagent:ext/jamm-0.2.5.jar'
-}
-
-task perfTest(type: Test) << {
-    jvmArgs '-javaagent:ext/jamm-0.2.5.jar'
-    include 'com/tuplejump/perf/**'
 }
 
 task javadocJar(type: Jar) {

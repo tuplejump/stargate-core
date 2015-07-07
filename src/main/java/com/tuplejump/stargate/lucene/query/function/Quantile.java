@@ -17,6 +17,7 @@
 package com.tuplejump.stargate.lucene.query.function;
 
 import com.clearspring.analytics.stream.quantile.TDigest;
+import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.Properties;
 import org.codehaus.jackson.JsonGenerator;
 
@@ -69,17 +70,15 @@ public class Quantile implements Aggregate {
     public void writeJson(JsonGenerator generator) throws IOException {
         generator.writeStartObject();
         generator.writeFieldName(alias);
-        generator.writeString(javax.xml.bind.DatatypeConverter.printBase64Binary(getBytes(accumulator)));
+        generator.writeString(toString(accumulator));
         generator.writeEndObject();
     }
 
-    private static byte[] getBytes(TDigest digest) throws IOException {
+    private static String toString(TDigest digest) throws IOException {
         int l = digest.byteSize();
         ByteBuffer bb = ByteBuffer.allocate(l);
         digest.asSmallBytes(bb);
         bb.flip();
-        byte[] b = new byte[bb.remaining()];
-        bb.get(b);
-        return b;
+        return Utils.stringify(bb);
     }
 }

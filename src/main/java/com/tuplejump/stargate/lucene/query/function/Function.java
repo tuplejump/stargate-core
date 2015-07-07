@@ -17,8 +17,7 @@
 package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.RowIndex;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.cassandra.ResultMapper;
 import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
@@ -34,12 +33,14 @@ import java.util.List;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = NoOp.class, name = "noOp"),
+        @JsonSubTypes.Type(value = MatchPartition.class, name = "matchPartition"),
         @JsonSubTypes.Type(value = AggregateFunction.class, name = "aggregate")})
+
 public interface Function {
 
-    void init(Options options);
+    void init(Options options) throws Exception;
 
-    boolean shouldLimit();
+    boolean shouldTryScoring();
 
-    List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception;
+    List<Row> process(ResultMapper resultMapper, ColumnFamilyStore table, RowIndex currentIndex) throws Exception;
 }

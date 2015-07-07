@@ -20,6 +20,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 
 /**
  * User: satya
@@ -34,6 +35,8 @@ public interface Indexer {
     public long liveSize();
     public long size();
 
+    public long approxRowCount();
+
     public void commit();
 
     public void close();
@@ -43,6 +46,8 @@ public interface Indexer {
     void upsert(Term term, Iterable<Field> doc);
 
     public void delete(Term... idTerm);
+
+    void delete(Query q);
 
     public Analyzer getAnalyzer();
 

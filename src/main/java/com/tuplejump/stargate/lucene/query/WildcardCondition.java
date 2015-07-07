@@ -22,6 +22,7 @@ import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.automaton.Automaton;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -32,7 +33,7 @@ import org.codehaus.jackson.annotate.JsonProperty;
  * Note this query can be slow, as it needs to iterate over many terms. In order to prevent extremely slow
  * WildcardQueries, a Wildcard term should not start with the wildcard {@code *}.
  */
-public class WildcardCondition extends Condition {
+public class WildcardCondition extends Condition implements Selector {
 
     /**
      * The field name
@@ -61,6 +62,12 @@ public class WildcardCondition extends Condition {
 
         this.field = field != null ? field.toLowerCase() : null;
         this.value = value;
+    }
+
+    @Override
+    public Automaton getAutomaton(Options options) {
+        Term term = new Term(field, value);
+        return WildcardQuery.toAutomaton(term);
     }
 
     /**
@@ -106,6 +113,11 @@ public class WildcardCondition extends Condition {
         }
         query.setBoost(boost);
         return query;
+    }
+
+    @Override
+    public String getType() {
+        return "wildcard";
     }
 
 

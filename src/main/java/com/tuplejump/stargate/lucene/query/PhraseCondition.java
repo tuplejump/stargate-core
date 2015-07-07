@@ -141,6 +141,11 @@ public class PhraseCondition extends Condition {
         throw new UnsupportedOperationException(message);
     }
 
+    @Override
+    public String getType() {
+        return "phrase";
+    }
+
     /**
      * {@inheritDoc}
      */

@@ -18,21 +18,15 @@ package com.tuplejump.stargate.lucene.query.function;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.cassandra.CassandraUtils;
-import com.tuplejump.stargate.cassandra.CustomColumnFactory;
-import com.tuplejump.stargate.cassandra.RowScanner;
+import com.tuplejump.stargate.cassandra.ResultMapper;
+import com.tuplejump.stargate.cassandra.RowFetcher;
 import com.tuplejump.stargate.cassandra.SearchSupport;
 import com.tuplejump.stargate.lucene.Constants;
 import com.tuplejump.stargate.lucene.IndexEntryCollector;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
-import com.tuplejump.stargate.utils.Pair;
-import org.apache.cassandra.cql3.CFDefinition;
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.marshal.*;
 import org.codehaus.jackson.annotate.JsonProperty;
 import org.mvel2.MVEL;
 import org.mvel2.ParserConfiguration;
@@ -61,6 +55,8 @@ public class AggregateFunction implements Function {
     boolean noScript;
     boolean[] simpleExpressions;
     Options options;
+    Group group;
+    protected String[] selection;
 
 
     public AggregateFunction(@JsonProperty("aggregates") AggregateFactory[] aggregates, @JsonProperty("distinct") boolean distinct, @JsonProperty("groupBy") String[] groupBy, @JsonProperty("chunkSize") Integer chunkSize, @JsonProperty("imports") String[] imports, @JsonProperty("noScript") boolean noScript) {
@@ -74,51 +70,40 @@ public class AggregateFunction implements Function {
 
 
     @Override
-    public boolean shouldLimit() {
+    public boolean shouldTryScoring() {
         return false;
     }
 
-    @Override
-    public List<Row> process(RowScanner rowScanner, CustomColumnFactory customColumnFactory, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
-        Options options = rowScanner.getOptions();
+    public Map<String, Integer> getPositions() {
+        return positions;
+    }
 
-        Group group = new Group(options, aggregates, groupBy, groupByExpressions);
+    public boolean[] getSimpleExpressions() {
+        return simpleExpressions;
+    }
+
+    @Override
+    public List<Row> process(ResultMapper resultMapper, ColumnFamilyStore table, RowIndex currentIndex) throws Exception {
+        Options options = resultMapper.searchSupport.getOptions();
         if (aggregates.length == 1 && !aggregates[0].distinct && "count".equalsIgnoreCase(aggregates[0].getType()) && groupBy == null) {
             //this means it is a count-star. we can simply return the size of the index results
             Count count = new Count(aggregates[0], false);
-            count.count = rowScanner.getCollector().docs().size();
+            count.count = resultMapper.collector.docs().size();
             group.groups.put(new Tuple(options.nestedFields, Collections.EMPTY_MAP, simpleExpressions), count);
-            Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, group.toByteBuffer());
+            Row row = resultMapper.tableMapper.getRowWithMetaColumn(group.toByteBuffer());
             return Collections.singletonList(row);
         }
-        Tuple tuple = new Tuple(options.nestedFields, positions, simpleExpressions);
-        if (rowScanner.getCollector().canByPassRowFetch()) {
-            Iterator<IndexEntryCollector.IndexEntry> indexIterator = rowScanner.getCollector().docs().iterator();
-            while (indexIterator.hasNext()) {
-                IndexEntryCollector.IndexEntry indexEntry = indexIterator.next();
+        Tuple tuple = createTuple(options);
+        if (resultMapper.collector.canByPassRowFetch()) {
+            for (IndexEntryCollector.IndexEntry indexEntry : resultMapper.collector.docs()) {
                 load(tuple, indexEntry);
                 group.addTuple(tuple);
             }
         } else {
-            if (chunkSize == 1) {
-                while (rowScanner.hasNext()) {
-                    Row row = rowScanner.next();
-                    load(tuple, row, table);
-                    group.addTuple(tuple);
-                }
-            } else {
-                List<Row> rows;
-                while (rowScanner.hasNext()) {
-                    rows = new ArrayList<>(chunkSize);
-                    for (int i = 0; i < chunkSize; i++) {
-                        if (!rowScanner.hasNext()) break;
-                        rows.add(rowScanner.next());
-                    }
-                    for (Row row : rows) {
-                        load(tuple, row, table);
-                        group.addTuple(tuple);
-                    }
-                }
+            RowFetcher rowFetcher = new RowFetcher(resultMapper);
+            for (Row row : rowFetcher.fetchRows()) {
+                resultMapper.tableMapper.load(positions, tuple, row);
+                group.addTuple(tuple);
             }
 
         }
@@ -126,8 +111,12 @@ public class AggregateFunction implements Function {
         ByteBuffer groupBuffer = group.toByteBuffer();
         timer3.endLogTime("Aggregation serialization  [" + group.groups.size() + "] results");
 
-        Row row = customColumnFactory.getRowWithMetaColumn(table, currentIndex, groupBuffer);
+        Row row = resultMapper.tableMapper.getRowWithMetaColumn(groupBuffer);
         return Collections.singletonList(row);
+    }
+
+    public Tuple createTuple(Options options) {
+        return new Tuple(options.nestedFields, positions, simpleExpressions);
     }
 
     @Override
@@ -177,6 +166,7 @@ public class AggregateFunction implements Function {
             }
 
         }
+        group = new Group(options, aggregates, groupBy, groupByExpressions);
 
     }
 
@@ -269,56 +259,8 @@ public class AggregateFunction implements Function {
         }
     }
 
-    public void load(Tuple tuple, Row row, ColumnFamilyStore table) {
-        CompositeType baseComparator = (CompositeType) table.getComparator();
-        ColumnFamily cf = row.cf;
-        CFDefinition cfDef = table.metadata.getCfDef();
-        ByteBuffer rowKey = row.key.key;
-        AbstractType<?> keyValidator = table.metadata.getKeyValidator();
-        Collection<Column> cols = cf.getSortedColumns();
-        boolean keyColumnsAdded = false;
-        for (Column column : cols) {
-            if (!keyColumnsAdded) {
-                ByteBuffer[] keyComponents = cfDef.hasCompositeKey ? ((CompositeType) table.metadata.getKeyValidator()).split(rowKey) : new ByteBuffer[]{rowKey};
-                List<AbstractType<?>> keyValidators = keyValidator.getComponents();
-                for (Map.Entry<Integer, Pair<String, ByteBuffer>> entry : options.partitionKeysIndexed.entrySet()) {
-                    ByteBuffer value = keyComponents[entry.getKey()];
-                    AbstractType<?> validator = keyValidators.get(entry.getKey());
-                    String actualColumnName = entry.getValue().left;
-                    for (String field : positions.keySet()) {
-                        if (actualColumnName.equalsIgnoreCase(field)) {
-                            tuple.tuple[this.positions.get(field)] = validator.compose(value);
-                        }
-                    }
-                }
-                keyColumnsAdded = true;
-            }
-            String actualColumnName = CassandraUtils.getColumnNameStr(baseComparator, column.name());
-            ByteBuffer colValue = column.value();
-            AbstractType<?> valueValidator = table.metadata.getValueValidatorFromColumnName(column.name());
-            if (valueValidator.isCollection()) {
-                CollectionType validator = (CollectionType) valueValidator;
-                AbstractType keyType = validator.nameComparator();
-                AbstractType valueType = validator.valueComparator();
-                ByteBuffer[] components = baseComparator.split(column.name());
-                ByteBuffer keyBuf = components[components.length - 1];
-                if (valueValidator instanceof MapType) {
-                    actualColumnName = actualColumnName + "." + keyType.compose(keyBuf);
-                    valueValidator = valueType;
-                } else if (valueValidator instanceof SetType) {
-                    colValue = keyBuf;
-                    valueValidator = keyType;
-                } else {
-                    valueValidator = valueType;
-                }
-            }
-            for (String field : positions.keySet()) {
-                if (actualColumnName.equalsIgnoreCase(field)) {
-                    tuple.tuple[this.positions.get(field)] = valueValidator.compose(colValue);
-                }
-            }
-        }
+
+    public Group getGroup() {
+        return group;
     }
-
-
 }

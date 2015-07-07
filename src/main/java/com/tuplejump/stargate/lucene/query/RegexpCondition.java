@@ -22,6 +22,8 @@ import com.tuplejump.stargate.lucene.Properties;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.RegExp;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -32,7 +34,7 @@ import org.codehaus.jackson.annotate.JsonProperty;
  * Note this query can be slow, as it needs to iterate over many terms. In order to prevent extremely slow
  * WildcardQueries, a Wildcard term should not start with the wildcard {@code *}.
  */
-public class RegexpCondition extends Condition {
+public class RegexpCondition extends Condition implements Selector {
 
     /**
      * The field name
@@ -108,6 +110,11 @@ public class RegexpCondition extends Condition {
         return query;
     }
 
+    @Override
+    public String getType() {
+        return "regex";
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -125,4 +132,8 @@ public class RegexpCondition extends Condition {
         return builder.toString();
     }
 
+    @Override
+    public Automaton getAutomaton(Options options) {
+        return new RegExp(value).toAutomaton();
+    }
 }
