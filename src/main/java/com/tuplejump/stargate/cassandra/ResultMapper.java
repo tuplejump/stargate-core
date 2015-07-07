@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -88,6 +89,10 @@ public class ResultMapper {
 
     public TreeMultimap docsByRowKey() {
         return collector.docsByRowKey();
+    }
+
+    public List<IndexEntry> docs() {
+        return collector.docs();
     }
 
     public final Map<CellName, ColumnFamily> getRows(ColumnFamily columnFamily) {

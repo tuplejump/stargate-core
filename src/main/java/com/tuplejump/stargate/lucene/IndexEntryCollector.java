@@ -67,6 +67,7 @@ public class IndexEntryCollector extends Collector {
     List<IndexEntry> indexEntries;
     TreeMultimap<DecoratedKey, IndexEntry> indexEntryTreeMultiMap;
     TableMapper tableMapper;
+    public final boolean isSorted;
 
 
     boolean canByPassRowFetch;
@@ -85,8 +86,10 @@ public class IndexEntryCollector extends Collector {
         org.apache.lucene.search.SortField[] sortFields = search.usesSorting() ? search.sort(options) : null;
         if (sortFields == null) {
             hitQueue = FieldValueHitQueue.create(new org.apache.lucene.search.SortField[]{org.apache.lucene.search.SortField.FIELD_SCORE}, maxResults);
+            isSorted=false;
         } else {
             hitQueue = FieldValueHitQueue.create(sortFields, maxResults);
+            isSorted = true;
         }
         comparators = hitQueue.getComparators();
         numHits = maxResults;

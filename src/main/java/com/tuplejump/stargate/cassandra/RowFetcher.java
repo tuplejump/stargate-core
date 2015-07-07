@@ -42,14 +42,52 @@ public class RowFetcher {
     int columnsCount;
     int limit;
     ColumnFamilyStore table;
+    boolean isSorted;
 
     public RowFetcher(ResultMapper resultMapper) throws Exception {
         this.resultMapper = resultMapper;
         this.limit = resultMapper.limit;
         this.table = resultMapper.tableMapper.table;
+        this.isSorted = resultMapper.collector.isSorted;
+
     }
 
     public List<Row> fetchRows() throws IOException {
+        if(isSorted){
+            return fetchSorted();
+        }
+        else{
+            return fetchIOOptimized();
+        }
+
+    }
+
+    public List<Row> fetchSorted() throws IOException {
+        List<Row> rows = new ArrayList<>();
+        List<IndexEntryCollector.IndexEntry> docsSorted = resultMapper.docs();
+        List<IndexEntryCollector.IndexEntry> sliceList;
+        for (IndexEntryCollector.IndexEntry input : docsSorted) {
+            CellName cellName = input.clusteringKey;
+            DecoratedKey dk = input.decoratedKey;
+            sliceList = new ArrayList<>();
+            sliceList.add(input);
+            Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchRangeSlice(sliceList, dk);
+            if (!resultMapper.filter.columnFilter(dk.getKey()).maySelectPrefix(table.getComparator(), cellName.start())) {
+                continue;
+            }
+            ColumnFamily data = fullSlice.get(cellName);
+            if (data == null || resultMapper.searchSupport.deleteIfNotLatest(dk, data.maxTimestamp(), input.pkName, data))
+                continue;
+            float score = input.score;
+            ColumnFamily cleanColumnFamily = resultMapper.showScore ? scored(score, data) : data;
+            rows.add(new Row(dk, cleanColumnFamily));
+            columnsCount++;
+            if (columnsCount > limit) break;
+        }
+        return rows;
+    }
+
+    private List<Row> fetchIOOptimized() throws IOException {
         List<Row> rows = new ArrayList<>();
         TreeMultimap<DecoratedKey, IndexEntryCollector.IndexEntry> docs = resultMapper.docsByRowKey();
 
