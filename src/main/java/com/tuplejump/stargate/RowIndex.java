@@ -151,6 +151,13 @@ public class RowIndex extends PerRowSecondaryIndex {
             this.tableMapper = new TableMapper(baseCfs, options.primary.isMetaColumn(), columnDefinition);
             rowIndexSupport = new RowIndexSupport(keyspace, indexContainer, options, tableMapper);
             Stargate.getInstance().register(rowIndexSupport);
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
+                public void run() {
+                    logger.warn("Closing RowIndex for {}", indexName);
+                    indexContainer.close();
+                }
+            });
         } finally {
             writeLock.unlock();
         }

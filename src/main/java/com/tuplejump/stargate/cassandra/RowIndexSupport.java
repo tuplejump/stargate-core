@@ -31,6 +31,9 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -115,12 +118,42 @@ public class RowIndexSupport {
             String pk = entry.getKey();
             ByteBuffer pkBuf = pkNames.get(pk);
             List<Field> fields = entry.getValue();
-            Term term = LuceneUtils.primaryKeyTerm(pk);
-            if (logger.isDebugEnabled())
-                logger.debug("Column family update -" + dk);
+            boolean isUpdate = false;
+            if (fields.size() < options.fieldTypes.size()) {
+                if (logger.isDebugEnabled())
+                    logger.debug("Column family update -" + dk);
+                isUpdate = true;
+            }
             fields.addAll(idFields(dk, pk, pkBuf));
             fields.addAll(tsFields(timestamps.get(pk)));
-            indexer.upsert(term, fields);
+            if (isUpdate) {
+                CellName clusteringKey = tableMapper.makeClusteringKey(pkBuf);
+                Composite start = tableMapper.start(clusteringKey);
+                Composite end = tableMapper.end(start);
+                ColumnSlice columnSlice = new ColumnSlice(start, end);
+                SliceQueryFilter sliceQueryFilter = new SliceQueryFilter(columnSlice, false, Integer.MAX_VALUE);
+                QueryFilter queryFilter = new QueryFilter(dk, tableMapper.table.name, sliceQueryFilter, new Date().getTime());
+                ColumnFamily columnFamily = tableMapper.table.getColumnFamily(queryFilter);
+                Map<CellName, ColumnFamily> fullSlice = tableMapper.getRows(columnFamily);
+                ColumnFamily oldDocument = fullSlice.get(clusteringKey);
+                //fields for partition key columns need to be added.
+                addPartitionKeyFields(dk.getKey(), timestamps, oldDocument.maxTimestamp(), pk, fields);
+                //fields for clustering key columns need to be added.
+                addClusteringKeyFields(clusteringKey, timestamps, oldDocument.maxTimestamp(), pk, fields);
+
+                Iterator<Cell> cols = oldDocument.iterator();
+                while (cols.hasNext()) {
+                    Cell cell = cols.next();
+                    CellName cellName = cell.name();
+                    ColumnIdentifier cql3ColName = cellName.cql3ColumnName(tableMapper.cfMetaData);
+                    String actualColName = cql3ColName.toString();
+                    addCell(timestamps, cell, cql3ColName, actualColName, pk, fields);
+                }
+            }
+            Term pkTerm = new Term(LuceneUtils.PK_INDEXED, LuceneUtils.primaryKeyField(pk).stringValue());
+            indexer.delete(pkTerm);
+            indexer.insert(fields);
+
         }
     }
 
@@ -152,6 +185,10 @@ public class RowIndexSupport {
             //fields for clustering key columns need to be added.
             addClusteringKeyFields(clusteringKey, timestamps, cell.timestamp(), primaryKey, fields);
         }
+        addCell(timestamps, cell, cql3ColName, actualColName, primaryKey, fields);
+    }
+
+    private void addCell(Map<String, Long> timestamps, Cell cell, ColumnIdentifier cql3ColName, String actualColName, String primaryKey, List<Field> fields) {
         ColumnDefinition columnDefinition = tableMapper.cfMetaData.getColumnDefinition(cql3ColName);
         if (options.shouldIndex(actualColName)) {
             long existingTS = timestamps.get(primaryKey);

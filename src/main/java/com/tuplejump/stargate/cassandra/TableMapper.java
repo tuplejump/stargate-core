@@ -27,6 +27,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -194,6 +195,43 @@ public class TableMapper {
     public CellName makeClusteringKey(ByteBuffer primaryKey) {
         ByteBuffer clusteringKeyBuf = primaryKeyType.extractLastComponent(primaryKey);
         return clusteringCType.cellFromByteBuffer(clusteringKeyBuf);
+    }
+
+    public final Map<CellName, ColumnFamily> getRows(ColumnFamily columnFamily) {
+        Map<CellName, ColumnFamily> columnFamilies = new LinkedHashMap<>();
+        for (Cell cell : columnFamily) {
+            CellName cellName = cell.name();
+            CellName clusteringKey = extractClusteringKey(cellName);
+            ColumnFamily row = columnFamilies.get(clusteringKey);
+
+            if (row == null) {
+                row = ArrayBackedSortedColumns.factory.create(cfMetaData);
+                columnFamilies.put(clusteringKey, row);
+            }
+            if (!isDroppedColumn(cell, cfMetaData)) {
+                row.addColumn(cell);
+            }
+
+        }
+        return columnFamilies;
+    }
+
+    public final Composite start(CellName cellName) {
+        CBuilder builder = clusteringCType.builder();
+        for (int i = 0; i < cellName.clusteringSize(); i++) {
+            ByteBuffer component = cellName.get(i);
+            builder.add(component);
+        }
+        return builder.build();
+    }
+
+    public final Composite end(Composite start) {
+        return start.withEOC(Composite.EOC.END);
+    }
+
+    public boolean isDroppedColumn(Cell c, CFMetaData meta) {
+        Long droppedAt = meta.getDroppedColumns().get(c.name().cql3ColumnName(meta));
+        return droppedAt != null && c.timestamp() <= droppedAt;
     }
 
 

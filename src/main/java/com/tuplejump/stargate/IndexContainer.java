@@ -147,6 +147,12 @@ public class IndexContainer {
         }
     }
 
+    public void close() {
+        for (Indexer indexer : indexers.values()) {
+            indexer.close();
+        }
+    }
+
     public long size() {
         long size = 0;
         for (Indexer indexer : indexers.values()) {
