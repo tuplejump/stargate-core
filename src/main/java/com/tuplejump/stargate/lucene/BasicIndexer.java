@@ -17,7 +17,6 @@
 package com.tuplejump.stargate.lucene;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -88,7 +87,12 @@ public class BasicIndexer implements Indexer {
     private IndexWriter getIndexWriter(Version luceneV) throws IOException {
         file = LuceneUtils.getDirectory(keyspaceName, cfName, indexName, vNodeName);
         IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
-        config.setRAMBufferSizeMB(256);
+        //the config requires either RAmBufferSize or MaxBufferedDocs to be set.
+        //We want to be able to disable auto flush and flush only when C* mem-table is flushed
+        //So we set RAMBufferSizeMB to Disable
+        //and set MaxBufferedDocs Integer.MAX_VALUE to by pass auto flush
+        config.setMaxBufferedDocs(Integer.MAX_VALUE);
+        config.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
         config.setOpenMode(OPEN_MODE);
         directory = FSDirectory.open(file);
         logger.warn(indexName + " SG Index - Opened dir[" + file.getAbsolutePath() + "] - Openmode[" + OPEN_MODE + "]");
@@ -200,7 +204,7 @@ public class BasicIndexer implements Indexer {
     public long size() {
         if (indexWriter != null) {
             try {
-                return calcTotalFileSize(file.getPath(), directory);
+                return calcTotalFileSize(directory);
             } catch (Exception e) {
                 //ignore
                 return 0;
@@ -242,12 +246,12 @@ public class BasicIndexer implements Indexer {
         }
     }
 
-    public static long calcTotalFileSize(String path, Directory directory) throws Exception {
+    public static long calcTotalFileSize(Directory directory) throws Exception {
         long totalFileSize = 0L;
         String[] files = directory.listAll();
         if (files == null) return totalFileSize;
-        for (int i = 0; i < files.length; i++) {
-            totalFileSize += directory.fileLength(files[i]);
+        for (String file : files) {
+            totalFileSize += directory.fileLength(file);
         }
         return totalFileSize;
     }

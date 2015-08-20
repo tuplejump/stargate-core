@@ -39,7 +39,6 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 
 /**
  * User: satya
@@ -59,21 +58,18 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
 
     public static final String COMMIT_LOGS = "commit-logs";
     public static Exception constructionException;
-    IndexEventSubscriber indexEventSubscriber;
     Atomic.Long writes;
     IndexingService indexingService;
     DB db;
-    BlockingQueue<IndexEntryEvent> queue;
 
 
     private Stargate() {
         try {
-            queue = getQueue();
+            db = getDB();
             writes = getAtomicLong(COMMIT_LOGS + "writes");
             indexingService = new IndexingService(getAtomicLong(COMMIT_LOGS + "reads"));
-            indexEventSubscriber = new IndexEventSubscriber(indexingService, queue);
             Gossiper.instance.register(this);
-        } catch (IOException e) {
+        } catch (Exception e) {
             constructionException = e;
         }
     }
@@ -92,12 +88,11 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
         this.indexingService.register(rowIndexSupport);
         if (StorageService.instance.isInitialized()) {
             indexingService.updateIndexers(rowIndexSupport);
-            if (!indexEventSubscriber.started.get()) indexEventSubscriber.start();
         }
     }
 
     public long publish(ByteBuffer rowKey, ColumnFamily columnFamily) {
-        queue.offer(new IndexEntryEvent(IndexEntryEvent.Type.UPSERT, rowKey, columnFamily));
+        indexingService.index(new IndexEntryEvent(IndexEntryEvent.Type.UPSERT, rowKey, columnFamily));
         long writeGen = writes.incrementAndGet();
         if (logger.isDebugEnabled())
             logger.debug("Write gen:" + writeGen);
@@ -109,18 +104,6 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
         while (true) {
             if (indexingService.reads.get() >= latest) break;
         }
-    }
-
-    private BlockingQueue<IndexEntryEvent> getQueue() throws IOException {
-        db = getDB();
-        BlockingQueue<IndexEntryEvent> queue;
-        if (db.exists(COMMIT_LOGS)) {
-            queue = db.getQueue(COMMIT_LOGS);
-        } else {
-            queue = db.createQueue(COMMIT_LOGS, new IndexEntryEvent.IndexEntryEventSerializer(), false);
-        }
-        return queue;
-
     }
 
     private DB getDB() throws IOException {
@@ -157,7 +140,6 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value) {
         if (state == ApplicationState.TOKENS && FBUtilities.getBroadcastAddress().equals(endpoint)) {
             indexingService.updateAllIndexers();
-            if (!indexEventSubscriber.started.get()) indexEventSubscriber.start();
         }
     }
 
@@ -167,8 +149,6 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
 
     @Override
     public void onDead(InetAddress endpoint, EndpointState state) {
-        if (FBUtilities.getBroadcastAddress().equals(endpoint))
-            indexEventSubscriber.stopped.set(true);
     }
 
     @Override

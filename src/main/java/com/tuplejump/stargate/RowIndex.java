@@ -199,6 +199,8 @@ public class RowIndex extends PerRowSecondaryIndex {
         readLock.lock();
         try {
             if (isIndexBuilt(columnDefinition.name.bytes)) {
+                //flushes writes to the disk
+                //also refreshes readers
                 indexContainer.commit();
             }
         } finally {

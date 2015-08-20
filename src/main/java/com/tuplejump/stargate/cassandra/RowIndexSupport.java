@@ -118,15 +118,15 @@ public class RowIndexSupport {
             String pk = entry.getKey();
             ByteBuffer pkBuf = pkNames.get(pk);
             List<Field> fields = entry.getValue();
-            boolean isUpdate = false;
+            boolean isPartialUpdate = false;
             if (fields.size() < options.fieldTypes.size()) {
                 if (logger.isDebugEnabled())
                     logger.debug("Column family update -" + dk);
-                isUpdate = true;
+                isPartialUpdate = true;
             }
             fields.addAll(idFields(dk, pk, pkBuf));
             fields.addAll(tsFields(timestamps.get(pk)));
-            if (isUpdate) {
+            if (isPartialUpdate) {
                 CellName clusteringKey = tableMapper.makeClusteringKey(pkBuf);
                 Composite start = tableMapper.start(clusteringKey);
                 Composite end = tableMapper.end(start);
@@ -141,9 +141,7 @@ public class RowIndexSupport {
                 //fields for clustering key columns need to be added.
                 addClusteringKeyFields(clusteringKey, timestamps, oldDocument.maxTimestamp(), pk, fields);
 
-                Iterator<Cell> cols = oldDocument.iterator();
-                while (cols.hasNext()) {
-                    Cell cell = cols.next();
+                for (Cell cell : oldDocument) {
                     CellName cellName = cell.name();
                     ColumnIdentifier cql3ColName = cellName.cql3ColumnName(tableMapper.cfMetaData);
                     String actualColName = cql3ColName.toString();

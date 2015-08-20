@@ -76,7 +76,7 @@ public class ResultMapper {
     }
 
 
-    private final ColumnSlice[] getColumnSlices(Collection<IndexEntry> entries) {
+    private ColumnSlice[] getColumnSlices(Collection<IndexEntry> entries) {
         ColumnSlice[] columnSlices = new ColumnSlice[entries.size()];
         int i = 0;
         for (IndexEntry entry : entries) {
