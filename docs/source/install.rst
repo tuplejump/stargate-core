@@ -1,8 +1,7 @@
 Installation
 =============
 
-Stargate-core is currently tested on Cassandra 2.0.7,8,9. 
-Stargate-search is still in the works and will be accessible soon.
+Stargate-core is currently tested on Cassandra 2.1.10, 2.1.11
 
 
 Install from binaries
@@ -14,7 +13,7 @@ Install from binaries
 Install from source
 ^^^^^^^^^^^^^^^^^^^^
 
-* Prerequisites - Java 1.7, Cassandra 2.0.9, Gradle. 
+* Prerequisites - Java 1.8, Cassandra 2.1.10/11, Gradle.
 
 * Checkout the master branch in the git-repo.
 	
@@ -37,6 +36,6 @@ Stargate flushes indexes periodically or when you request a flush, and also with
 
 Development usage
 ^^^^^^^^^^^^^^^^^^
-For use in development, we will publish the stargate-core to Maven Central shortly.
+Stargate-core is in Maven central
 
 
