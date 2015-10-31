@@ -58,6 +58,9 @@ public class Search {
      *
      * @param queryCondition  The {@link Condition} for querying, maybe {@code null} meaning no querying.
      * @param filterCondition The {@link Condition} for filtering, maybe {@code null} meaning no filtering.
+     * @param sort The {@link Sort} for sorting, may be {@code null} meaning no sorting
+     * @param function The {@link Function} for aggregation, may be {@code null} meaning no aggregation
+     * @param showScore  To show score in results.
      */
     @JsonCreator
     public Search(@JsonProperty("query") Condition queryCondition,
@@ -75,7 +78,7 @@ public class Search {
      * Returns {@code true} if the results must be ordered by relevance. If {@code false}, then the results are sorted
      * by the natural Cassandra's order. Results must be ordered by relevance if the querying condition is not {code
      * null}.
-     * <p/>
+     *
      * Relevance is used when the query condition is set, and it is not used when only the filter condition is set.
      *
      * @return {@code true} if the results must be ordered by relevance. If {@code false}, then the results must be
@@ -98,8 +101,9 @@ public class Search {
      * Returns the Lucene's {@link Query} representation of this search. This {@link Query} include both the querying
      * and filtering {@link Condition}s. If none of them is set, then a {@link MatchAllDocsQuery} is returned.
      *
-     * @param schema
+     * @param schema the schema
      * @return The Lucene's {@link Query} representation of this search.
+     * @throws Exception when the query cannot be constructed
      */
     public Query query(Options schema) throws Exception {
         Query query = queryCondition == null ? null : queryCondition.query(schema);

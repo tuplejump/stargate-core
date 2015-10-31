@@ -34,7 +34,6 @@ import static com.tuplejump.stargate.lucene.Constants.striped;
 
 /**
  * User: satya
- * <p/>
  * Utility methods to deal in fields.
  */
 public class Fields {

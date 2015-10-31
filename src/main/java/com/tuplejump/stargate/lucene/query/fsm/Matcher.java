@@ -7,7 +7,7 @@ import java.util.*;
 /**
  * An engine that performs match operation on a sequence of generic elements <code>E</code> by
  * interpreting a {@link Pattern} (analogous to Java's {@link java.util.regex.Matcher}).
- * <p/>
+ *
  * A matcher is created from a pattern by invoking the pattern's {@link Pattern#matcher(List)
  * matcher} method. Once created, a matcher can be used to perform different kinds of match
  * operations:
@@ -21,19 +21,19 @@ import java.util.*;
  * </ol>
  * Each of these methods returns a Boolean value indicating success or failure. More information
  * about a successful match can be obtained by querying the state of the matcher.
- * <p/>
+ *
  * The explicit state of a matcher includes the start and end indices of the most recent successful
  * match. It also includes the start and end indices of the input subsequence captured by each
  * capturing group in the pattern as well as a total count of such subsequences. As a convenience,
  * methods are also provided for returning these captured subsequences.
- * <p/>
+ *
  * A few convenience methods present in Java's {@link java.util.regex.Matcher} are not implemented,
  * particularly <code>appendReplacement</code>, <code>appendTail</code>, and
  * <code>replaceAll</code>.
- * <p/>
+ *
  * Greedy vs. non-greedy behavior of the quantifiers can be modified by changing the
  * {@link #greedy} flag (default: non-greedy matching).
- * <p/>
+ *
  * This class is <i>not</i> <b>thread-safe</b>.
  *
  * @author Florian Leitner
@@ -73,11 +73,11 @@ public final class Matcher<E> {
 
     /**
      * Attempts to find the next subsequence of the input sequence that matches the pattern.
-     * <p/>
+     *
      * This method starts at the beginning of the input sequence or, if a previous invocation of the
      * method was successful and the matcher has not since been {@link #reset}, at the first
      * character not matched by the previous match.
-     * <p/>
+     *
      * If the match succeeds, more information can be obtained via the {@link #start}, {@link #end},
      * and {@link #group} methods.
      */
@@ -95,7 +95,7 @@ public final class Matcher<E> {
     /**
      * Resets this matcher and then attempts to find the next subsequence of the input sequence that
      * matches the pattern, starting at the specified index.
-     * <p/>
+     *
      * If the match succeeds, more information can be obtained via the {@link #start}, {@link #end},
      * and {@link #group} methods.
      *
@@ -110,10 +110,10 @@ public final class Matcher<E> {
 
     /**
      * Attempts to match the input sequence, starting at the beginning, against the pattern.
-     * <p/>
+     *
      * Like the {@link #matches} method, this method always starts at the beginning of the input
      * sequence; unlike that method, it does not require that the entire input sequence be matched.
-     * <p/>
+     *
      * If the match succeeds, more information can be obtained via the {@link #start}, {@link #end},
      * and {@link #group} methods.
      *
@@ -126,7 +126,7 @@ public final class Matcher<E> {
 
     /**
      * Return <code>true</code> if the whole (entire) sequence matches.
-     * <p/>
+     *
      * If the match succeeds, more information can be obtained via the {@link #start}, {@link #end},
      * and {@link #group} methods.
      */
@@ -142,13 +142,14 @@ public final class Matcher<E> {
 
     /**
      * Return the subsequence matched by the previous match.
-     * <p/>
+     *
      * For a matcher <code>m</code> with input sequence <code>s</code>, the expressions
      * <code>m.group()</code> and <code>s.subList(m.start(),
      * m.end())</code> are equivalent.
-     * <p/>
+     *
      * Don't forget that the result could be an empty list for particular patterns.
      *
+     * @return The subsequence matched by the previous match
      * @throws IllegalStateException if no match has yet been attempted, or if the previous match
      *                               operation failed
      */
@@ -159,7 +160,7 @@ public final class Matcher<E> {
 
     /**
      * Returns the input subsequence captured by the given group during the previous match operation.
-     * <p/>
+     *
      * Capturing groups are indexed from left to right, starting at one. Group zero denotes the
      * entire pattern, so the expression <code>m.{@link #group(int) group(0)}</code> is equivalent to
      * <code>m.{@link #group()}</code>.
@@ -179,6 +180,7 @@ public final class Matcher<E> {
 
     /**
      * Returns the number of <b>capturing</b> groups in this matcher's pattern.
+     * @return the number of <b>capturing</b> groups in this matcher's pattern.
      */
     public int groupCount() {
         return captureGroups.length;
@@ -186,7 +188,7 @@ public final class Matcher<E> {
 
     /**
      * Returns an array of group offsets (start, end), including the entire match group.
-     * <p/>
+     *
      * The first two integers are the entire match' offsets, each following pair are for each group.
      * I.e., the length of the resulting array will always be even.
      *
@@ -205,7 +207,8 @@ public final class Matcher<E> {
     }
 
     /**
-     * Return the start index of last match.
+     * Returns the start index of last match.
+     * @return  the start index of last match.
      *
      * @throws IllegalStateException if no match has yet been attempted, or if the previous match
      *                               operation failed
@@ -216,7 +219,8 @@ public final class Matcher<E> {
     }
 
     /**
-     * Return the end index of last match.
+     * Returns the end index of last match.
+     * @return  the end index of last match.
      *
      * @throws IllegalStateException if no match has yet been attempted, or if the previous match
      *                               operation failed
@@ -229,7 +233,7 @@ public final class Matcher<E> {
     /**
      * Returns the start index of the subsequence captured by the given group during the previous
      * match operation.
-     * <p/>
+     *
      * Capturing groups are indexed from left to right, starting at one. Group zero denotes the
      * entire pattern, so the expression <code>m.{@link #start(int) start(0)}</code> is equivalent to
      * <code>m.{@link #start()}</code>.
@@ -248,7 +252,7 @@ public final class Matcher<E> {
     /**
      * Returns the end index of the subsequence captured by the given group during the previous match
      * operation.
-     * <p/>
+     *
      * Capturing groups are indexed from left to right, starting at one. Group zero denotes the
      * entire pattern, so the expression <code>m.{@link #end(int) end(0)}</code> is equivalent to
      * <code>m.{@link #end()}</code>.

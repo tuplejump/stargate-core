@@ -61,7 +61,7 @@ public class IndexTestBase {
 
 
     protected void dropTable(String ksName, String tName) {
-        getSession().execute("DROP table " + ksName + "." + tName);
+//        getSession().execute("DROP table " + ksName + "." + tName);
     }
 
     protected void createKS(String ksName) {
@@ -86,6 +86,26 @@ public class IndexTestBase {
     protected int countResults(String tName, String where, boolean hasWhr, boolean log) {
         long before = System.nanoTime();
         String select = "select * from ";
+        String query = select + tName + (hasWhr ? (" where " + where) : "") + " ";
+        ResultSet result = getSession().execute(query);
+        long after = System.nanoTime();
+        double taken = (after - before) / 1000000;
+        if (log)
+            logger.warn("Search for -" + query + " - results -");
+
+        int count1 = printResultSet(log, result);
+
+        System.out.println("Search query[" + query + "] in [" + taken + "] ms - count [" + count1 + "]");
+        return count1;
+    }
+
+    protected int countStarResults(String tName, String where, boolean log) {
+        return countStarResults(tName, where, true, log);
+    }
+
+    protected int countStarResults(String tName, String where, boolean hasWhr, boolean log) {
+        long before = System.nanoTime();
+        String select = "select count(*) from ";
         String query = select + tName + (hasWhr ? (" where " + where) : "") + " ";
         ResultSet result = getSession().execute(query);
         long after = System.nanoTime();

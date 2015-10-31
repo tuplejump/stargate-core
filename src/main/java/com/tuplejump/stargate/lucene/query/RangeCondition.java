@@ -66,7 +66,6 @@ public class RangeCondition extends Condition {
     /**
      * Constructs a query selecting all fields greater/equal than {@code lowerValue} but less/equal than
      * {@code upperValue}.
-     * <p/>
      * If an endpoint is null, it is said to be "open". Either or both endpoints may be open. Open endpoints may not be
      * exclusive (you can't select all but the first or last term without explicitly specifying the term to exclude.)
      *
@@ -74,6 +73,7 @@ public class RangeCondition extends Condition {
      *                     weightings) have their score multiplied by {@code boost}. If {@code null}, then DEFAULT_BOOST
      *                     is used as default.
      * @param field        the field name.
+     * @param format       the format if the field is a date
      * @param lowerValue   the field value at the lower end of the range.
      * @param upperValue   the field value at the upper end of the range.
      * @param includeLower if {@code true}, the {@code lowerValue} is included in the range.

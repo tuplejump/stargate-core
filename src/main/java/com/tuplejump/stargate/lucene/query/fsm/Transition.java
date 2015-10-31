@@ -2,12 +2,12 @@ package com.tuplejump.stargate.lucene.query.fsm;
 
 /**
  * Transitions define how elements of a sequence should match to the pattern.
- * <p/>
+ *
  * E.g., if the {@link Pattern} (NFA) should match a List of elements of some generic type
  * <code>E</code> (i.e., a <code>List&lt;E&gt;</code> ), transition instances determine if the
  * current element in the sequence being aligned is appropriate to allow the automaton to move on
  * (transition) to its next state.
- * <p/>
+ *
  * In the case of a character sequence automaton (i.e., in String pattern matching such as provided
  * by Java's regex package), the {@link Transition#matches(Object)} implementation would return the
  * Boolean result of {@link Character#compareTo(Character)} <code>== 0</code> and be instantiated
@@ -16,7 +16,7 @@ package com.tuplejump.stargate.lucene.query.fsm;
  * must be defined, while epsilon transitions should default to a weight of zero. The path chosen
  * for backtracking then is the path that has the highest summed transition weights and therefore
  * identifies the matched sequence and capture groups.
- * <p/>
+ *
  * <pre>
  * class CharacterTransition implements Transition&lt;Character&gt; {
  *   private Character c;

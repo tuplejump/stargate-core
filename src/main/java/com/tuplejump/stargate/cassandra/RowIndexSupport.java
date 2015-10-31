@@ -24,6 +24,7 @@ import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.lucene.json.JsonDocument;
 import com.tuplejump.stargate.lucene.json.StreamingJsonDocument;
+import javolution.util.FastMap;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -80,10 +81,10 @@ public class RowIndexSupport {
     public void indexRow(ByteBuffer rowKey, ColumnFamily cf) {
         DecoratedKey dk = tableMapper.decorateKey(rowKey);
         Indexer indexer = indexContainer.indexer(dk);
-        Map<String, List<Field>> primaryKeysVsFields = new HashMap<>();
-        Map<String, Long> timestamps = new HashMap<>();
+        Map<String, List<Field>> primaryKeysVsFields = new FastMap<>();
+        Map<String, Long> timestamps = new FastMap<>();
         Iterator<Cell> cols = cf.iterator();
-        Map<String, ByteBuffer> pkNames = new HashMap<>();
+        Map<String, ByteBuffer> pkNames = new FastMap<>();
         if (cols.hasNext()) {
             while (cols.hasNext()) {
                 addCell(rowKey, pkNames, primaryKeysVsFields, timestamps, cols.next());

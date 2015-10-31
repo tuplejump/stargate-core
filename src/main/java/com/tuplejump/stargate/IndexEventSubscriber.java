@@ -16,59 +16,43 @@
 
 package com.tuplejump.stargate;
 
+import com.lmax.disruptor.EventHandler;
+import com.lmax.disruptor.WorkHandler;
+import com.tuplejump.stargate.cassandra.RowIndexSupport;
+import org.apache.cassandra.db.ColumnFamily;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.nio.ByteBuffer;
 
 /**
  * User: satya
  */
-class IndexEventSubscriber extends Thread {
+class IndexEventSubscriber implements WorkHandler<IndexEntryEvent> {
     protected static final Logger logger = LoggerFactory.getLogger(Stargate.class);
-    BlockingQueue<IndexEntryEvent> queue;
-    AtomicBoolean stopped;
-    AtomicBoolean started;
     IndexingService indexingService;
 
 
-    public IndexEventSubscriber(IndexingService indexingService, BlockingQueue<IndexEntryEvent> queue) {
+    public IndexEventSubscriber(IndexingService indexingService) {
         this.indexingService = indexingService;
-        this.queue = queue;
-        stopped = new AtomicBoolean(false);
-        started = new AtomicBoolean(false);
-        setName("SGIndex Entry Subscriber");
-    }
-
-
-    @Override
-    public synchronized void start() {
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                stopped.set(true);
-            }
-        });
-        super.start();
-        started.set(true);
-        Stargate.logger.warn("********* Indexer Thread Started ************");
     }
 
     @Override
-    public void run() {
-        while (!stopped.get()) {
-            try {
-                if (queue.peek() != null) {
-                    IndexEntryEvent indexEntryEvent = queue.remove();
-                    indexingService.index(indexEntryEvent);
-                }
-                Thread.yield();
-            } catch (Exception e) {
-                logger.error("Error occurred while indexing row", e);
-            }
+    public void onEvent(IndexEntryEvent event) throws Exception {
+        ByteBuffer rowkeyBuffer = event.getRowKey();
+        ColumnFamily columnFamily = event.getColumnFamily();
+
+        final RowIndexSupport rowIndexSupport = indexingService.support.get(columnFamily.metadata().cfName);
+        try {
+            rowIndexSupport.indexRow(rowkeyBuffer, columnFamily);
+        } catch (Exception e) {
+            logger.error("Error occurred while indexing row of [" + columnFamily.metadata().cfName + "]", e);
+        } finally {
+            event.setData(null, null);
         }
 
+        long readGen = indexingService.reads.incrementAndGet();
+        if (logger.isDebugEnabled())
+            logger.debug("Read gen:" + readGen);
     }
-
 }

@@ -25,12 +25,12 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
-import org.mapdb.Atomic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * User: satya
@@ -59,9 +59,9 @@ public class BasicIndexer implements Indexer {
 
     protected SearcherManager searcherManager;
 
-    protected Atomic.Long records;
+    protected AtomicLong records;
 
-    public BasicIndexer(Atomic.Long records, Analyzer analyzer, String keyspaceName, String cfName, String indexName, String vNodeName) {
+    public BasicIndexer(AtomicLong records, Analyzer analyzer, String keyspaceName, String cfName, String indexName, String vNodeName) {
         try {
             this.records = records;
             init(analyzer, keyspaceName, cfName, indexName, vNodeName);
@@ -87,15 +87,9 @@ public class BasicIndexer implements Indexer {
     private IndexWriter getIndexWriter(Version luceneV) throws IOException {
         file = LuceneUtils.getDirectory(keyspaceName, cfName, indexName, vNodeName);
         IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
-        //the config requires either RAmBufferSize or MaxBufferedDocs to be set.
-        //We want to be able to disable auto flush and flush only when C* mem-table is flushed
-        //So we set RAMBufferSizeMB to Disable
-        //and set MaxBufferedDocs Integer.MAX_VALUE to by pass auto flush
-        config.setMaxBufferedDocs(Integer.MAX_VALUE);
-        config.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
-        config.setOpenMode(OPEN_MODE);
+        //config.setInfoStream(System.out);
         directory = FSDirectory.open(file);
-        logger.warn(indexName + " SG Index - Opened dir[" + file.getAbsolutePath() + "] - Openmode[" + OPEN_MODE + "]");
+        logger.warn(indexName + " SG Index - Opened dir[" + file.getAbsolutePath() + "] - OpenMode[" + OPEN_MODE + "]");
         return new IndexWriter(directory, config);
     }
 
@@ -107,7 +101,6 @@ public class BasicIndexer implements Indexer {
         try {
             records.incrementAndGet();
             indexWriter.addDocument(doc);
-            searcherManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -129,7 +122,6 @@ public class BasicIndexer implements Indexer {
     public void delete(Query q) {
         try {
             indexWriter.deleteDocuments(q);
-            searcherManager.maybeRefresh();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

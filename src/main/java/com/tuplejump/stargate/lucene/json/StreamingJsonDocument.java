@@ -36,11 +36,6 @@ import java.util.List;
 public class StreamingJsonDocument extends JsonDocument {
 
 
-    /**
-     * @param json        The json to parse and make fields.
-     * @param properties  The mapping for making lucene fields from the Json.
-     * @param jsonColName
-     */
     public StreamingJsonDocument(String json, Properties properties, String jsonColName) {
         super(properties, jsonColName);
         try {

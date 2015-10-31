@@ -32,16 +32,17 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * User: satya
- * <p/>
+ * <p>
  * This is used to get index options and field options to apply to the lucene based cassandra secondary indexes.
  */
-public class Options {
+public class Options implements Serializable {
     public static final Logger logger = LoggerFactory.getLogger(Options.class);
     public static final String DUMMY_DIR = "_DUMMY_";
     public static String defaultIndexesDir = System.getProperty("sg.index.dir", DUMMY_DIR);

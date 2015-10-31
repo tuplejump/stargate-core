@@ -63,7 +63,7 @@ public class FuzzyCondition extends Condition implements Selector {
      *                       is used as default.
      * @param field          The field name.
      * @param value          The field fuzzy value.
-     * @param maxEdits       Must be >= 0 and <= {@link LevenshteinAutomata#MAXIMUM_SUPPORTED_DISTANCE}.
+     * @param maxEdits       Must be greater or equal to 0 and less than or equal to {@link LevenshteinAutomata#MAXIMUM_SUPPORTED_DISTANCE}'.
      * @param prefixLength   Length of common (non-fuzzy) prefix
      * @param maxExpansions  The maximum number of terms to match. If this number is greater than
      *                       {@link BooleanQuery#getMaxClauseCount} when the query is rewritten, then the maxClauseCount will be

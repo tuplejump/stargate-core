@@ -28,7 +28,7 @@ import java.util.Set;
 
 /**
  * User: satya
- * <p/>
+ *
  * Dataloader implementation to use with CQLUnitD
  */
 public class CQLDataLoaderD {

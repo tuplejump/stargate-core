@@ -4,11 +4,11 @@ apply plugin: 'eclipse'
 apply plugin: 'maven'
 apply plugin: 'signing'
 
-version = '1.0.0'
+version = '1.1.0'
 group = 'com.tuplejump'
 
-sourceCompatibility = 1.7
-targetCompatibility = 1.7
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
 
 repositories {
     mavenCentral()
@@ -19,9 +19,6 @@ repositories {
 dependencies {
 
     compile('com.clearspring.analytics:stream:2.7.0')
-
-    //trans log dependencies
-    compile('org.mapdb:mapdb:1.0.6')
 
     compile('org.mvel:mvel2:2.2.2.Final')
 
@@ -39,33 +36,33 @@ dependencies {
     //provided dependencies - do not copy into dist
     compile('org.codehaus.jackson:jackson-mapper-asl:1.9.2')
     compile('org.codehaus.jackson:jackson-core-asl:1.9.2')
-    compile('com.google.guava:guava:16.0')
+
     compile('org.apache.commons:commons-lang3:3.1')
     compile('org.slf4j:slf4j-api:1.7.2')
     compile('org.slf4j:slf4j-log4j12:1.7.2')
 
-    compile('org.apache.cassandra:cassandra-all:2.1.3') {
+    compile('org.apache.cassandra:cassandra-all:2.1.11') {
         exclude group: 'asm'
         exclude group: 'org.apache.mina'
-        exclude group: 'com.google.guava'
     }
+
+    compile('org.javolution:javolution:5.3.1')
 
     //testing dependencies
     testCompile group: 'junit', name: 'junit', version: '4.11'
 
-    testCompile('com.datastax.cassandra:cassandra-driver-core:2.1.5') {
+    testCompile('com.datastax.cassandra:cassandra-driver-core:2.1.8') {
         exclude group: 'org.apache.cassandra', module: 'cassandra-all'
         exclude group: 'log4j'
         exclude group: 'io.netty'
         exclude group: 'com.google.guava'
     }
 
-    testCompile('org.cassandraunit:cassandra-unit:2.0.2.2') {
+    testCompile('org.cassandraunit:cassandra-unit:2.1.9.2') {
         exclude group: 'org.apache.cassandra', module: 'cassandra-all'
         exclude group: 'log4j'
         exclude group: 'org.sl4j'
         exclude group: 'org.jboss.netty'
-        exclude group: 'com.google.guava'
     }
 
     testCompile group: 'net.sourceforge.argo', name: 'argo', version: '3.7'
@@ -92,7 +89,7 @@ task copyLibs(type: Copy) {
     include 'compiler-*.jar'
     include 'mvel2-*.jar'
     include 'stream-*.jar'
-    include 'mapdb-*.jar'
+    include 'javolution-*.jar'
 }
 
 task copySamples(type: Copy) {

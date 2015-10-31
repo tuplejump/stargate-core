@@ -27,9 +27,7 @@ import java.util.Locale;
  */
 public class Dates {
 
-    /**
-     * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
-     */
+
     public static FormatDateTimeFormatter forPattern(String input, Locale locale) {
         if (StringUtils.isNotBlank(input)) {
             input = input.trim();
@@ -37,7 +35,7 @@ public class Dates {
         DateTimeFormatter formatter;
         if (input == null || input.length() == 0) {
             formatter = ISODateTimeFormat.yearMonthDay();
-        }else if ("basicDate".equals(input) || "basic_date".equals(input)) {
+        } else if ("basicDate".equals(input) || "basic_date".equals(input)) {
             formatter = ISODateTimeFormat.basicDate();
         } else if ("basicDateTime".equals(input) || "basic_date_time".equals(input)) {
             formatter = ISODateTimeFormat.basicDateTime();

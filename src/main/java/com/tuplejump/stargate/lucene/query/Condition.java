@@ -37,7 +37,6 @@ import java.io.IOException;
 
 /**
  * The abstract base class for queries.
- * <p/>
  * Known subclasses are:
  * <ul>
  * <li> {@link FuzzyCondition}
@@ -91,17 +90,17 @@ public abstract class Condition {
 
     /**
      * Returns the Lucene's {@link Query} representation of this condition.
-     *
-     * @param schema The schema to be used.
-     * @return The Lucene's {@link Query} representation of this condition.
+     * @param schema the schema
+     * @return the Lucene's {@link Query} representation of this condition.
+     * @throws Exception when Query cannot be constructed
      */
     public abstract Query query(Options schema) throws Exception;
 
     /**
      * Returns the Lucene's {@link Filter} representation of this condition.
-     *
-     * @param schema The schema to be used.
-     * @return The Lucene's {@link Filter} representation of this condition.
+     * @param schema the schema
+     * @return the Lucene's {@link Filter} representation of this condition.
+     * @throws Exception when filter cannot be constructed
      */
     public Filter filter(Options schema) throws Exception {
         return new QueryWrapperFilter(query(schema));

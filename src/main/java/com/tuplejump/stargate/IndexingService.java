@@ -16,12 +16,15 @@
 
 package com.tuplejump.stargate;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.lmax.disruptor.RingBuffer;
+import com.lmax.disruptor.WorkHandler;
+import com.lmax.disruptor.dsl.Disruptor;
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
-import org.mapdb.Atomic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +34,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * User: satya
@@ -39,38 +44,50 @@ public class IndexingService {
     protected static final Logger logger = LoggerFactory.getLogger(Stargate.class);
     ExecutorService executorService;
     Map<String, RowIndexSupport> support;
-    Atomic.Long reads;
 
+    IndexEntryEvent.Factory eventFactory = new IndexEntryEvent.Factory();
+    // Specify the size of the ring buffer, must be power of 2.
+    int bufferSize = 16;
+    int numWorkers = 4;
+    Disruptor<IndexEntryEvent> disruptor;
+    RingBuffer<IndexEntryEvent> ringBuffer;
+    AtomicLong reads;
+    AtomicLong writes;
 
-    public IndexingService(Atomic.Long reads) {
+    public IndexingService(AtomicLong reads, AtomicLong writes) {
         support = new HashMap<>();
         this.reads = reads;
-        executorService = Executors.newFixedThreadPool(4);
+        this.writes = writes;
+        ThreadFactory namedThreadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("SGRingBuffer-Thread-%d").build();
+        executorService = Executors.newFixedThreadPool(4, namedThreadFactory);
+        disruptor = new Disruptor<>(eventFactory, bufferSize, executorService);
+
+        WorkHandler<IndexEntryEvent>[] workHandlers = new WorkHandler[numWorkers];
+        for (int i = 0; i < numWorkers; i++) {
+            workHandlers[i] = new IndexEventSubscriber(this);
+        }
+        disruptor.handleEventsWithWorkerPool(workHandlers);
+
+        disruptor.start();
+        ringBuffer = disruptor.getRingBuffer();
     }
 
     public void register(RowIndexSupport rowIndexSupport) {
         this.support.put(rowIndexSupport.tableMapper.cfMetaData.cfName, rowIndexSupport);
     }
 
-    public void index(IndexEntryEvent entryEvent) {
-        final ByteBuffer rowkeyBuffer = entryEvent.rowKey;
-        final ColumnFamily columnFamily = entryEvent.columnFamily;
-        final IndexEntryEvent.Type type = entryEvent.type;
-        final RowIndexSupport rowIndexSupport = support.get(columnFamily.metadata().cfName);
-        executorService.submit(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    rowIndexSupport.indexRow(rowkeyBuffer, columnFamily);
-                } catch (Exception e) {
-                    logger.error("Error occurred while indexing row of [" + columnFamily.metadata().cfName + "]", e);
-                }
 
-                long readGen = reads.incrementAndGet();
-                if (logger.isDebugEnabled())
-                    logger.debug("Read gen:" + readGen);
-            }
-        });
+    public void index(ByteBuffer rowkeyBuffer, ColumnFamily columnFamily) {
+        long sequence = ringBuffer.next();
+        try {
+            // Get the entry in the Disruptor
+            // for the sequence
+            IndexEntryEvent event = ringBuffer.get(sequence);
+            event.setData(rowkeyBuffer, columnFamily);
+        } finally {
+            ringBuffer.publish(sequence);
+        }
 
     }
 

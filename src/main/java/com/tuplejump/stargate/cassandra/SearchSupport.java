@@ -48,7 +48,7 @@ import java.util.Set;
 
 /**
  * User: satya
- * <p/>
+ * <p>
  * A searcher which can be used with a SGIndex
  * Includes features to make lucene queries etc.
  */
@@ -95,17 +95,16 @@ public class SearchSupport extends SecondaryIndexSearcher {
             return getRows(mainFilter, search);
         } catch (Exception e) {
             if (tableMapper.isMetaColumn) {
-                logger.error("Exception occurred while querying", e);
+
                 ByteBuffer errorMsg = UTF8Type.instance.decompose("{\"error\":\"" + StringEscapeUtils.escapeEcmaScript(e.getMessage()) + "\"}");
                 Row row = tableMapper.getRowWithMetaColumn(errorMsg);
                 if (row != null) {
                     return Collections.singletonList(row);
-                } else {
-                    return Collections.EMPTY_LIST;
                 }
-            } else {
-                throw new RuntimeException(e);
+
             }
+            logger.error("Exception occurred while querying", e);
+            return Collections.EMPTY_LIST;
         }
     }
 
@@ -208,9 +207,11 @@ public class SearchSupport extends SecondaryIndexSearcher {
         return false;
     }
 
-    protected IndexExpression highestSelectivityPredicate(List<IndexExpression> clause) {
+    @Override
+    protected IndexExpression highestSelectivityPredicate(List<IndexExpression> clause, boolean includeInTrace) {
         return matchThisIndex(clause);
     }
+
 
     @Override
     public boolean canHandleIndexClause(List<IndexExpression> clause) {

@@ -17,7 +17,7 @@
 package com.tuplejump.stargate.util;
 
 import com.datastax.driver.core.Session;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.cassandraunit.dataset.CQLDataSet;
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper;
 import org.codehaus.jackson.JsonFactory;
@@ -49,7 +49,7 @@ public class CQLUnitD extends ExternalResource {
     protected CQLDataSet dataSet;
     protected String configurationFileName;
     protected Session session;
-    protected static String hostIp = "127.0.0.1";
+    protected static String hostIp = "localhost";
     protected static int port = 9142;
     protected CQLDataLoaderD loader;
 

@@ -17,28 +17,24 @@
 package com.tuplejump.stargate;
 
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
-import com.tuplejump.stargate.lucene.Options;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.mapdb.Atomic;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
-import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * User: satya
@@ -58,25 +54,19 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
 
     public static final String COMMIT_LOGS = "commit-logs";
     public static Exception constructionException;
-    Atomic.Long writes;
     IndexingService indexingService;
-    DB db;
-
 
     private Stargate() {
         try {
-            db = getDB();
-            writes = getAtomicLong(COMMIT_LOGS + "writes");
-            indexingService = new IndexingService(getAtomicLong(COMMIT_LOGS + "reads"));
+            indexingService = new IndexingService(getAtomicLong(COMMIT_LOGS + "reads"), getAtomicLong(COMMIT_LOGS + "writes"));
             Gossiper.instance.register(this);
         } catch (Exception e) {
             constructionException = e;
         }
     }
 
-    public Atomic.Long getAtomicLong(String name) {
-        if (db.exists(name)) return db.getAtomicLong(name);
-        return db.createAtomicLong(name, 0l);
+    public AtomicLong getAtomicLong(String name) {
+        return new AtomicLong();
     }
 
     public static Stargate getInstance() {
@@ -92,8 +82,8 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
     }
 
     public long publish(ByteBuffer rowKey, ColumnFamily columnFamily) {
-        indexingService.index(new IndexEntryEvent(IndexEntryEvent.Type.UPSERT, rowKey, columnFamily));
-        long writeGen = writes.incrementAndGet();
+        indexingService.index(rowKey, columnFamily);
+        long writeGen = indexingService.writes.incrementAndGet();
         if (logger.isDebugEnabled())
             logger.debug("Write gen:" + writeGen);
         return writeGen;
@@ -104,27 +94,6 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
         while (true) {
             if (indexingService.reads.get() >= latest) break;
         }
-    }
-
-    private DB getDB() throws IOException {
-        String dirName = Options.defaultIndexesDir;
-        dirName = dirName + File.separator + COMMIT_LOGS;
-        File dir = new File(dirName);
-        boolean createNew = false;
-        if (!dir.exists()) {
-            createNew = dir.mkdirs();
-        }
-        logger.warn("##### Index commit log directory path #####[" + dir.getPath() + "]. Created new [" + createNew + "]");
-        File file = new File(dir, "log");
-        if (!file.exists()) {
-            createNew = file.createNewFile();
-        }
-        logger.warn("##### Index commit log file path #####[" + file.getPath() + "]. Created new [" + createNew + "]");
-        return DBMaker.
-                newFileDB(file)
-                .mmapFileEnableIfSupported()
-                .closeOnJvmShutdown()
-                .make();
     }
 
 
@@ -166,7 +135,7 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
         int i = 0;
         for (Map.Entry<String, RowIndexSupport> entry : indexingService.support.entrySet()) {
             RowIndexSupport rowIndexSupport = entry.getValue();
-            allIndexes[i++] = rowIndexSupport.indexContainer.indexName;
+            allIndexes[i++] = rowIndexSupport.indexContainer.indexName();
         }
         return allIndexes;
     }
@@ -174,8 +143,9 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
     @Override
     public String[] indexShards(String indexName) {
         RowIndexSupport indexSupport = getRowIndexSupportByIndexName(indexName);
-        if (indexSupport != null) {
-            Set<Range<Token>> indexShards = indexSupport.indexContainer.indexers.keySet();
+        if (indexSupport != null && indexSupport.indexContainer instanceof PerVNodeIndexContainer) {
+            PerVNodeIndexContainer indexContainer = (PerVNodeIndexContainer) indexSupport.indexContainer;
+            Set<Range<Token>> indexShards = indexContainer.indexers.keySet();
             String[] indexRanges = new String[indexShards.size()];
             int i = 0;
             for (Range<Token> indexRange : indexShards) {
@@ -183,7 +153,7 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
             }
             return indexRanges;
         }
-        return null;
+        return new String[]{""};
     }
 
     @Override
@@ -198,7 +168,7 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
     private RowIndexSupport getRowIndexSupportByIndexName(String indexName) {
         for (Map.Entry<String, RowIndexSupport> entry : indexingService.support.entrySet()) {
             RowIndexSupport rowIndexSupport = entry.getValue();
-            if (rowIndexSupport.indexContainer.indexName.equalsIgnoreCase(indexName)) return rowIndexSupport;
+            if (rowIndexSupport.indexContainer.indexName().equalsIgnoreCase(indexName)) return rowIndexSupport;
         }
         return null;
     }
@@ -223,7 +193,7 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
 
     @Override
     public long writeGeneration() {
-        return writes.get();
+        return indexingService.writes.get();
     }
 
     @Override

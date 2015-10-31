@@ -147,7 +147,8 @@ public class RowIndex extends PerRowSecondaryIndex {
             this.nearRealTime = options.primary.isNearRealTime();
 
             logger.warn("Creating new RowIndex for {}", indexName);
-            indexContainer = new IndexContainer(options.analyzer, keyspace, tableName, indexName);
+            indexContainer = new PerVNodeIndexContainer(options.analyzer, keyspace, tableName, indexName);
+//            indexContainer = new MonolithIndexContainer(options.analyzer, keyspace, tableName, indexName);
             this.tableMapper = new TableMapper(baseCfs, options.primary.isMetaColumn(), columnDefinition);
             rowIndexSupport = new RowIndexSupport(keyspace, indexContainer, options, tableMapper);
             Stargate.getInstance().register(rowIndexSupport);
