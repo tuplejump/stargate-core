@@ -19,7 +19,11 @@ import com.lmax.disruptor.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * This file is taken as is from com.lmax.disruptor.WorkProcessor
+ * This file is taken as is from com.lmax.disruptor.WorkProcessor v3.0.1
+ * except the following
+ * the fix in https://github.com/LMAX-Exchange/disruptor/commit/7828e685594325e1716c412f907d442ddef4f4ac has
+ * been applied
+ *
  * <p/>
  * <p/>
  * A {@link CustomWorkProcessor} wraps a single {@link WorkHandler}, effectively consuming the sequence
@@ -103,11 +107,12 @@ public final class CustomWorkProcessor<T>
                     sequence.set(nextSequence - 1L);
                 }
 
-                sequenceBarrier.waitFor(nextSequence);
-                event = ringBuffer.get(nextSequence);
-                workHandler.onEvent(event);
+                if (sequenceBarrier.waitFor(nextSequence) >= nextSequence) {
+                    event = ringBuffer.get(nextSequence);
+                    workHandler.onEvent(event);
+                    processedSequence = true;
+                }
 
-                processedSequence = true;
             } catch (final AlertException ex) {
                 if (!running.get()) {
                     break;
