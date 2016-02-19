@@ -23,7 +23,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * except the following
  * the fix in https://github.com/LMAX-Exchange/disruptor/commit/7828e685594325e1716c412f907d442ddef4f4ac has
  * been applied
- *
+ * the performance bug fix in https://github.com/LMAX-Exchange/disruptor/commit/d3a4b0794b8ba56f29dbb0dd993e311b3c14dd28 has also
+ * been applied
  * <p/>
  * <p/>
  * A {@link CustomWorkProcessor} wraps a single {@link WorkHandler}, effectively consuming the sequence
@@ -92,6 +93,7 @@ public final class CustomWorkProcessor<T>
         notifyStart();
 
         boolean processedSequence = true;
+        long cachedAvailableSequence = Long.MIN_VALUE;
         long nextSequence = sequence.get();
         T event = null;
         while (true) {
@@ -107,12 +109,13 @@ public final class CustomWorkProcessor<T>
                     sequence.set(nextSequence - 1L);
                 }
 
-                if (sequenceBarrier.waitFor(nextSequence) >= nextSequence) {
+                if (cachedAvailableSequence >= nextSequence) {
                     event = ringBuffer.get(nextSequence);
                     workHandler.onEvent(event);
                     processedSequence = true;
+                } else {
+                    cachedAvailableSequence = sequenceBarrier.waitFor(nextSequence);
                 }
-
             } catch (final AlertException ex) {
                 if (!running.get()) {
                     break;

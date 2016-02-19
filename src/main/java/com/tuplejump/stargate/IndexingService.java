@@ -106,7 +106,7 @@ public class IndexingService {
     }
 
     /**
-     * Upon upgrade of disruptor to a version above 3.1.1,
+     * Upon upgrade of disruptor to a version above 3.2.0,
      * this method invocation can be replaced with
      * {@code disruptor.handleEventsWithWorkerPool}
      *
