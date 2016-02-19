@@ -17,8 +17,7 @@
 package com.tuplejump.stargate;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.lmax.disruptor.RingBuffer;
-import com.lmax.disruptor.WorkHandler;
+import com.lmax.disruptor.*;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
 import org.apache.cassandra.db.ColumnFamily;
@@ -60,17 +59,20 @@ public class IndexingService {
         this.writes = writes;
         ThreadFactory namedThreadFactory = new ThreadFactoryBuilder()
                 .setNameFormat("SGRingBuffer-Thread-%d").build();
-        executorService = Executors.newFixedThreadPool(4, namedThreadFactory);
+        executorService = Executors.newFixedThreadPool(numWorkers, namedThreadFactory);
         disruptor = new Disruptor<>(eventFactory, bufferSize, executorService);
+        ringBuffer = disruptor.getRingBuffer();
+
+        ExceptionHandler exceptionHandler = new FatalExceptionHandler();
+        disruptor.handleExceptionsWith(exceptionHandler);
 
         WorkHandler<IndexEntryEvent>[] workHandlers = new WorkHandler[numWorkers];
         for (int i = 0; i < numWorkers; i++) {
             workHandlers[i] = new IndexEventSubscriber(this);
         }
-        disruptor.handleEventsWithWorkerPool(workHandlers);
+        handleEventsWithWorkerPool(workHandlers, exceptionHandler);
 
         disruptor.start();
-        ringBuffer = disruptor.getRingBuffer();
     }
 
     public void register(RowIndexSupport rowIndexSupport) {
@@ -101,6 +103,52 @@ public class IndexingService {
     public void updateIndexers(RowIndexSupport rowIndexSupport) {
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(rowIndexSupport.keyspace);
         rowIndexSupport.indexContainer.updateIndexers(ranges);
+    }
+
+    /**
+     * Upon upgrade of disruptor to a version above 3.1.1,
+     * this method invocation can be replaced with
+     * {@code disruptor.handleEventsWithWorkerPool}
+     *
+     *
+     * @param workHandlers
+     * @param exceptionHandler
+     */
+    private void handleEventsWithWorkerPool(WorkHandler<IndexEntryEvent>[] workHandlers, ExceptionHandler exceptionHandler) {
+        final Sequence[] barrierSequences = new Sequence[0];
+        final SequenceBarrier sequenceBarrier = ringBuffer.newBarrier(barrierSequences);
+        EventProcessor[] workProcessors = new CustomWorkProcessor[numWorkers];
+        Sequence workSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+        for (int i = 0; i < numWorkers; i++) {
+            workProcessors[i] = new CustomWorkProcessor<IndexEntryEvent>(
+                    ringBuffer,
+                    sequenceBarrier,
+                    workHandlers[i],
+                    exceptionHandler,
+                    workSequence);
+        }
+
+        disruptor.handleEventsWith(workProcessors);
+    }
+
+
+    private class FatalExceptionHandler implements ExceptionHandler {
+        @Override
+        public void handleEventException(final Throwable ex, final long sequence, final Object event) {
+            logger.error("Exception processing: " + sequence + " " + event, ex);
+
+            throw new RuntimeException(ex);
+        }
+
+        @Override
+        public void handleOnStartException(final Throwable ex) {
+            logger.error("Exception during onStart()", ex);
+        }
+
+        @Override
+        public void handleOnShutdownException(final Throwable ex) {
+            logger.error("Exception during onShutdown()", ex);
+        }
     }
 
 }
