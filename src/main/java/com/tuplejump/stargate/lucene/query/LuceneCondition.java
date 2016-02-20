@@ -88,7 +88,9 @@ public class LuceneCondition extends Condition {
             parser.setAllowLeadingWildcard(true);
             Query luceneQuery = parser.parse(query, getDefaultField(schema));
             luceneQuery.setBoost(boost);
-            logger.debug("Lucene query is {}", luceneQuery);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Lucene query is {}", luceneQuery);
+            }
             return luceneQuery;
         } catch (Exception e) {
             throw new RuntimeException("Error while parsing lucene syntax query", e);

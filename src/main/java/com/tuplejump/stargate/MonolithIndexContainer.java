@@ -33,7 +33,9 @@ public class MonolithIndexContainer implements IndexContainer {
     @Override
     public void updateIndexers(Collection<Range<Token>> ranges) {
         if (indexer == null) {
-            logger.warn("Adding Monolith indexer");
+            if (logger.isInfoEnabled()) {
+                logger.info("Adding Monolith indexer");
+            }
             String rangeStr = "allVNodes";
             AtomicLong records = Stargate.getInstance().getAtomicLong(INDEX_RECORDS + "-" + indexName + "-" + rangeStr);
             indexer = new BasicIndexer(records, analyzer, keyspace, cf, indexName, rangeStr);
