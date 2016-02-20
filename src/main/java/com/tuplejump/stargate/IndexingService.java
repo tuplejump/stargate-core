@@ -66,11 +66,11 @@ public class IndexingService {
         ExceptionHandler exceptionHandler = new FatalExceptionHandler();
         disruptor.handleExceptionsWith(exceptionHandler);
 
-        WorkHandler<IndexEntryEvent>[] workHandlers = new WorkHandler[numWorkers];
+        EventHandler<IndexEntryEvent>[] eventHandlers = new EventHandler[numWorkers];
         for (int i = 0; i < numWorkers; i++) {
-            workHandlers[i] = new IndexEventSubscriber(this);
+            eventHandlers[i] = new IndexEventHandler(this, i, numWorkers);
         }
-        handleEventsWithWorkerPool(workHandlers, exceptionHandler);
+        disruptor.handleEventsWith(eventHandlers);
 
         disruptor.start();
     }
@@ -104,33 +104,6 @@ public class IndexingService {
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(rowIndexSupport.keyspace);
         rowIndexSupport.indexContainer.updateIndexers(ranges);
     }
-
-    /**
-     * Upon upgrade of disruptor to a version above 3.2.0,
-     * this method invocation can be replaced with
-     * {@code disruptor.handleEventsWithWorkerPool}
-     *
-     *
-     * @param workHandlers
-     * @param exceptionHandler
-     */
-    private void handleEventsWithWorkerPool(WorkHandler<IndexEntryEvent>[] workHandlers, ExceptionHandler exceptionHandler) {
-        final Sequence[] barrierSequences = new Sequence[0];
-        final SequenceBarrier sequenceBarrier = ringBuffer.newBarrier(barrierSequences);
-        EventProcessor[] workProcessors = new CustomWorkProcessor[numWorkers];
-        Sequence workSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-        for (int i = 0; i < numWorkers; i++) {
-            workProcessors[i] = new CustomWorkProcessor<IndexEntryEvent>(
-                    ringBuffer,
-                    sequenceBarrier,
-                    workHandlers[i],
-                    exceptionHandler,
-                    workSequence);
-        }
-
-        disruptor.handleEventsWith(workProcessors);
-    }
-
 
     private class FatalExceptionHandler implements ExceptionHandler {
         @Override
