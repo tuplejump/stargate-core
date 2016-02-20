@@ -4,7 +4,7 @@ apply plugin: 'eclipse'
 apply plugin: 'maven'
 apply plugin: 'signing'
 
-version = '1.1.0'
+version = '1.1.1-SNAPSHOT'
 group = 'com.tuplejump'
 
 sourceCompatibility = 1.8
@@ -15,6 +15,7 @@ repositories {
     mavenLocal()
 }
 
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
 dependencies {
 
@@ -126,8 +127,10 @@ artifacts {
 }
 
 signing {
+    required { isReleaseVersion && gradle.taskGraph.hasTask("uploadArchives") }
     sign configurations.archives
 }
+
 
 uploadArchives {
     repositories {
