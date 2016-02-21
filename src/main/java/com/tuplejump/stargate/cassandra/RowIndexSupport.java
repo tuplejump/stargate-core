@@ -92,8 +92,15 @@ public class RowIndexSupport {
             addToIndex(indexer, dk, pkNames, primaryKeysVsFields, timestamps);
         } else {
             DeletionInfo deletionInfo = cf.deletionInfo();
-            if (cf.isMarkedForDelete()) {
-                deleteRowsMarked(indexer, deletionInfo);
+            if (deletionInfo != null && cf.isMarkedForDelete()) {
+                if (deletionInfo.rangeIterator().hasNext()) {
+                    deleteRowsMarked(indexer, deletionInfo);
+                } else {
+                    //remove the partition
+                    String rkString = rowKeyString(dk);
+                    Term rowkeyTerm = LuceneUtils.rowkeyTerm(rkString);
+                    indexer.delete(rowkeyTerm);
+                }
             }
         }
 
@@ -150,8 +157,9 @@ public class RowIndexSupport {
                 }
             }
             Term pkTerm = new Term(LuceneUtils.PK_INDEXED, LuceneUtils.primaryKeyField(pk).stringValue());
-            indexer.delete(pkTerm);
-            indexer.insert(fields);
+            indexer.upsert(pkTerm,fields);
+            //indexer.delete(pkTerm);
+            //indexer.insert(fields);
 
         }
     }
@@ -256,7 +264,15 @@ public class RowIndexSupport {
     }
 
     protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pk) {
-        return Arrays.asList(LuceneUtils.rkBytesDocValue(rowKey.getKey()), LuceneUtils.primaryKeyField(pkName), LuceneUtils.pkBytesDocValue(pk), LuceneUtils.pkNameDocValue(pkName), LuceneUtils.rowKeyIndexed(tableMapper.primaryKeyAbstractType.getString(rowKey.getKey())));
+        return Arrays.asList(
+                LuceneUtils.rkBytesDocValue(rowKey.getKey()),
+                LuceneUtils.primaryKeyField(pkName),
+                LuceneUtils.pkBytesDocValue(pk), LuceneUtils.pkNameDocValue(pkName),
+                LuceneUtils.rowKeyIndexed(rowKeyString(rowKey)));
+    }
+
+    private String rowKeyString(DecoratedKey rowKey) {
+        return tableMapper.primaryKeyAbstractType.getString(rowKey.getKey());
     }
 
     protected List<Field> tsFields(long ts) {

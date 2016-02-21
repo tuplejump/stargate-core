@@ -106,6 +106,19 @@ public class BasicIndexer implements Indexer {
         }
     }
 
+    @Override
+    public void upsert(Term term,Iterable<Field> doc) {
+        if (logger.isDebugEnabled())
+            logger.debug(indexName + "Upsert Indexing fields" + doc);
+
+        try {
+            records.incrementAndGet();
+            indexWriter.updateDocument(term,doc);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     @Override
     public void delete(Term... terms) {
