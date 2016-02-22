@@ -77,8 +77,10 @@ public class BasicIndexer implements Indexer {
         this.cfName = cfName;
         this.analyzer = analyzer;
         this.vNodeName = vNodeName;
-        logger.debug(indexName + " Lucene analyzer -" + analyzer);
-        logger.debug(indexName + " Lucene version -" + Properties.luceneVersion);
+        if (logger.isDebugEnabled()) {
+            logger.debug(indexName + " Lucene analyzer -" + analyzer);
+            logger.debug(indexName + " Lucene version -" + Properties.luceneVersion);
+        }
         indexWriter = getIndexWriter(Properties.luceneVersion);
         searcherManager = new SearcherManager(indexWriter, true, new SearcherFactory());
     }
@@ -89,7 +91,9 @@ public class BasicIndexer implements Indexer {
         IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
         //config.setInfoStream(System.out);
         directory = FSDirectory.open(file);
-        logger.warn(indexName + " SG Index - Opened dir[" + file.getAbsolutePath() + "] - OpenMode[" + OPEN_MODE + "]");
+        if (logger.isInfoEnabled()) {
+            logger.info(indexName + " SG Index - Opened dir[" + file.getAbsolutePath() + "] - OpenMode[" + OPEN_MODE + "]");
+        }
         return new IndexWriter(directory, config);
     }
 
@@ -168,7 +172,9 @@ public class BasicIndexer implements Indexer {
 
     @Override
     public boolean removeIndex() {
-        logger.warn("SG BasicIndexer - Removing index -" + indexName);
+        if (logger.isInfoEnabled()) {
+            logger.info("SG BasicIndexer - Removing index - {}", indexName);
+        }
         try {
             closeIndex();
             LuceneUtils.deleteRecursive(file);
@@ -182,7 +188,9 @@ public class BasicIndexer implements Indexer {
     @Override
     public boolean truncate(long l) {
         try {
-            logger.warn("SG BasicIndexer - Truncating index -" + indexName);
+            if (logger.isInfoEnabled()) {
+                logger.info("SG BasicIndexer - Truncating index - {}", indexName);
+            }
             indexWriter.deleteAll();
             return true;
         } catch (IOException e) {
@@ -244,7 +252,9 @@ public class BasicIndexer implements Indexer {
     @Override
     public void commit() {
         try {
-            logger.warn("SG BasicIndexer - Committing index -" + indexName);
+            if (logger.isInfoEnabled()) {
+                logger.info("SG BasicIndexer - Committing index - {}", indexName);
+            }
             indexWriter.commit();
         } catch (IOException e) {
             throw new RuntimeException(e);

@@ -131,6 +131,7 @@ public class RowIndex extends PerRowSecondaryIndex {
     @Override
     public void init() {
         writeLock.lock();
+        final Boolean isInfoLoggingEnabled = logger.isInfoEnabled();
         try {
             assert baseCfs != null;
             assert columnDefs != null;
@@ -146,7 +147,9 @@ public class RowIndex extends PerRowSecondaryIndex {
             this.options = CassandraUtils.getOptions(primaryColumnName, baseCfs, optionsJson);
             this.nearRealTime = options.primary.isNearRealTime();
 
-            logger.warn("Creating new RowIndex for {}", indexName);
+            if (isInfoLoggingEnabled) {
+                logger.info("Creating new RowIndex for {}", indexName);
+            }
             indexContainer = new PerVNodeIndexContainer(options.analyzer, keyspace, tableName, indexName);
 //            indexContainer = new MonolithIndexContainer(options.analyzer, keyspace, tableName, indexName);
             this.tableMapper = new TableMapper(baseCfs, options.primary.isMetaColumn(), columnDefinition);
@@ -155,7 +158,9 @@ public class RowIndex extends PerRowSecondaryIndex {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
-                    logger.warn("Closing RowIndex for {}", indexName);
+                    if (isInfoLoggingEnabled) {
+                        logger.info("Closing RowIndex for {}", indexName);
+                    }
                     indexContainer.close();
                 }
             });
@@ -223,13 +228,17 @@ public class RowIndex extends PerRowSecondaryIndex {
 
     @Override
     public void removeIndex(ByteBuffer byteBuffer) {
-        logger.warn(indexName + " Got call to REMOVE index.");
+        if (logger.isInfoEnabled()) {
+            logger.info("Got call to REMOVE index {}.", indexName);
+        }
         invalidate();
     }
 
     @Override
     public void reload() {
-        logger.warn(indexName + " Got call to RELOAD index.");
+        if (logger.isInfoEnabled()) {
+            logger.info("Got call to RELOAD index {}.", indexName);
+        }
         if (indexContainer == null && columnDefinition.getIndexOptions() != null && !columnDefinition.getIndexOptions().isEmpty()) {
             init();
         }
@@ -240,7 +249,9 @@ public class RowIndex extends PerRowSecondaryIndex {
     public void invalidate() {
         writeLock.lock();
         try {
-            logger.warn("Removing All Indexers for {}", indexName);
+            if (logger.isInfoEnabled()) {
+                logger.info("Removing All Indexers for {}", indexName);
+            }
             indexContainer.remove();
             indexContainer = null;
             setIndexRemoved();

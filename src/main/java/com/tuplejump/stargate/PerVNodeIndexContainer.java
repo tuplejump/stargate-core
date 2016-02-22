@@ -64,28 +64,39 @@ public class PerVNodeIndexContainer implements IndexContainer {
     @Override
     public void updateIndexers(Collection<Range<Token>> ranges) {
         writeLock.lock();
+        Boolean isInfoLoggingEnabled = logger.isInfoEnabled();
         try {
             if (indexers.isEmpty()) {
-                logger.warn("Adding VNode indexers");
+                if (isInfoLoggingEnabled) {
+                    logger.info("Adding VNode indexers");
+                }
 
                 for (Range<Token> range : ranges) {
                     String rangeStr = range.left.toString();
                     AtomicLong records = Stargate.getInstance().getAtomicLong(INDEX_RECORDS + "-" + indexName + "-" + rangeStr);
                     Indexer indexer = new BasicIndexer(records, analyzer, keyspace, cf, indexName, rangeStr);
                     indexers.put(range, indexer);
-                    logger.warn("Added VNode indexers for range {}", range);
+                    if (isInfoLoggingEnabled) {
+                        logger.info("Added VNode indexers for range {}", range);
+                    }
                 }
             } else {
-                logger.warn("Change in VNode indexers");
+                if (isInfoLoggingEnabled) {
+                    logger.info("Change in VNode indexers");
+                }
                 HashMap<Range<Token>, Indexer> indexersToRemove = new HashMap<>(indexers);
                 for (Range<Token> range : ranges) {
                     indexersToRemove.remove(range);
                 }
                 for (Map.Entry<Range<Token>, Indexer> entry : indexersToRemove.entrySet()) {
-                    logger.warn("Removing indexer for range {}", entry.getKey());
+                    if (isInfoLoggingEnabled) {
+                        logger.info("Removing indexer for range {}", entry.getKey());
+                    }
                     Indexer indexer = indexers.remove(entry.getKey());
                     indexer.removeIndex();
-                    logger.warn("Removed indexer for range {}", entry.getKey());
+                    if (isInfoLoggingEnabled) {
+                        logger.info("Removed indexer for range {}", entry.getKey());
+                    }
                 }
             }
         } finally {
@@ -201,7 +212,9 @@ public class PerVNodeIndexContainer implements IndexContainer {
         for (Indexer indexer : indexers.values()) {
             if (indexer != null) {
                 indexer.truncate(l);
-                logger.warn(indexName + " Truncated index {}.", indexName);
+                if (logger.isInfoEnabled()) {
+                    logger.info(" Truncated index {}.", indexName);
+                }
             }
         }
     }

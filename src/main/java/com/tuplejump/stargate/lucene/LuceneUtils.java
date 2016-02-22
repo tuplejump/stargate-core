@@ -70,8 +70,10 @@ public class LuceneUtils {
         String fileName = indexName;
         String dirName = Options.defaultIndexesDir;
         dirName = dirName + File.separator + ksName + File.separator + cfName + File.separator + vNodeName;
-        logger.debug("SGIndex - INDEX_FILE_NAME -" + fileName);
-        logger.debug("SGIndex - INDEX_DIR_NAME -" + dirName);
+        if (logger.isDebugEnabled()) {
+            logger.debug("SGIndex - INDEX_FILE_NAME - {}", fileName);
+            logger.debug("SGIndex - INDEX_DIR_NAME - {}", dirName);
+        }
         //will only create parent if not existing.
         return new File(dirName, fileName);
     }

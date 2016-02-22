@@ -106,8 +106,11 @@ public class CQLUnitD extends ExternalResource {
 
     public static CQLUnitD getCQLUnit(com.tuplejump.stargate.util.CQLDataSet ds) {
         CQLUnitD cassandraCQLUnit = null;
-        logger.error("Env prop - cluster - " + System.getProperty("cluster", "false"));
-        boolean cluster = Boolean.parseBoolean(System.getProperty("cluster", "false"));
+        String clusterStr = System.getProperty("cluster", "false");
+        if (logger.isInfoEnabled()) {
+            logger.info("Env prop - cluster - {}", clusterStr);
+        }
+        boolean cluster = Boolean.parseBoolean(clusterStr);
         if (cluster) {
             Properties props = new Properties();
             try {
@@ -115,8 +118,10 @@ public class CQLUnitD extends ExternalResource {
                 String nodes = props.getProperty("nodes", "EMPTY");
                 if (nodes != "EMPTY") {
                     Map<String, Integer> hostsAndPorts = getHostsAndPorts(nodes);
-                    logger.debug("**** Starting CQLUnitD in CLUSTER mode **** ");
-                    logger.debug("Hosts - " + hostsAndPorts);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("**** Starting CQLUnitD in CLUSTER mode **** ");
+                        logger.debug("Hosts - {}", hostsAndPorts);
+                    }
                     cassandraCQLUnit = new CQLUnitD(ds, hostsAndPorts);
                 }
 
@@ -124,7 +129,9 @@ public class CQLUnitD extends ExternalResource {
                 throw new RuntimeException(e);
             }
         } else {
-            logger.debug("**** Starting CQLUnitD in EMBEDDED mode **** ");
+            if (logger.isDebugEnabled()) {
+                logger.debug("**** Starting CQLUnitD in EMBEDDED mode **** ");
+            }
             cassandraCQLUnit = new CQLUnitD(ds, "cas.yaml");
         }
         return cassandraCQLUnit;

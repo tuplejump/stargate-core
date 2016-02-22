@@ -17,8 +17,9 @@
 package com.tuplejump.stargate;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.lmax.disruptor.EventHandler;
+import com.lmax.disruptor.ExceptionHandler;
 import com.lmax.disruptor.RingBuffer;
-import com.lmax.disruptor.WorkHandler;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
 import org.apache.cassandra.db.ColumnFamily;
@@ -46,9 +47,9 @@ public class IndexingService {
     Map<String, RowIndexSupport> support;
 
     IndexEntryEvent.Factory eventFactory = new IndexEntryEvent.Factory();
+    int numWorkers = Math.max(4, Runtime.getRuntime().availableProcessors());
     // Specify the size of the ring buffer, must be power of 2.
-    int bufferSize = 16;
-    int numWorkers = 4;
+    int bufferSize = 128 * numWorkers;
     Disruptor<IndexEntryEvent> disruptor;
     RingBuffer<IndexEntryEvent> ringBuffer;
     AtomicLong reads;
@@ -60,17 +61,20 @@ public class IndexingService {
         this.writes = writes;
         ThreadFactory namedThreadFactory = new ThreadFactoryBuilder()
                 .setNameFormat("SGRingBuffer-Thread-%d").build();
-        executorService = Executors.newFixedThreadPool(4, namedThreadFactory);
+        executorService = Executors.newFixedThreadPool(numWorkers, namedThreadFactory);
         disruptor = new Disruptor<>(eventFactory, bufferSize, executorService);
+        ringBuffer = disruptor.getRingBuffer();
 
-        WorkHandler<IndexEntryEvent>[] workHandlers = new WorkHandler[numWorkers];
+        ExceptionHandler exceptionHandler = new FatalExceptionHandler();
+        disruptor.handleExceptionsWith(exceptionHandler);
+
+        EventHandler<IndexEntryEvent>[] eventHandlers = new EventHandler[numWorkers];
         for (int i = 0; i < numWorkers; i++) {
-            workHandlers[i] = new IndexEventSubscriber(this);
+            eventHandlers[i] = new IndexEventHandler(this, i, numWorkers);
         }
-        disruptor.handleEventsWithWorkerPool(workHandlers);
+        disruptor.handleEventsWith(eventHandlers);
 
         disruptor.start();
-        ringBuffer = disruptor.getRingBuffer();
     }
 
     public void register(RowIndexSupport rowIndexSupport) {
@@ -101,6 +105,25 @@ public class IndexingService {
     public void updateIndexers(RowIndexSupport rowIndexSupport) {
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(rowIndexSupport.keyspace);
         rowIndexSupport.indexContainer.updateIndexers(ranges);
+    }
+
+    private class FatalExceptionHandler implements ExceptionHandler {
+        @Override
+        public void handleEventException(final Throwable ex, final long sequence, final Object event) {
+            logger.error("Exception processing: " + sequence + " " + event, ex);
+
+            throw new RuntimeException(ex);
+        }
+
+        @Override
+        public void handleOnStartException(final Throwable ex) {
+            logger.error("Exception during onStart()", ex);
+        }
+
+        @Override
+        public void handleOnShutdownException(final Throwable ex) {
+            logger.error("Exception during onShutdown()", ex);
+        }
     }
 
 }

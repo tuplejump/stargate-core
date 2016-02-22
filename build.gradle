@@ -114,6 +114,17 @@ task dist(type: Tar) {
     from('build/dist')
 }
 
+task copyJarToCCM(dependsOn: copyJar) << {
+    if (project.hasProperty('cassandraVersion')) {
+        copy {
+            from 'build/dist/stargate/libs'
+            into System.getProperty('user.home') + '/.ccm/repository/' + project.property('cassandraVersion') + '/lib'
+        }
+    } else {
+        throw new RuntimeException("Please set cassandraVersion before running this")
+    }
+}
+
 install {
     repositories.mavenInstaller {
         pom.version = version
