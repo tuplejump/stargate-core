@@ -43,6 +43,8 @@ public interface Indexer {
 
     void insert(Iterable<Field> doc);
 
+    void upsert(Term term,Iterable<Field> doc);
+
     public void delete(Term... idTerm);
 
     void delete(Query q);
