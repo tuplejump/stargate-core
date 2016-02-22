@@ -1,5 +1,7 @@
 Lucene based indexing in Cassandra
 
+[![Build Status](https://travis-ci.org/tuplejump/stargate-core.svg?branch=master)](https://travis-ci.org/tuplejump/stargate-core)
+
 Website
 
 http://tuplejump.github.io/stargate

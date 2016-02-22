@@ -1,0 +1,5 @@
+language: java
+jdk:
+  - oraclejdk8
+after_failure:
+  - cat build/test-results/*.xml
