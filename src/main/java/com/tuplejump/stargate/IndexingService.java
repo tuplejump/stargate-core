@@ -47,9 +47,9 @@ public class IndexingService {
     Map<String, RowIndexSupport> support;
 
     IndexEntryEvent.Factory eventFactory = new IndexEntryEvent.Factory();
+    int numWorkers = Math.max(4, Runtime.getRuntime().availableProcessors());
     // Specify the size of the ring buffer, must be power of 2.
-    int bufferSize = 16;
-    int numWorkers = 4;
+    int bufferSize = 128 * numWorkers;
     Disruptor<IndexEntryEvent> disruptor;
     RingBuffer<IndexEntryEvent> ringBuffer;
     AtomicLong reads;
