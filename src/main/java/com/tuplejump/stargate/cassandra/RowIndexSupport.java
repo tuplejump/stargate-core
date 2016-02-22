@@ -24,7 +24,8 @@ import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.lucene.json.JsonDocument;
 import com.tuplejump.stargate.lucene.json.StreamingJsonDocument;
-import javolution.util.FastMap;
+import com.tuplejump.stargate.utils.Pair;
+import javolution.util.FastList;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -81,15 +82,14 @@ public class RowIndexSupport {
     public void indexRow(ByteBuffer rowKey, ColumnFamily cf) {
         DecoratedKey dk = tableMapper.decorateKey(rowKey);
         Indexer indexer = indexContainer.indexer(dk);
-        Map<String, List<Field>> primaryKeysVsFields = new FastMap<>();
-        Map<String, Long> timestamps = new FastMap<>();
+        IndexEntryBuilder builder = new IndexEntryBuilder();
         Iterator<Cell> cols = cf.iterator();
-        Map<String, ByteBuffer> pkNames = new FastMap<>();
         if (cols.hasNext()) {
             while (cols.hasNext()) {
-                addCell(rowKey, pkNames, primaryKeysVsFields, timestamps, cols.next());
+                addCell(rowKey, builder, cols.next());
             }
-            addToIndex(indexer, dk, pkNames, primaryKeysVsFields, timestamps);
+            builder.finishLast();
+            addToIndex(indexer, dk, builder);
         } else {
             DeletionInfo deletionInfo = cf.deletionInfo();
             if (deletionInfo != null && cf.isMarkedForDelete()) {
@@ -121,11 +121,15 @@ public class RowIndexSupport {
         }
     }
 
-    private void addToIndex(Indexer indexer, DecoratedKey dk, Map<String, ByteBuffer> pkNames, Map<String, List<Field>> primaryKeysVsFields, Map<String, Long> timestamps) {
-        for (Map.Entry<String, List<Field>> entry : primaryKeysVsFields.entrySet()) {
-            String pk = entry.getKey();
-            ByteBuffer pkBuf = pkNames.get(pk);
-            List<Field> fields = entry.getValue();
+    private void addToIndex(Indexer indexer, DecoratedKey dk, IndexEntryBuilder builder) {
+        List<Pair<String, ByteBuffer>> primaryKeys = builder.primaryKeys;
+        List<Long> timestamps = builder.timestamps;
+        List<List<Field>> entries = builder.entries;
+        for (int i = 0; i < primaryKeys.size(); i++) {
+            Pair pkPair = primaryKeys.get(i);
+            String pk = (String) pkPair.left;
+            ByteBuffer pkBuf = (ByteBuffer) pkPair.right;
+            List<Field> fields = entries.get(i);
             boolean isPartialUpdate = false;
             if (fields.size() < options.fieldTypes.size()) {
                 if (logger.isDebugEnabled())
@@ -133,38 +137,39 @@ public class RowIndexSupport {
                 isPartialUpdate = true;
             }
             fields.addAll(idFields(dk, pk, pkBuf));
-            fields.addAll(tsFields(timestamps.get(pk)));
+            long ts = timestamps.get(i);
+            fields.add(LuceneUtils.tsField(ts, tsFieldType));
             if (isPartialUpdate) {
-                CellName clusteringKey = tableMapper.makeClusteringKey(pkBuf);
-                Composite start = tableMapper.start(clusteringKey);
-                Composite end = tableMapper.end(start);
-                ColumnSlice columnSlice = new ColumnSlice(start, end);
-                SliceQueryFilter sliceQueryFilter = new SliceQueryFilter(columnSlice, false, Integer.MAX_VALUE);
-                QueryFilter queryFilter = new QueryFilter(dk, tableMapper.table.name, sliceQueryFilter, new Date().getTime());
-                ColumnFamily columnFamily = tableMapper.table.getColumnFamily(queryFilter);
-                Map<CellName, ColumnFamily> fullSlice = tableMapper.getRows(columnFamily);
-                ColumnFamily oldDocument = fullSlice.get(clusteringKey);
-                //fields for partition key columns need to be added.
-                addPartitionKeyFields(dk.getKey(), timestamps, oldDocument.maxTimestamp(), pk, fields);
-                //fields for clustering key columns need to be added.
-                addClusteringKeyFields(clusteringKey, timestamps, oldDocument.maxTimestamp(), pk, fields);
-
-                for (Cell cell : oldDocument) {
-                    CellName cellName = cell.name();
-                    ColumnIdentifier cql3ColName = cellName.cql3ColumnName(tableMapper.cfMetaData);
-                    String actualColName = cql3ColName.toString();
-                    addCell(timestamps, cell, cql3ColName, actualColName, pk, fields);
-                }
+                loadOldRow(dk, pkBuf, fields);
             }
             Term pkTerm = new Term(LuceneUtils.PK_INDEXED, LuceneUtils.primaryKeyField(pk).stringValue());
-            indexer.upsert(pkTerm,fields);
-            //indexer.delete(pkTerm);
-            //indexer.insert(fields);
-
+            indexer.upsert(pkTerm, fields);
         }
     }
 
-    private void addCell(ByteBuffer rowKey, Map<String, ByteBuffer> pkNames, Map<String, List<Field>> primaryKeysVsFields, Map<String, Long> timestamps, Cell cell) {
+    private void loadOldRow(DecoratedKey dk, ByteBuffer pkBuf, List<Field> fields) {
+        CellName clusteringKey = tableMapper.makeClusteringKey(pkBuf);
+        Composite start = tableMapper.start(clusteringKey);
+        Composite end = tableMapper.end(start);
+        ColumnSlice columnSlice = new ColumnSlice(start, end);
+        SliceQueryFilter sliceQueryFilter = new SliceQueryFilter(columnSlice, false, Integer.MAX_VALUE);
+        QueryFilter queryFilter = new QueryFilter(dk, tableMapper.table.name, sliceQueryFilter, new Date().getTime());
+        ColumnFamily columnFamily = tableMapper.table.getColumnFamily(queryFilter);
+        Map<CellName, ColumnFamily> fullSlice = tableMapper.getRows(columnFamily);
+        ColumnFamily oldDocument = fullSlice.get(clusteringKey);
+
+        for (Cell cell : oldDocument) {
+            CellName cellName = cell.name();
+            ColumnIdentifier cql3ColName = cellName.cql3ColumnName(tableMapper.cfMetaData);
+            String actualColName = cql3ColName.toString();
+            ColumnDefinition columnDefinition = tableMapper.cfMetaData.getColumnDefinition(cql3ColName);
+            if (options.shouldIndex(actualColName)) {
+                addFields(cell, actualColName, columnDefinition, fields);
+            }
+        }
+    }
+
+    private void addCell(ByteBuffer rowKey, IndexEntryBuilder builder, Cell cell) {
         CellName cellName = cell.name();
         ColumnIdentifier cql3ColName = cellName.cql3ColumnName(tableMapper.cfMetaData);
         String actualColName = cql3ColName.toString();
@@ -174,61 +179,57 @@ public class RowIndexSupport {
         CellName clusteringKey = tableMapper.extractClusteringKey(cell.name());
         ByteBuffer primaryKeyBuff = tableMapper.primaryKey(rowKey, clusteringKey);
         String primaryKey = tableMapper.primaryKeyType.getString(primaryKeyBuff);
-        pkNames.put(primaryKey, primaryKeyBuff);
-
-        List<Field> fields = primaryKeysVsFields.get(primaryKey);
-        if (fields == null) {
+        if (builder.isNew(primaryKey)) {
+            builder.newPrimaryKey(primaryKey, primaryKeyBuff);
             // new pk found
             if (logger.isTraceEnabled()) {
                 logger.trace("New PK found {}", primaryKey);
             }
-            fields = new LinkedList<>();
-            primaryKeysVsFields.put(primaryKey, fields);
-            timestamps.put(primaryKey, 0l);
-
             //fields for partition key columns need to be added.
-            addPartitionKeyFields(rowKey, timestamps, cell.timestamp(), primaryKey, fields);
+            addPartitionKeyFields(rowKey, cell.timestamp(), builder);
 
             //fields for clustering key columns need to be added.
-            addClusteringKeyFields(clusteringKey, timestamps, cell.timestamp(), primaryKey, fields);
+            addClusteringKeyFields(clusteringKey, cell.timestamp(), builder);
         }
-        addCell(timestamps, cell, cql3ColName, actualColName, primaryKey, fields);
+        addCell(cell, cql3ColName, actualColName, builder);
     }
 
-    private void addCell(Map<String, Long> timestamps, Cell cell, ColumnIdentifier cql3ColName, String actualColName, String primaryKey, List<Field> fields) {
+    private void addCell(Cell cell, ColumnIdentifier cql3ColName, String actualColName, IndexEntryBuilder builder) {
         ColumnDefinition columnDefinition = tableMapper.cfMetaData.getColumnDefinition(cql3ColName);
         if (options.shouldIndex(actualColName)) {
-            long existingTS = timestamps.get(primaryKey);
-            timestamps.put(primaryKey, Math.max(existingTS, cell.timestamp()));
-            addFields(cell, actualColName, fields, columnDefinition);
+            builder.setCurrentTimestamp(cell.timestamp());
+            List<Field> fields = builder.getFieldList();
+            addFields(cell, actualColName, columnDefinition, fields);
         }
     }
 
-    private void addPartitionKeyFields(ByteBuffer rowKey, Map<String, Long> timestamps, long timestamp, String primaryKey, List<Field> fields) {
+    private void addPartitionKeyFields(ByteBuffer rowKey, long timestamp, IndexEntryBuilder builder) {
         CType keyCType = tableMapper.cfMetaData.getKeyValidatorAsCType();
         Composite compoundRowKey = keyCType.fromByteBuffer(rowKey);
         for (Map.Entry<String, ColumnDefinition> entry : options.partitionKeysIndexed.entrySet()) {
             ByteBuffer value = compoundRowKey.get(entry.getValue().position());
-            addKeyField(primaryKey, fields, timestamps, timestamp, entry, value);
+            addKeyField(timestamp, entry, value, builder);
         }
     }
 
-    private void addClusteringKeyFields(CellName clusteringKey, Map<String, Long> timestamps, long timestamp, String primaryKey, List<Field> fields) {
+    private void addClusteringKeyFields(CellName clusteringKey, long timestamp, IndexEntryBuilder builder) {
         for (Map.Entry<String, ColumnDefinition> entry : options.clusteringKeysIndexed.entrySet()) {
             ByteBuffer value = clusteringKey.get(entry.getValue().position());
-            addKeyField(primaryKey, fields, timestamps, timestamp, entry, value);
+            addKeyField(timestamp, entry, value, builder);
         }
     }
 
-    private void addKeyField(String primaryKey, List<Field> fields, Map<String, Long> timestamps, long timestamp, Map.Entry<String, ColumnDefinition> entry, ByteBuffer value) {
+    private void addKeyField(long timestamp, Map.Entry<String, ColumnDefinition> entry, ByteBuffer value, IndexEntryBuilder builder) {
         String keyColumnName = entry.getValue().name.toString();
         FieldType fieldType = options.fieldTypes.get(keyColumnName);
-        long existingTS = timestamps.get(primaryKey);
-        timestamps.put(primaryKey, Math.max(existingTS, timestamp));
-        addField(fields, entry.getValue(), keyColumnName, fieldType, value);
-        FieldType docValueType = options.fieldDocValueTypes.get(keyColumnName);
-        if (docValueType != null)
-            addField(fields, entry.getValue(), keyColumnName, docValueType, value);
+        builder.setCurrentTimestamp(timestamp);
+        List<Field> fields = builder.getFieldList();
+        addField(entry.getValue(), keyColumnName, fieldType, value, fields);
+        if (options.containsDocValues()) {
+            FieldType docValueType = options.fieldDocValueTypes.get(keyColumnName);
+            if (docValueType != null)
+                addField(entry.getValue(), keyColumnName, docValueType, value, fields);
+        }
     }
 
 
@@ -275,13 +276,8 @@ public class RowIndexSupport {
         return tableMapper.primaryKeyAbstractType.getString(rowKey.getKey());
     }
 
-    protected List<Field> tsFields(long ts) {
-        Field tsField = LuceneUtils.tsField(ts, tsFieldType);
-        return Arrays.asList(LuceneUtils.tsDocValues(ts), tsField);
-    }
 
-
-    protected void addField(List<Field> fields, ColumnDefinition columnDefinition, String name, FieldType fieldType, ByteBuffer value) {
+    protected void addField(ColumnDefinition columnDefinition, String name, FieldType fieldType, ByteBuffer value, List<Field> fields) {
         if (fieldType != null) {
             try {
                 Field field = Fields.field(name, columnDefinition.type, value, fieldType);
@@ -293,7 +289,7 @@ public class RowIndexSupport {
         }
     }
 
-    protected void addFields(Cell column, String name, List<Field> fields, ColumnDefinition columnDefinition) {
+    protected void addFields(Cell column, String name, ColumnDefinition columnDefinition, List<Field> fields) {
         boolean isObject = options.isObject(name);
         if (isObject) {
             String value = UTF8Type.instance.compose(column.value());
@@ -304,12 +300,53 @@ public class RowIndexSupport {
             fields.addAll(fieldsForField);
         } else {
             FieldType fieldType = options.fieldTypes.get(name);
-            addField(fields, columnDefinition, name, fieldType, column.value());
-            FieldType docValueType = options.fieldDocValueTypes.get(name);
-            if (docValueType != null)
-                addField(fields, columnDefinition, name, docValueType, column.value());
+            addField(columnDefinition, name, fieldType, column.value(), fields);
+            if (options.containsDocValues()) {
+                FieldType docValueType = options.fieldDocValueTypes.get(name);
+                if (docValueType != null)
+                    addField(columnDefinition, name, docValueType, column.value(), fields);
+            }
         }
     }
 
+
+    private static class IndexEntryBuilder {
+
+        private List<Field> fieldList;
+        private String currentKey;
+        private long currentTimestamp;
+
+        public final List<List<Field>> entries = new FastList<>();
+        public final List<Pair<String, ByteBuffer>> primaryKeys = new FastList<>();
+        public final List<Long> timestamps = new FastList<>();
+
+
+        public boolean isNew(String primaryKey) {
+            return !primaryKey.equals(currentKey);
+        }
+
+        public void newPrimaryKey(String primaryKey, ByteBuffer primaryKeyBuffer) {
+            finishLast();
+            currentKey = primaryKey;
+            primaryKeys.add(Pair.create(primaryKey, primaryKeyBuffer));
+            currentTimestamp = 0;
+            fieldList = new LinkedList<>();
+        }
+
+        public void finishLast() {
+            if (fieldList != null) {
+                entries.add(fieldList);
+                timestamps.add(currentTimestamp);
+            }
+        }
+
+        public void setCurrentTimestamp(long ts) {
+            currentTimestamp = Math.max(currentTimestamp, ts);
+        }
+
+        public List<Field> getFieldList() {
+            return fieldList;
+        }
+    }
 
 }

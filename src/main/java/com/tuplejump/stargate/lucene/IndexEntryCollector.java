@@ -58,7 +58,6 @@ public class IndexEntryCollector extends Collector {
     SortedDocValues pkNames;
     SortedDocValues primaryKeys;
     SortedDocValues rowKeys;
-    NumericDocValues timeStamps;
     List<String> numericDocValueNamesToFetch;
     List<String> binaryDocValueNamesToFetch;
     Map<String, NumericDocValues> numericDocValuesMap = new HashMap<>();
@@ -86,7 +85,7 @@ public class IndexEntryCollector extends Collector {
         org.apache.lucene.search.SortField[] sortFields = search.usesSorting() ? search.sort(options) : null;
         if (sortFields == null) {
             hitQueue = FieldValueHitQueue.create(new org.apache.lucene.search.SortField[]{org.apache.lucene.search.SortField.FIELD_SCORE}, maxResults);
-            isSorted=false;
+            isSorted = false;
         } else {
             hitQueue = FieldValueHitQueue.create(sortFields, maxResults);
             isSorted = true;
@@ -196,7 +195,6 @@ public class IndexEntryCollector extends Collector {
         pkNames = LuceneUtils.getPKNameDocValues(context.reader());
         primaryKeys = LuceneUtils.getPKBytesDocValues(context.reader());
         rowKeys = LuceneUtils.getRKBytesDocValues(context.reader());
-        timeStamps = LuceneUtils.getTSDocValues(context.reader());
         for (String docValName : numericDocValueNamesToFetch) {
             numericDocValuesMap.put(docValName, context.reader().getNumericDocValues(Constants.striped + docValName));
         }
@@ -289,7 +287,6 @@ public class IndexEntryCollector extends Collector {
         String pkName = LuceneUtils.primaryKeyName(pkNames, doc);
         ByteBuffer primaryKey = LuceneUtils.byteBufferDocValue(primaryKeys, doc);
         ByteBuffer rowKey = LuceneUtils.byteBufferDocValue(rowKeys, doc);
-        long timeStamp = timeStamps.get(doc);
         Map<String, Number> numericDocValues = new HashMap<>();
         Map<String, String> binaryDocValues = new HashMap<>();
         for (Map.Entry<String, NumericDocValues> entry : numericDocValuesMap.entrySet()) {
@@ -300,7 +297,7 @@ public class IndexEntryCollector extends Collector {
         for (Map.Entry<String, BinaryDocValues> entry : binaryDocValuesMap.entrySet()) {
             binaryDocValues.put(entry.getKey(), LuceneUtils.stringDocValue(entry.getValue(), doc));
         }
-        return new IndexEntry(rowKey, pkName, primaryKey, timeStamp, slot, docBase + doc, score, numericDocValues, binaryDocValues);
+        return new IndexEntry(rowKey, pkName, primaryKey, slot, docBase + doc, score, numericDocValues, binaryDocValues);
     }
 
 
@@ -308,24 +305,26 @@ public class IndexEntryCollector extends Collector {
         public final String pkName;
         public final ByteBuffer primaryKey;
         public final ByteBuffer rowKey;
-        public final long timestamp;
         public float score;
         Map<String, Number> numericDocValuesMap;
         Map<String, String> binaryDocValuesMap;
         public final CellName clusteringKey;
         public final DecoratedKey decoratedKey;
 
-        public IndexEntry(ByteBuffer rowKey, String pkName, ByteBuffer primaryKey, long timestamp, int slot, int doc, float score, Map<String, Number> numericDocValuesMap, Map<String, String> binaryDocValuesMap) {
+        public IndexEntry(ByteBuffer rowKey, String pkName, ByteBuffer primaryKey,
+                          int slot, int doc, float score,
+                          Map<String, Number> numericDocValuesMap,
+                          Map<String, String> binaryDocValuesMap) {
             super(slot, doc, score);
             this.rowKey = rowKey;
             this.pkName = pkName;
             this.primaryKey = primaryKey;
-            this.timestamp = timestamp;
+            this.clusteringKey = tableMapper.makeClusteringKey(primaryKey);
+            this.decoratedKey = tableMapper.decorateKey(rowKey);
+
             this.score = score;
             this.binaryDocValuesMap = binaryDocValuesMap;
             this.numericDocValuesMap = numericDocValuesMap;
-            this.clusteringKey = tableMapper.makeClusteringKey(primaryKey);
-            this.decoratedKey = tableMapper.decorateKey(rowKey);
         }
 
 
@@ -339,7 +338,7 @@ public class IndexEntryCollector extends Collector {
 
         @Override
         public String toString() {
-            return super.toString() + "pkName[" + pkName + "]" + "timestamp[" + timestamp + "]";
+            return super.toString() + "pkName[" + pkName + "]";
         }
     }
 

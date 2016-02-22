@@ -43,7 +43,6 @@ public class LuceneUtils {
     public static final String PK_NAME_DOC_VAL = "_pk_name_val";
     public static final String PK_INDEXED = "_pk_idx";
     public static final String PK_BYTES = "_pk_bytes";
-    public static final String CF_TS_DOC_VAL = "_cf_ts_val";
     public static final String CF_TS_INDEXED = "_cf_ts";
     private static final Logger logger = LoggerFactory.getLogger(LuceneUtils.class);
     //  NumberFormat instances are not thread safe
@@ -167,9 +166,6 @@ public class LuceneUtils {
         return atomicReader.getSortedDocValues(LuceneUtils.RK_BYTES);
     }
 
-    public static NumericDocValues getTSDocValues(AtomicReader atomicReader) throws IOException {
-        return atomicReader.getNumericDocValues(LuceneUtils.CF_TS_DOC_VAL);
-    }
 
     public static ByteBuffer byteBufferDocValue(BinaryDocValues docValues, int docId) throws IOException {
         BytesRef ref = new BytesRef();
@@ -227,15 +223,6 @@ public class LuceneUtils {
 
     public static Field tsField(long timestamp, FieldType fieldType) {
         return new LongField(CF_TS_INDEXED, timestamp, fieldType);
-    }
-
-    public static Field tsDocValues(final long timestamp) {
-        return new NumericDocValuesField(CF_TS_DOC_VAL, timestamp) {
-            @Override
-            public String toString() {
-                return String.format("Timestamp NumericDocValuesField<%s>", timestamp);
-            }
-        };
     }
 
 

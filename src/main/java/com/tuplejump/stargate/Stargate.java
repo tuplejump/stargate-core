@@ -81,6 +81,22 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
         }
     }
 
+    public long index(ByteBuffer rowKey, ColumnFamily columnFamily) {
+        final RowIndexSupport rowIndexSupport = indexingService.support.get(columnFamily.metadata().cfName);
+        try {
+            rowIndexSupport.indexRow(rowKey, columnFamily);
+        } catch (Exception e) {
+            logger.error("Error occurred while indexing row of [" + columnFamily.metadata().cfName + "]", e);
+        } finally {
+            indexingService.reads.incrementAndGet();
+        }
+        long writeGen = indexingService.writes.incrementAndGet();
+        if (logger.isDebugEnabled())
+            logger.debug("Write gen:" + writeGen);
+        return writeGen;
+    }
+
+
     public long publish(ByteBuffer rowKey, ColumnFamily columnFamily) {
         indexingService.index(rowKey, columnFamily);
         long writeGen = indexingService.writes.incrementAndGet();

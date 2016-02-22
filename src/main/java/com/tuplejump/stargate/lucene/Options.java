@@ -184,4 +184,7 @@ public class Options implements Serializable {
     }
 
 
+    public boolean containsDocValues() {
+        return !(fieldDocValueTypes.isEmpty() && collectionFieldDocValueTypes.isEmpty());
+    }
 }
