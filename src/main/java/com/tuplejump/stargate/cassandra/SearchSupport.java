@@ -76,17 +76,17 @@ public class SearchSupport extends SecondaryIndexSearcher {
     protected Search getQuery(IndexExpression predicate) throws Exception {
         ColumnDefinition cd = baseCfs.metadata.getColumnDefinition(predicate.column);
         String predicateValue = cd.type.getString(predicate.value);
-        String columnName = cd.name.toString();
-        if (logger.isDebugEnabled())
+        if (logger.isDebugEnabled()) {
+            String columnName = cd.name.toString();
             logger.debug("Index Searcher - query - predicate value [" + predicateValue + "] column name [" + columnName + "]");
-        logger.debug("Column name is {}", columnName);
+            logger.debug("Column name is {}", columnName);
+        }
         return Search.fromJson(predicateValue);
     }
 
 
     @Override
     public List<Row> search(ExtendedFilter mainFilter) {
-
         List<IndexExpression> clause = mainFilter.getClause();
         if (logger.isDebugEnabled())
             logger.debug("All IndexExprs {}", clause);
