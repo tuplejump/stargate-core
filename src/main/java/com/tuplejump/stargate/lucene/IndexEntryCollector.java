@@ -290,7 +290,7 @@ public class IndexEntryCollector extends Collector {
         Map<String, Number> numericDocValues = new HashMap<>();
         Map<String, String> binaryDocValues = new HashMap<>();
         for (Map.Entry<String, NumericDocValues> entry : numericDocValuesMap.entrySet()) {
-            Properties.Type type = AggregateFunction.getLuceneType(options, entry.getKey());
+            Type type = AggregateFunction.getLuceneType(options, entry.getKey());
             Number number = LuceneUtils.numericDocValue(entry.getValue(), doc, type);
             numericDocValues.put(entry.getKey(), number);
         }

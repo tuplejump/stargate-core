@@ -16,7 +16,7 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.Type;
 import org.codehaus.jackson.JsonGenerator;
 
 import java.io.IOException;
@@ -28,13 +28,13 @@ public class Sum implements Aggregate {
 
     double sum = 0;
 
-    Properties.Type cqlType;
+    Type cqlType;
     String field;
     String alias;
     boolean distinct;
     Values values;
 
-    public Sum(AggregateFactory aggregateFactory, Properties.Type type, boolean distinct) {
+    public Sum(AggregateFactory aggregateFactory, Type type, boolean distinct) {
         this.field = aggregateFactory.getField();
         this.alias = aggregateFactory.getAlias();
         this.cqlType = type;
@@ -60,13 +60,13 @@ public class Sum implements Aggregate {
     }
 
     private void add(Number obj) {
-        if (cqlType == Properties.Type.integer) {
+        if (cqlType == Type.integer) {
             sum += obj.intValue();
-        } else if (cqlType == Properties.Type.bigint) {
+        } else if (cqlType == Type.bigint) {
             sum += obj.longValue();
-        } else if (cqlType == Properties.Type.decimal) {
+        } else if (cqlType == Type.decimal) {
             sum += obj.floatValue();
-        } else if (cqlType == Properties.Type.bigdecimal) {
+        } else if (cqlType == Type.bigdecimal) {
             sum += obj.doubleValue();
         }
     }

@@ -111,10 +111,9 @@ public class Options implements Serializable {
     public final Map<String, FieldType> fieldTypes;
     public final Map<String, FieldType[]> collectionFieldTypes;
     public final Set<String> nestedFields;
-    public final Map<String, Properties.Type> types;
+    public final Map<String, Type> types;
     public final Map<String, ColumnDefinition> clusteringKeysIndexed;
     public final Map<String, ColumnDefinition> partitionKeysIndexed;
-    public final Map<String, Analyzer> perFieldAnalyzers;
     public final Set<String> indexedColumnNames;
     public final Analyzer analyzer;
     public final String defaultField;
@@ -122,8 +121,8 @@ public class Options implements Serializable {
     public Options(Properties primary, Map<String, NumericConfig> numericFieldOptions,
                    Map<String, FieldType> fieldDocValueTypes, Map<String, FieldType> collectionFieldDocValueTypes,
                    Map<String, FieldType> fieldTypes, Map<String, FieldType[]> collectionFieldTypes,
-                   Map<String, Properties.Type> types, Set<String> nestedFields, Map<String, ColumnDefinition> clusteringKeysIndexed,
-                   Map<String, ColumnDefinition> partitionKeysIndexed, Map<String, Analyzer> perFieldAnalyzers,
+                   Map<String, Type> types, Set<String> nestedFields, Map<String, ColumnDefinition> clusteringKeysIndexed,
+                   Map<String, ColumnDefinition> partitionKeysIndexed,
                    Set<String> indexedColumnNames, Analyzer analyzer, String defaultField) {
         this.primary = primary;
         this.fields = primary.getFields();
@@ -136,7 +135,6 @@ public class Options implements Serializable {
         this.types = types;
         this.clusteringKeysIndexed = clusteringKeysIndexed;
         this.partitionKeysIndexed = partitionKeysIndexed;
-        this.perFieldAnalyzers = perFieldAnalyzers;
         this.indexedColumnNames = indexedColumnNames;
         this.analyzer = analyzer;
         this.defaultField = defaultField;
@@ -173,7 +171,7 @@ public class Options implements Serializable {
 
     public boolean isObject(String fieldName) {
         Properties props = fields.get(fieldName);
-        return props != null && Properties.Type.object.equals(props.getType());
+        return props != null && Type.object.equals(props.getType());
     }
 
     public boolean shouldIndex(String fieldName) {

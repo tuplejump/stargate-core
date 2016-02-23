@@ -45,6 +45,14 @@ public class Fields {
         STRING_FIELD_TYPE.setTokenized(false);
     }
 
+    public static Field docValueField(String name, AbstractType type, ByteBuffer byteBufferValue, FieldType fieldType) {
+        if (fieldType.docValueType() != null) {
+            if (fieldType.numericType() != null) return numericDocValuesField(name, type, byteBufferValue);
+            else return stringDocValuesField(name, type, byteBufferValue);
+        }
+        return null;
+    }
+
     public static Field field(String name, AbstractType type, ByteBuffer byteBufferValue, FieldType fieldType) {
         if (fieldType.docValueType() != null) {
             if (fieldType.numericType() != null) return numericDocValuesField(name, type, byteBufferValue);

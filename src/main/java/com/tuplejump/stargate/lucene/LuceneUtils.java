@@ -139,16 +139,16 @@ public class LuceneUtils {
         Files.delete(file.toPath());
     }
 
-    public static Number numericDocValue(NumericDocValues rowKeyValues, int docId, Properties.Type type) throws IOException {
+    public static Number numericDocValue(NumericDocValues rowKeyValues, int docId, Type type) throws IOException {
         Long ref = rowKeyValues == null ? 0l : rowKeyValues.get(docId);
         if (ref == null) ref = 0l;
-        if (type == Properties.Type.integer) {
+        if (type == Type.integer) {
             return ref.intValue();
-        } else if (type == Properties.Type.bigint) {
+        } else if (type == Type.bigint) {
             return ref;
-        } else if (type == Properties.Type.decimal) {
+        } else if (type == Type.decimal) {
             return Float.intBitsToFloat(ref.intValue());
-        } else if (type == Properties.Type.bigdecimal) {
+        } else if (type == Type.bigdecimal) {
             return Double.longBitsToDouble(ref);
         } else throw new IllegalArgumentException(String.format("Invalid type for numeric doc values <%s>", type));
     }
@@ -249,20 +249,20 @@ public class LuceneUtils {
     }
 
     public static Field field(String name, Properties properties, String value, FieldType fieldType) {
-        Properties.Type type = properties.getType();
-        if (type == Properties.Type.integer) {
+        Type type = properties.getType();
+        if (type == Type.integer) {
             return new IntField(name, Integer.parseInt(value), fieldType);
-        } else if (type == Properties.Type.bigint) {
+        } else if (type == Type.bigint) {
             return new LongField(name, Long.parseLong(value), fieldType);
-        } else if (type == Properties.Type.bigdecimal) {
+        } else if (type == Type.bigdecimal) {
             return new DoubleField(name, Double.parseDouble(value), fieldType);
-        } else if (type == Properties.Type.decimal) {
+        } else if (type == Type.decimal) {
             return new FloatField(name, Float.parseFloat(value), fieldType);
-        } else if (type == Properties.Type.date) {
+        } else if (type == Type.date) {
             //TODO - set correct locale
             FormatDateTimeFormatter formatter = Dates.forPattern(value, Locale.US);
             return new LongField(name, formatter.parser().parseMillis(value), fieldType);
-        } else if (type == Properties.Type.bool) {
+        } else if (type == Type.bool) {
             Boolean val = Boolean.parseBoolean(value);
             return new Field(name, val.toString(), fieldType);
         } else {

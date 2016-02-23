@@ -22,6 +22,7 @@ import argo.jdom.JsonField;
 import argo.jdom.JsonNode;
 import argo.jdom.JsonRootNode;
 import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.Type;
 import com.tuplejump.stargate.lucene.json.JsonDocument;
 import com.tuplejump.stargate.lucene.json.StreamingJsonDocument;
 import com.tuplejump.stargate.util.CQLUnitD;
@@ -119,9 +120,9 @@ public class JsonDocumentTest extends IndexTestBase {
     @Test
     public void shouldParseJsonAndGetFields() throws Exception {
         Properties jsonColProps = new Properties();
-        jsonColProps.setType(Properties.Type.object);
+        jsonColProps.setType(Type.object);
         Properties ageProps = new Properties();
-        ageProps.setType(Properties.Type.integer);
+        ageProps.setType(Type.integer);
         //json fields mapping
         jsonColProps.setFields(Collections.singletonMap("age", ageProps));
         Properties rootProps = new Properties();

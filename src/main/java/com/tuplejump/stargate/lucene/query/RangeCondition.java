@@ -17,10 +17,7 @@
 
 package com.tuplejump.stargate.lucene.query;
 
-import com.tuplejump.stargate.lucene.Dates;
-import com.tuplejump.stargate.lucene.FormatDateTimeFormatter;
-import com.tuplejump.stargate.lucene.Options;
-import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.*;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -154,7 +151,7 @@ public class RangeCondition extends Condition {
         NumericConfig numericConfig = schema.numericFieldOptions.get(field);
 
         Properties properties = schema.getProperties(field);
-        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+        Type fieldType = properties != null ? properties.getType() : Type.text;
         //TODO Range on TimeUUID type
         if (fieldType.isCharSeq()) {
             String lowerVal = null, upperVal = null;
@@ -165,27 +162,27 @@ public class RangeCondition extends Condition {
                 upperVal = analyze(field, this.upper.toString(), schema.analyzer);
             }
             query = TermRangeQuery.newStringRange(field, lowerVal, upperVal, includeLower, includeUpper);
-        } else if (fieldType == Properties.Type.integer) {
+        } else if (fieldType == Type.integer) {
             assert numericConfig != null;
             Integer lower = this.lower == null ? Integer.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).intValue();
             Integer upper = this.upper == null ? Integer.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).intValue();
             query = NumericRangeQuery.newIntRange(field, lower, upper, includeLower, includeUpper);
-        } else if (fieldType == Properties.Type.bigint) {
+        } else if (fieldType == Type.bigint) {
             assert numericConfig != null;
             Long lower = this.lower == null ? Long.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).longValue();
             Long upper = this.upper == null ? Long.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).longValue();
             query = NumericRangeQuery.newLongRange(field, lower, upper, includeLower, includeUpper);
-        } else if (fieldType == Properties.Type.decimal) {
+        } else if (fieldType == Type.decimal) {
             assert numericConfig != null;
             Float lower = this.lower == null ? Float.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).floatValue();
             Float upper = this.upper == null ? Float.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).floatValue();
             query = NumericRangeQuery.newFloatRange(field, lower, upper, includeLower, includeUpper);
-        } else if (fieldType == Properties.Type.bigdecimal) {
+        } else if (fieldType == Type.bigdecimal) {
             assert numericConfig != null;
             Double lower = this.lower == null ? Double.MIN_VALUE : numericConfig.getNumberFormat().parse(this.lower.toString()).doubleValue();
             Double upper = this.upper == null ? Double.MAX_VALUE : numericConfig.getNumberFormat().parse(this.upper.toString()).doubleValue();
             query = NumericRangeQuery.newDoubleRange(field, lower, upper, includeLower, includeUpper);
-        } else if (fieldType == Properties.Type.date) {
+        } else if (fieldType == Type.date) {
             Long lower;
             Long upper;
             if ("millis".equals(format)) {
