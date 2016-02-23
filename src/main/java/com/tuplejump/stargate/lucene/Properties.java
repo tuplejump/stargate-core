@@ -55,34 +55,6 @@ public class Properties {
         also, only, none
     }
 
-    public enum Type {
-        object,
-        map,
-        text,
-        string,
-        integer,
-        bigint,
-        decimal,
-        bigdecimal,
-        bool,
-        date;
-
-        public boolean isNumeric() {
-            return this == bigint || this == bigdecimal || this == integer || this == decimal;
-        }
-
-        public boolean isCharSeq() {
-            return this == string || this == text;
-        }
-
-        public boolean canTokenize() {
-            Type type = this;
-            return !(type.isNumeric() || type == Type.string || type == Type.date || type == Type.bool);
-        }
-
-
-    }
-
     @JsonProperty
     boolean nearRealTime = false;
 
@@ -290,7 +262,7 @@ public class Properties {
             for (Map.Entry<String, Properties> fieldOptions : getFields().entrySet()) {
                 String colName = fieldOptions.getKey();
                 Properties props = fieldOptions.getValue();
-                if (props.getType() == Properties.Type.object || props.getType() == Type.map) {
+                if (props.getType() == Type.object || props.getType() == Type.map) {
                     Map<String, Analyzer> fieldObjectAnalyzers = props.perFieldAnalyzers();
                     for (Map.Entry<String, Analyzer> entry : fieldObjectAnalyzers.entrySet()) {
                         perFieldAnalyzers.put(colName + "." + entry.getKey(), entry.getValue());

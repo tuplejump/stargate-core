@@ -18,7 +18,7 @@ package com.tuplejump.stargate.lucene.query.function;
 
 import com.clearspring.analytics.stream.quantile.TDigest;
 import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.Type;
 import org.codehaus.jackson.JsonGenerator;
 
 import java.io.IOException;
@@ -30,10 +30,10 @@ import java.nio.ByteBuffer;
 public class Quantile implements Aggregate {
     String alias;
     TDigest accumulator;
-    Properties.Type cqlType;
+    Type cqlType;
     String field;
 
-    public Quantile(AggregateFactory aggregateFactory, Properties.Type type) {
+    public Quantile(AggregateFactory aggregateFactory, Type type) {
         this.field = aggregateFactory.getField();
         this.alias = aggregateFactory.getAlias();
         this.cqlType = type;
@@ -55,13 +55,13 @@ public class Quantile implements Aggregate {
     }
 
     private void add(Number obj) {
-        if (cqlType == Properties.Type.integer) {
+        if (cqlType == Type.integer) {
             accumulator.add((Integer) obj);
-        } else if (cqlType == Properties.Type.bigint) {
+        } else if (cqlType == Type.bigint) {
             accumulator.add((Long) obj);
-        } else if (cqlType == Properties.Type.decimal) {
+        } else if (cqlType == Type.decimal) {
             accumulator.add((Float) obj);
-        } else if (cqlType == Properties.Type.bigdecimal) {
+        } else if (cqlType == Type.bigdecimal) {
             accumulator.add((Double) obj);
         }
     }

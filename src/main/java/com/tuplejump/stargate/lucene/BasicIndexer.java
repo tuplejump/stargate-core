@@ -89,6 +89,8 @@ public class BasicIndexer implements Indexer {
     private IndexWriter getIndexWriter(Version luceneV) throws IOException {
         file = LuceneUtils.getDirectory(keyspaceName, cfName, indexName, vNodeName);
         IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
+        config.setRAMBufferSizeMB(128);
+//        config.setMaxBufferedDocs(128 * 1000);
         //config.setInfoStream(System.out);
         directory = FSDirectory.open(file);
         if (logger.isInfoEnabled()) {
@@ -111,13 +113,13 @@ public class BasicIndexer implements Indexer {
     }
 
     @Override
-    public void upsert(Term term,Iterable<Field> doc) {
+    public void upsert(Term term, Iterable<Field> doc) {
         if (logger.isDebugEnabled())
             logger.debug(indexName + "Upsert Indexing fields" + doc);
 
         try {
             records.incrementAndGet();
-            indexWriter.updateDocument(term,doc);
+            indexWriter.updateDocument(term, doc);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
