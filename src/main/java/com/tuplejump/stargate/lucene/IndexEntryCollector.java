@@ -80,7 +80,8 @@ public class IndexEntryCollector extends Collector {
         return totalHits;
     }
 
-    public IndexEntryCollector(TableMapper tableMapper, Function function, Search search, Options options, int maxResults) throws IOException {
+    public IndexEntryCollector(TableMapper tableMapper, Search search, Options options, int maxResults) throws IOException {
+        Function function = search.function();
         this.tableMapper = tableMapper;
         this.options = options;
         org.apache.lucene.search.SortField[] sortFields = search.usesSorting() ? search.sort(options) : null;

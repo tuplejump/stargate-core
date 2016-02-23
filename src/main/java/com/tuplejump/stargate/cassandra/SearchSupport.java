@@ -27,6 +27,8 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
@@ -40,6 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -74,25 +77,34 @@ public class SearchSupport extends SecondaryIndexSearcher {
 
 
     protected Search getQuery(IndexExpression predicate) throws Exception {
+        return Search.fromJson(getQueryString(predicate));
+    }
+
+    protected Search getQuery(String queryString) throws Exception {
+        return Search.fromJson(queryString);
+    }
+
+    protected String getQueryString(IndexExpression predicate) throws Exception {
         ColumnDefinition cd = baseCfs.metadata.getColumnDefinition(predicate.column);
         String predicateValue = cd.type.getString(predicate.value);
-        String columnName = cd.name.toString();
-        if (logger.isDebugEnabled())
+        if (logger.isDebugEnabled()) {
+            String columnName = cd.name.toString();
             logger.debug("Index Searcher - query - predicate value [" + predicateValue + "] column name [" + columnName + "]");
-        logger.debug("Column name is {}", columnName);
-        return Search.fromJson(predicateValue);
+            logger.debug("Column name is {}", columnName);
+        }
+        return predicateValue;
     }
 
 
     @Override
     public List<Row> search(ExtendedFilter mainFilter) {
-
         List<IndexExpression> clause = mainFilter.getClause();
         if (logger.isDebugEnabled())
             logger.debug("All IndexExprs {}", clause);
         try {
-            Search search = getQuery(matchThisIndex(clause));
-            return getRows(mainFilter, search);
+            String queryString = getQueryString(matchThisIndex(clause));
+            Search search = getQuery(queryString);
+            return getRows(mainFilter, search, queryString);
         } catch (Exception e) {
             if (tableMapper.isMetaColumn) {
 
@@ -108,12 +120,14 @@ public class SearchSupport extends SecondaryIndexSearcher {
         }
     }
 
-    protected List<Row> getRows(final ExtendedFilter filter, final Search search) {
+    protected List<Row> getRows(final ExtendedFilter filter, final Search search, final String queryString) {
         final SearchSupport searchSupport = this;
         AbstractBounds<RowPosition> keyRange = filter.dataRange.keyRange();
         final Range<Token> filterRange = new Range<>(keyRange.left.getToken(), keyRange.right.getToken());
         final boolean isSingleToken = filterRange.left.equals(filterRange.right);
         final boolean isFullRange = isSingleToken && baseCfs.partitioner.getMinimumToken().equals(filterRange.left);
+        final boolean shouldSaveToCache = isPagingQuery(filter.dataRange);
+        final boolean shouldRetrieveFromCache = shouldSaveToCache && !isFirstPage((DataRange.Paging) filter.dataRange);
 
         SearcherCallback<List<Row>> sc = new SearcherCallback<List<Row>>() {
             @Override
@@ -124,16 +138,30 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     results = new ArrayList<>();
                 } else {
                     Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
-                    Function function = search.function(options);
+                    Function function = search.function();
                     Query query = search.query(options);
                     int resultsLimit = searcher.getIndexReader().maxDoc();
                     if (resultsLimit == 0) {
                         resultsLimit = 1;
                     }
                     function.init(options);
-                    IndexEntryCollector collector = new IndexEntryCollector(tableMapper, function, search, options, resultsLimit);
-                    searcher.search(query, collector);
-                    timer2.endLogTime("TopDocs search for [" + collector.getTotalHits() + "] results ");
+                    IndexEntryCollector collector = null;
+                    if (shouldRetrieveFromCache) {
+                        collector = currentIndex.collectorMap.get(queryString);
+                    }
+                    if (collector == null) {
+                        collector = new IndexEntryCollector(tableMapper, search, options, resultsLimit);
+                        searcher.search(query, collector);
+                        if (shouldSaveToCache) {
+                            currentIndex.collectorMap.put(queryString, collector);
+                        }
+                        if (logger.isInfoEnabled()) {
+                            logger.info("Adding collector to cache");
+                        }
+                    } else if (logger.isInfoEnabled()){
+                        logger.info("Found collector in cache");
+                    }
+                    timer2.endLogTime("Lucene search for [" + collector.getTotalHits() + "] results ");
                     if (SearchSupport.logger.isDebugEnabled()) {
                         SearchSupport.logger.debug(String.format("Search results [%s]", collector.getTotalHits()));
                     }
@@ -180,6 +208,28 @@ public class SearchSupport extends SecondaryIndexSearcher {
         return null;
     }
 
+    private boolean isPagingQuery(DataRange dataRange) {
+        return (dataRange instanceof DataRange.Paging);
+    }
+
+    private boolean isFirstPage(DataRange.Paging pageRange) {
+        try {
+            Composite start = (Composite) getPrivateProperty(pageRange, "firstPartitionColumnStart");
+            Composite finish = (Composite) getPrivateProperty(pageRange, "lastPartitionColumnFinish");
+            return (start == finish) && (start == Composites.EMPTY);
+        } catch (NoSuchFieldException e) {
+            //do nothing;
+        } catch (IllegalAccessException e) {
+            //do nothing
+        }
+        return false;
+    }
+
+    private Object getPrivateProperty(Object instance, String fieldName) throws NoSuchFieldException, IllegalAccessException {
+        Field field = instance.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.get(instance);
+    }
 
     public boolean deleteIfNotLatest(DecoratedKey decoratedKey, long timestamp, String pkString, ColumnFamily cf) throws IOException {
         if (deleteRowIfNotLatest(decoratedKey, cf)) return true;

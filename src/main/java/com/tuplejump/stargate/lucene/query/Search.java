@@ -88,7 +88,7 @@ public class Search {
         return queryCondition != null || sort != null;
     }
 
-    public Function function(Options schema) throws Exception {
+    public Function function() {
         return this.function;
     }
 
