@@ -1,3 +1,7 @@
+plugins {
+    id "com.github.johnrengelman.shadow" version "1.2.3"
+}
+
 apply plugin: 'java'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
@@ -93,6 +97,37 @@ task copyLibs(type: Copy) {
     include 'javolution-*.jar'
 }
 
+shadowJar {
+    dependencies {
+        include(dependency('com.clearspring.analytics:stream'))
+        include(dependency('org.mvel:mvel2'))
+        include(dependency('org.apache.lucene:lucene-core'))
+        include(dependency('org.apache.lucene:lucene-grouping'))
+        include(dependency('org.apache.lucene:lucene-spatial'))
+        include(dependency('org.apache.lucene:lucene-analyzers-common'))
+        include(dependency('org.apache.lucene:lucene-queries'))
+        include(dependency('org.apache.lucene:lucene-queryparser'))
+        include(dependency('org.apache.lucene:lucene-join'))
+        include(dependency('joda-time:joda-time'))
+        include(dependency('commons-collections:commons-collections'))
+        include(dependency('org.javolution:javolution'))
+    }
+}
+
+task copyJarToCCM(dependsOn: shadowJar) << {
+    if (project.hasProperty('cassandraVersion')) {
+        copy {
+            from('build/libs') {
+              include('*-all.jar')
+            }
+            into System.getProperty('user.home') + '/.ccm/repository/' + project.property('cassandraVersion') + '/lib'
+        }
+    } else {
+        throw new RuntimeException("Please set cassandraVersion before running this")
+    }
+}
+
+
 task copySamples(type: Copy) {
     from 'src/test/resources/samples'
     into 'build/dist/stargate/samples'
@@ -112,17 +147,6 @@ task dist(type: Tar) {
     compression 'GZIP'
     dependsOn copyJar
     from('build/dist')
-}
-
-task copyJarToCCM(dependsOn: copyJar) << {
-    if (project.hasProperty('cassandraVersion')) {
-        copy {
-            from 'build/dist/stargate/libs'
-            into System.getProperty('user.home') + '/.ccm/repository/' + project.property('cassandraVersion') + '/lib'
-        }
-    } else {
-        throw new RuntimeException("Please set cassandraVersion before running this")
-    }
 }
 
 install {
