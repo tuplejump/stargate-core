@@ -207,9 +207,10 @@ public class SearchSupport extends SecondaryIndexSearcher {
     }
 
     protected String getPartitionKeyString(ExtendedFilter mainFilter) {
-        if (mainFilter.dataRange.keyRange().left != null && mainFilter.dataRange.keyRange().left instanceof DecoratedKey) {
-            DecoratedKey left = (DecoratedKey) mainFilter.dataRange.keyRange().left;
-            DecoratedKey right = (DecoratedKey) mainFilter.dataRange.keyRange().right;
+        AbstractBounds<RowPosition> keyRange = mainFilter.dataRange.keyRange();
+        if (keyRange != null && keyRange.left != null && keyRange.left instanceof DecoratedKey) {
+            DecoratedKey left = (DecoratedKey) keyRange.left;
+            DecoratedKey right = (DecoratedKey) keyRange.right;
             if (left.equals(right)) {
                 return tableMapper.primaryKeyAbstractType.getString(left.getKey());
             }
