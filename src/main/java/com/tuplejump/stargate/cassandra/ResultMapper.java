@@ -59,11 +59,7 @@ public class ResultMapper {
 
 
     public Map<CellName, ColumnFamily> fetchRangeSlice(Collection<IndexEntry> entries, DecoratedKey dk) {
-        ColumnSlice[] columnSlices = getColumnSlices(entries);
-        SliceQueryFilter sliceQueryFilter = new SliceQueryFilter(columnSlices, false, Integer.MAX_VALUE);
-        QueryFilter queryFilter = new QueryFilter(dk, tableMapper.table.name, sliceQueryFilter, filter.timestamp);
-        ColumnFamily columnFamily = tableMapper.table.getColumnFamily(queryFilter);
-        return tableMapper.getRows(columnFamily);
+        return getCellNameColumnFamilyMap(dk, getColumnSlices(entries));
     }
 
 
@@ -88,5 +84,36 @@ public class ResultMapper {
         }
         return columnSlices;
     }
+
+    public Map<CellName, ColumnFamily> fetchPagedRangeSlice(Collection<IndexEntry> entries, DecoratedKey dk, int pageSize) {
+        return getCellNameColumnFamilyMap(dk, getPagedColumnSlices(dk, entries, pageSize));
+    }
+
+    private ColumnSlice[] getPagedColumnSlices(DecoratedKey dk, Collection<IndexEntry> entries, int pageSize) {
+        ColumnSlice[] columnSlices = new ColumnSlice[pageSize];
+        int i = 0;
+        for (IndexEntry entry : entries) {
+            CellName cellName = entry.clusteringKey;
+            if (!filter.columnFilter(dk.getKey()).maySelectPrefix(tableMapper.table.getComparator(), cellName.start())) {
+                continue;
+            }
+            Composite start = tableMapper.start(cellName);
+            Composite end = tableMapper.end(start);
+            ColumnSlice columnSlice = new ColumnSlice(start, end);
+            columnSlices[i++] = columnSlice;
+            if (i >= pageSize) {
+                break;
+            }
+        }
+        return columnSlices;
+    }
+
+    private Map<CellName, ColumnFamily> getCellNameColumnFamilyMap(DecoratedKey dk, ColumnSlice[] columnSlices) {
+        SliceQueryFilter sliceQueryFilter = new SliceQueryFilter(columnSlices, false, Integer.MAX_VALUE);
+        QueryFilter queryFilter = new QueryFilter(dk, tableMapper.table.name, sliceQueryFilter, filter.timestamp);
+        ColumnFamily columnFamily = tableMapper.table.getColumnFamily(queryFilter);
+        return tableMapper.getRows(columnFamily);
+    }
+
 
 }

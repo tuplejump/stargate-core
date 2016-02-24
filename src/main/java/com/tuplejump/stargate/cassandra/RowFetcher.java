@@ -100,7 +100,7 @@ public class RowFetcher {
                 }
                 continue;
             }
-            final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchRangeSlice(entries, dk);
+            final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchPagedRangeSlice(entries, dk, limit);
 
             for (IndexEntryCollector.IndexEntry input : entries) {
                 CellName cellName = input.clusteringKey;
