@@ -30,6 +30,7 @@ import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -90,8 +91,7 @@ public class ResultMapper {
     }
 
     private ColumnSlice[] getPagedColumnSlices(DecoratedKey dk, Collection<IndexEntry> entries, int pageSize) {
-        ColumnSlice[] columnSlices = new ColumnSlice[Math.min(entries.size(), pageSize)];
-        int i = 0;
+        ArrayList<ColumnSlice> columnSlices = new ArrayList<>(Math.min(entries.size(), pageSize));
         for (IndexEntry entry : entries) {
             CellName cellName = entry.clusteringKey;
             if (!filter.columnFilter(dk.getKey()).maySelectPrefix(tableMapper.table.getComparator(), cellName.start())) {
@@ -100,12 +100,12 @@ public class ResultMapper {
             Composite start = tableMapper.start(cellName);
             Composite end = tableMapper.end(start);
             ColumnSlice columnSlice = new ColumnSlice(start, end);
-            columnSlices[i++] = columnSlice;
-            if (i >= pageSize) {
+            columnSlices.add(columnSlice);
+            if (columnSlices.size() == pageSize) {
                 break;
             }
         }
-        return columnSlices;
+        return columnSlices.toArray(new ColumnSlice[columnSlices.size()]);
     }
 
     private Map<CellName, ColumnFamily> getCellNameColumnFamilyMap(DecoratedKey dk, ColumnSlice[] columnSlices) {
