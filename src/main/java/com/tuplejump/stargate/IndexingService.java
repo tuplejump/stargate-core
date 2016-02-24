@@ -23,18 +23,10 @@ import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.management.AttributeChangeNotification;
-import javax.management.AttributeChangeNotificationFilter;
-import javax.management.Notification;
-import javax.management.NotificationListener;
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -109,23 +101,12 @@ public class IndexingService {
     public void updateIndexers(RowIndexSupport rowIndexSupport) {
         if (rowIndexSupport.indexContainer instanceof MonolithIndexContainer) {
             rowIndexSupport.indexContainer.updateIndexers(null);
-        } else if (StorageService.instance.isInitialized()) {
-            Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(rowIndexSupport.keyspace);
-            rowIndexSupport.indexContainer.updateIndexers(ranges);
         } else {
-            AttributeChangeNotificationFilter attributeChangeNotificationFilter = new AttributeChangeNotificationFilter();
-            attributeChangeNotificationFilter.enableAttribute("initialized");
-            StorageService.instance.addNotificationListener(new NotificationListener() {
-                @Override
-                public void handleNotification(Notification notification, Object rowIdxSupport) {
-                    AttributeChangeNotification attributeChangeNotification = (AttributeChangeNotification) notification;
-                    if ((boolean) attributeChangeNotification.getNewValue() == true) {
-                        RowIndexSupport rowIndexSupport = (RowIndexSupport) rowIdxSupport;
-                        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(rowIndexSupport.keyspace);
-                        rowIndexSupport.indexContainer.updateIndexers(ranges);
-                    }
-                }
-            }, attributeChangeNotificationFilter, rowIndexSupport);
+            throw new RuntimeException("VNodeIndexContainer is a WIP and has been disabled.");
+//            if (StorageService.instance.isInitialized()) {
+//                Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(rowIndexSupport.keyspace);
+//                rowIndexSupport.indexContainer.updateIndexers(ranges);
+//            }
         }
     }
 
