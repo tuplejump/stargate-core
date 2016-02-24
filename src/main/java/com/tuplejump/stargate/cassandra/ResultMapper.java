@@ -90,7 +90,7 @@ public class ResultMapper {
     }
 
     private ColumnSlice[] getPagedColumnSlices(DecoratedKey dk, Collection<IndexEntry> entries, int pageSize) {
-        ColumnSlice[] columnSlices = new ColumnSlice[pageSize];
+        ColumnSlice[] columnSlices = new ColumnSlice[Math.min(entries.size(), pageSize)];
         int i = 0;
         for (IndexEntry entry : entries) {
             CellName cellName = entry.clusteringKey;
