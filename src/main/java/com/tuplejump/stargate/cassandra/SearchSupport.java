@@ -19,6 +19,7 @@ package com.tuplejump.stargate.cassandra;
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.IndexEntryCollector;
+import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
 import com.tuplejump.stargate.lucene.query.Search;
@@ -44,10 +45,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * User: satya
@@ -139,7 +137,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
                 } else {
                     Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
                     Function function = search.function();
-                    Query query = search.query(options);
+                    Query query = LuceneUtils.getQueryUpdatedWithPKCondition(search.query(options), getPartitionKeyString(filter));
                     int resultsLimit = searcher.getIndexReader().maxDoc();
                     if (resultsLimit == 0) {
                         resultsLimit = 1;
@@ -203,6 +201,17 @@ public class SearchSupport extends SecondaryIndexSearcher {
                 return expression;
             } else if (colName.equalsIgnoreCase(tableMapper.primaryColumnName())) {
                 return expression;
+            }
+        }
+        return null;
+    }
+
+    protected String getPartitionKeyString(ExtendedFilter mainFilter) {
+        if (mainFilter.dataRange.keyRange().left != null && mainFilter.dataRange.keyRange().left instanceof DecoratedKey) {
+            DecoratedKey left = (DecoratedKey) mainFilter.dataRange.keyRange().left;
+            DecoratedKey right = (DecoratedKey) mainFilter.dataRange.keyRange().right;
+            if (left.equals(right)) {
+                return tableMapper.primaryKeyAbstractType.getString(left.getKey());
             }
         }
         return null;

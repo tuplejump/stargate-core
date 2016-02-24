@@ -19,8 +19,7 @@ package com.tuplejump.stargate.lucene;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.slf4j.Logger;
@@ -272,6 +271,17 @@ public class LuceneUtils {
 
     public static Query getPKRangeDeleteQuery(String startPK, String endPK) {
         return TermRangeQuery.newStringRange(PK_INDEXED, startPK, endPK, true, true);
+    }
+
+    public static Query getQueryUpdatedWithPKCondition(Query query, String partitionKeyString) {
+        if (partitionKeyString == null) {
+            return query;
+        } else {
+            BooleanQuery finalQuery = new BooleanQuery();
+            finalQuery.add(query, BooleanClause.Occur.MUST);
+            finalQuery.add(new TermQuery(LuceneUtils.rowkeyTerm(partitionKeyString)), BooleanClause.Occur.MUST);
+            return finalQuery;
+        }
     }
 
     public static class NumericConfigTL extends NumericConfig {
