@@ -119,7 +119,7 @@ public class IndexingService {
                 @Override
                 public void handleNotification(Notification notification, Object rowIdxSupport) {
                     AttributeChangeNotification attributeChangeNotification = (AttributeChangeNotification) notification;
-                    if (attributeChangeNotification.getNewValue() == true) {
+                    if ((boolean) attributeChangeNotification.getNewValue() == true) {
                         RowIndexSupport rowIndexSupport = (RowIndexSupport) rowIdxSupport;
                         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(rowIndexSupport.keyspace);
                         rowIndexSupport.indexContainer.updateIndexers(ranges);
