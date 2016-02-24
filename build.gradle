@@ -112,6 +112,7 @@ shadowJar {
         include(dependency('commons-collections:commons-collections'))
         include(dependency('org.javolution:javolution'))
     }
+    relocate 'com.clearspring.analytics', 'shaded.com.clearspring.analytics'
 }
 
 task copyJarToCCM(dependsOn: shadowJar) << {
