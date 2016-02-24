@@ -23,14 +23,10 @@ import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -103,8 +99,15 @@ public class IndexingService {
     }
 
     public void updateIndexers(RowIndexSupport rowIndexSupport) {
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(rowIndexSupport.keyspace);
-        rowIndexSupport.indexContainer.updateIndexers(ranges);
+        if (rowIndexSupport.indexContainer instanceof MonolithIndexContainer) {
+            rowIndexSupport.indexContainer.updateIndexers(null);
+        } else {
+            throw new RuntimeException("VNodeIndexContainer is a WIP and has been disabled.");
+//            if (StorageService.instance.isInitialized()) {
+//                Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(rowIndexSupport.keyspace);
+//                rowIndexSupport.indexContainer.updateIndexers(ranges);
+//            }
+        }
     }
 
     private class FatalExceptionHandler implements ExceptionHandler {

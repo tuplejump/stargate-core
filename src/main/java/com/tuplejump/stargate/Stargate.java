@@ -76,9 +76,7 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
 
     public void register(RowIndexSupport rowIndexSupport) {
         this.indexingService.register(rowIndexSupport);
-        if (StorageService.instance.isInitialized()) {
-            indexingService.updateIndexers(rowIndexSupport);
-        }
+        indexingService.updateIndexers(rowIndexSupport);
     }
 
     public long index(ByteBuffer rowKey, ColumnFamily columnFamily) {

@@ -19,6 +19,7 @@ package com.tuplejump.stargate.cassandra;
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.lucene.IndexEntryCollector;
+import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.SearcherCallback;
 import com.tuplejump.stargate.lucene.query.Search;
@@ -44,10 +45,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * User: satya
@@ -106,16 +104,14 @@ public class SearchSupport extends SecondaryIndexSearcher {
             Search search = getQuery(queryString);
             return getRows(mainFilter, search, queryString);
         } catch (Exception e) {
+            logger.error("Exception occurred while querying", e);
             if (tableMapper.isMetaColumn) {
-
                 ByteBuffer errorMsg = UTF8Type.instance.decompose("{\"error\":\"" + StringEscapeUtils.escapeEcmaScript(e.getMessage()) + "\"}");
                 Row row = tableMapper.getRowWithMetaColumn(errorMsg);
                 if (row != null) {
                     return Collections.singletonList(row);
                 }
-
             }
-            logger.error("Exception occurred while querying", e);
             return Collections.EMPTY_LIST;
         }
     }
@@ -139,7 +135,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
                 } else {
                     Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
                     Function function = search.function();
-                    Query query = search.query(options);
+                    Query query = LuceneUtils.getQueryUpdatedWithPKCondition(search.query(options), getPartitionKeyString(filter));
                     int resultsLimit = searcher.getIndexReader().maxDoc();
                     if (resultsLimit == 0) {
                         resultsLimit = 1;
@@ -203,6 +199,18 @@ public class SearchSupport extends SecondaryIndexSearcher {
                 return expression;
             } else if (colName.equalsIgnoreCase(tableMapper.primaryColumnName())) {
                 return expression;
+            }
+        }
+        return null;
+    }
+
+    protected String getPartitionKeyString(ExtendedFilter mainFilter) {
+        AbstractBounds<RowPosition> keyRange = mainFilter.dataRange.keyRange();
+        if (keyRange != null && keyRange.left != null && keyRange.left instanceof DecoratedKey) {
+            DecoratedKey left = (DecoratedKey) keyRange.left;
+            DecoratedKey right = (DecoratedKey) keyRange.right;
+            if (left.equals(right)) {
+                return tableMapper.primaryKeyAbstractType.getString(left.getKey());
             }
         }
         return null;
