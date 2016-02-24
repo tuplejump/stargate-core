@@ -104,16 +104,14 @@ public class SearchSupport extends SecondaryIndexSearcher {
             Search search = getQuery(queryString);
             return getRows(mainFilter, search, queryString);
         } catch (Exception e) {
+            logger.error("Exception occurred while querying", e);
             if (tableMapper.isMetaColumn) {
-
                 ByteBuffer errorMsg = UTF8Type.instance.decompose("{\"error\":\"" + StringEscapeUtils.escapeEcmaScript(e.getMessage()) + "\"}");
                 Row row = tableMapper.getRowWithMetaColumn(errorMsg);
                 if (row != null) {
                     return Collections.singletonList(row);
                 }
-
             }
-            logger.error("Exception occurred while querying", e);
             return Collections.EMPTY_LIST;
         }
     }
