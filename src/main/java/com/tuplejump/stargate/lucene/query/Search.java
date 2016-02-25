@@ -78,7 +78,7 @@ public class Search {
      * Returns {@code true} if the results must be ordered by relevance. If {@code false}, then the results are sorted
      * by the natural Cassandra's order. Results must be ordered by relevance if the querying condition is not {code
      * null}.
-     * <p/>
+
      * Relevance is used when the query condition is set, and it is not used when only the filter condition is set.
      *
      * @return {@code true} if the results must be ordered by relevance. If {@code false}, then the results must be
