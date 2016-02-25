@@ -45,7 +45,7 @@ public class BasicIndexTest extends IndexTestBase {
         try {
             createKS(keyspace);
             createTableAndIndexForRow();
-            ResultSet rs = getResults("TAG2", "magic = '" + mq("tags", "tags:hello* AND state:CA") + "'", true);
+            ResultSet rs = getResults("TAG2", "magic = 'test'", true);
             List<Row> rows = rs.all();
             Assert.assertEquals(true, rows.toString().contains("error"));
         } finally {
@@ -95,10 +95,10 @@ public class BasicIndexTest extends IndexTestBase {
                 deleteTagData("TAG2", "segment", false, i);
             }
             Assert.assertEquals(16, countResults("TAG2", "magic = '" + q("tags", "hello*") + "'", true));
-            Assert.assertEquals(1, countResults("TAG2", "segment=30 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
-            Assert.assertEquals(0, countResults("TAG2", "segment=20 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
             Assert.assertEquals(5, countResults("TAG2", "magic = '" + q("tags", "hello*") + "' limit 5", true));
             Assert.assertEquals(1, countStarResults("TAG2", "magic = '" + q("tags", "hello*") + "'", true));
+            Assert.assertEquals(1, countResults("TAG2", "segment=30 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
+            Assert.assertEquals(0, countResults("TAG2", "segment=20 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
             testJMX();
 
         } finally {

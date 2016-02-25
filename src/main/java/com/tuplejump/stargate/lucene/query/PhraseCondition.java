@@ -122,9 +122,8 @@ public class PhraseCondition extends Condition {
         Type fieldType = properties != null ? properties.getType() : Type.text;
         if (fieldType.isCharSeq()) {
             Analyzer analyzer = schema.analyzer;
-            PhraseQuery query = new PhraseQuery();
+            PhraseQuery.Builder query = new PhraseQuery.Builder();
             query.setSlop(slop);
-            query.setBoost(boost);
             int count = 0;
             for (String value : values) {
                 if (value != null) {
@@ -136,7 +135,7 @@ public class PhraseCondition extends Condition {
                 }
                 count++;
             }
-            return query;
+            return query.build();
         }
         String message = String.format("Phrase queries cannot be supported until mapping is defined");
         throw new UnsupportedOperationException(message);

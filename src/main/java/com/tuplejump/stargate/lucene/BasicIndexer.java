@@ -88,11 +88,11 @@ public class BasicIndexer implements Indexer {
 
     private IndexWriter getIndexWriter(Version luceneV) throws IOException {
         file = LuceneUtils.getDirectory(keyspaceName, cfName, indexName, vNodeName);
-        IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
+        IndexWriterConfig config = new IndexWriterConfig(analyzer);
         config.setRAMBufferSizeMB(128);
 //        config.setMaxBufferedDocs(128 * 1000);
         //config.setInfoStream(System.out);
-        directory = FSDirectory.open(file);
+        directory = FSDirectory.open(file.toPath());
         if (logger.isInfoEnabled()) {
             logger.info(indexName + " SG Index - Opened dir[" + file.getAbsolutePath() + "] - OpenMode[" + OPEN_MODE + "]");
         }
@@ -128,13 +128,13 @@ public class BasicIndexer implements Indexer {
 
     @Override
     public void delete(Term... terms) {
-        BooleanQuery q = new BooleanQuery();
+        BooleanQuery.Builder q = new BooleanQuery.Builder();
         for (Term t : terms) {
             if (logger.isDebugEnabled())
                 logger.debug(indexName + " Delete term - " + t);
             q.add(new TermQuery(t), BooleanClause.Occur.MUST);
         }
-        delete(q);
+        delete(q.build());
     }
 
     @Override
@@ -204,7 +204,7 @@ public class BasicIndexer implements Indexer {
     public long liveSize() {
         if (indexWriter != null) {
             try {
-                return indexWriter.ramSizeInBytes();
+                return indexWriter.ramBytesUsed();
             } catch (Exception e) {
                 //ignore
                 return 0;

@@ -330,14 +330,13 @@ public class IndexTestBase {
 
         public MemIndex(com.tuplejump.stargate.lucene.Properties properties) {
             this.options = properties;
-            Version luceneV = Version.parseLeniently(Version.LUCENE_48.name());
             Analyzer analyzer = new PerFieldAnalyzerWrapper(options.getLuceneAnalyzer(), options.perFieldAnalyzers());
-            IndexWriterConfig config = new IndexWriterConfig(luceneV, analyzer);
+            IndexWriterConfig config = new IndexWriterConfig(analyzer);
             try {
                 Path path = Files.createTempDirectory(null, fileAttributes);
                 file = path.toFile();
                 file.deleteOnExit();
-                directory = FSDirectory.open(file);
+                directory = FSDirectory.open(file.toPath());
                 writer = new IndexWriter(directory, config);
             } catch (IOException e) {
                 throw new RuntimeException(e);

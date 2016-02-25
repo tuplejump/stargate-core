@@ -18,12 +18,12 @@
 package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.codehaus.jackson.annotate.JsonCreator;
@@ -90,6 +90,7 @@ public abstract class Condition {
 
     /**
      * Returns the Lucene's {@link Query} representation of this condition.
+     *
      * @param schema the schema
      * @return the Lucene's {@link Query} representation of this condition.
      * @throws Exception when Query cannot be constructed
@@ -98,32 +99,26 @@ public abstract class Condition {
 
     /**
      * Returns the Lucene's {@link Filter} representation of this condition.
+     *
      * @param schema the schema
      * @return the Lucene's {@link Filter} representation of this condition.
      * @throws Exception when filter cannot be constructed
      */
-    public Filter filter(Options schema) throws Exception {
-        return new QueryWrapperFilter(query(schema));
+    public Query filter(Options schema) throws Exception {
+        return query(schema);
     }
 
     protected String analyze(String field, String value, Analyzer analyzer) {
+        StringBuilder result = new StringBuilder();
         TokenStream source = null;
         try {
             source = analyzer.tokenStream(field, value);
             source.reset();
-
-            TermToBytesRefAttribute termAtt = source.getAttribute(TermToBytesRefAttribute.class);
-            BytesRef bytes = termAtt.getBytesRef();
-
-            if (!source.incrementToken()) {
-                return null;
+            while (source.incrementToken()) {
+                result.append(source.getAttribute(CharTermAttribute.class).toString());
+                result.append(" ");
             }
-            termAtt.fillBytesRef();
-            if (source.incrementToken()) {
-                throw new IllegalArgumentException("analyzer returned too many terms for multiTerm term: " + value);
-            }
-            source.end();
-            return BytesRef.deepCopyOf(bytes).utf8ToString();
+            return StringUtils.trim(result.toString());
         } catch (IOException e) {
             throw new RuntimeException("Error analyzing multiTerm term: " + value, e);
         } finally {

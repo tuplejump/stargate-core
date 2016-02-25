@@ -19,6 +19,7 @@ package com.tuplejump.stargate.lucene;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.Version;
@@ -36,7 +37,7 @@ import java.util.Map;
 public class Properties {
 
     public static Properties ID_FIELD = new Properties();
-    public static Version luceneVersion = Version.LUCENE_48;
+    public static Version luceneVersion = Version.LUCENE_5_5_0;
 
     static {
         ID_FIELD.tokenized = false;
@@ -102,7 +103,7 @@ public class Properties {
 
 
     @JsonProperty
-    FieldInfo.IndexOptions indexOptions = FieldInfo.IndexOptions.DOCS_ONLY;
+    IndexOptions indexOptions = IndexOptions.DOCS;
 
     @JsonProperty
     int numericPrecisionStep = NumericUtils.PRECISION_STEP_DEFAULT;
@@ -236,7 +237,7 @@ public class Properties {
         return omitNorms != null ? omitNorms : true;
     }
 
-    public FieldInfo.IndexOptions getIndexOptions() {
+    public IndexOptions getIndexOptions() {
         return indexOptions;
     }
 

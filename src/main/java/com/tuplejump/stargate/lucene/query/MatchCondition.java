@@ -26,7 +26,7 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.BasicAutomata;
+import org.apache.lucene.util.automaton.Automata;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -126,7 +126,6 @@ public class MatchCondition extends Condition implements Selector {
             String message = String.format("Match queries are not supported by %s field type", fieldType);
             throw new UnsupportedOperationException(message);
         }
-        query.setBoost(boost);
         return query;
     }
 
@@ -169,26 +168,26 @@ public class MatchCondition extends Condition implements Selector {
                 if (analyzedValue == null) {
                     throw new IllegalArgumentException("Value discarded by analyzer");
                 }
-                return BasicAutomata.makeString(analyzedValue);
+                return Automata.makeString(analyzedValue);
             } else if (fieldType == Type.integer) {
                 assert numericConfig != null;
                 Integer value = null;
 
                 value = numericConfig.getNumberFormat().parse(this.value.toString()).intValue();
 
-                return BasicAutomata.makeString(value.toString());
+                return Automata.makeString(value.toString());
             } else if (fieldType == Type.bigint || fieldType == Type.date) {
                 assert numericConfig != null;
                 Long value = numericConfig.getNumberFormat().parse(this.value.toString()).longValue();
-                return BasicAutomata.makeString(value.toString());
+                return Automata.makeString(value.toString());
             } else if (fieldType == Type.decimal) {
                 assert numericConfig != null;
                 Float value = numericConfig.getNumberFormat().parse(this.value.toString()).floatValue();
-                return BasicAutomata.makeString(value.toString());
+                return Automata.makeString(value.toString());
             } else if (fieldType == Type.bigdecimal) {
                 assert numericConfig != null;
                 Double value = numericConfig.getNumberFormat().parse(this.value.toString()).doubleValue();
-                return BasicAutomata.makeString(value.toString());
+                return Automata.makeString(value.toString());
             } else {
                 String message = String.format("Match pattern queries are not supported by %s mapper", fieldType);
                 throw new UnsupportedOperationException(message);

@@ -199,7 +199,6 @@ public class RangeCondition extends Condition {
             String message = String.format("Range queries are not supported by %s mapper", fieldType);
             throw new UnsupportedOperationException(message);
         }
-        query.setBoost(boost);
         return query;
     }
 

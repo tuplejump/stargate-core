@@ -124,8 +124,7 @@ public class BooleanCondition extends Condition implements Selector {
      */
     @Override
     public Query query(Options schema) throws Exception {
-        BooleanQuery luceneQuery = new BooleanQuery();
-        luceneQuery.setBoost(boost);
+        BooleanQuery.Builder luceneQuery = new BooleanQuery.Builder();
         for (Condition query : must) {
             luceneQuery.add(query.query(schema), Occur.MUST);
         }
@@ -135,7 +134,7 @@ public class BooleanCondition extends Condition implements Selector {
         for (Condition query : not) {
             luceneQuery.add(query.query(schema), Occur.MUST_NOT);
         }
-        return luceneQuery;
+        return luceneQuery.build();
     }
 
     @Override

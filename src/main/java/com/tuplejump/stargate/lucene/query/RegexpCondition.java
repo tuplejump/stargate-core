@@ -107,7 +107,6 @@ public class RegexpCondition extends Condition implements Selector {
             String message = String.format("Regexp queries are not supported by %s mapper", fieldType);
             throw new UnsupportedOperationException(message);
         }
-        query.setBoost(boost);
         return query;
     }
 
