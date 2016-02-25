@@ -17,10 +17,11 @@ targetCompatibility = 1.8
 repositories {
     mavenCentral()
     mavenLocal()
-
 }
 
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+
+def luceneVersion = '5.5.0'
 
 dependencies {
 
@@ -29,13 +30,13 @@ dependencies {
     compile('org.mvel:mvel2:2.2.2.Final')
 
     //lucene dependencies
-    compile group: 'org.apache.lucene', name: 'lucene-core', version: '5.5.0'
-    compile group: 'org.apache.lucene', name: 'lucene-spatial', version: '5.5.0'
-    compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: '5.5.0'
-    compile('org.apache.lucene:lucene-queryparser:5.5.0') {
+    compile group: 'org.apache.lucene', name: 'lucene-core', version: luceneVersion
+    compile group: 'org.apache.lucene', name: 'lucene-spatial', version: luceneVersion
+    compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: luceneVersion
+    compile("org.apache.lucene:lucene-queryparser:$luceneVersion") {
         exclude group: 'org.apache.lucene', module: 'lucene-sandbox'
     }
-    compile('org.apache.lucene:lucene-join:5.5.0')
+    compile("org.apache.lucene:lucene-join:$luceneVersion")
     compile('joda-time:joda-time:2.3')
     compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
 
