@@ -21,9 +21,7 @@ import com.tuplejump.stargate.lucene.Options;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.codehaus.jackson.annotate.JsonCreator;
@@ -102,8 +100,8 @@ public abstract class Condition {
      * @return the Lucene's {@link Filter} representation of this condition.
      * @throws Exception when filter cannot be constructed
      */
-    public Filter filter(Options schema) throws Exception {
-        return new QueryWrapperFilter(query(schema));
+    public Query filter(Options schema) throws Exception {
+       return query(schema);
     }
 
     protected String analyze(String field, String value, Analyzer analyzer) {

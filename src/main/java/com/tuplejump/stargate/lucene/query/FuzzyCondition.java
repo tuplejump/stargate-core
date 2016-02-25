@@ -187,7 +187,6 @@ public class FuzzyCondition extends Condition implements Selector {
             String analyzedValue = analyze(field, value, schema.analyzer);
             Term term = new Term(field, analyzedValue);
             Query query = new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
-            query.setBoost(boost);
             return query;
         }
         message = String.format("Fuzzy queries cannot be supported for field type %s", fieldType);

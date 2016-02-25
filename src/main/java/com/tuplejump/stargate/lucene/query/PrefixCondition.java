@@ -83,7 +83,6 @@ public class PrefixCondition extends Condition {
      */
     @Override
     public Query query(Options schema) {
-
         if (field == null || field.trim().isEmpty()) {
             throw new IllegalArgumentException("Field name required");
         }
@@ -101,7 +100,6 @@ public class PrefixCondition extends Condition {
             String message = String.format("Prefix queries are not supported by %s mapper", fieldType);
             throw new UnsupportedOperationException(message);
         }
-        query.setBoost(boost);
         return query;
     }
 

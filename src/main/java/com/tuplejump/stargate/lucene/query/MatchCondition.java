@@ -126,7 +126,6 @@ public class MatchCondition extends Condition implements Selector {
             String message = String.format("Match queries are not supported by %s field type", fieldType);
             throw new UnsupportedOperationException(message);
         }
-        query.setBoost(boost);
         return query;
     }
 

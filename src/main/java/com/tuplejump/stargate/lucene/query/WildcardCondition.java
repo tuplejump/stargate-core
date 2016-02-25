@@ -112,7 +112,6 @@ public class WildcardCondition extends Condition implements Selector {
             String message = String.format("Wildcard queries are not supported by %s mapper", fieldType);
             throw new UnsupportedOperationException(message);
         }
-        query.setBoost(boost);
         return query;
     }
 
