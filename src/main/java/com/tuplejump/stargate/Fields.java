@@ -22,6 +22,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.lucene.document.*;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 
 import java.nio.ByteBuffer;
@@ -41,12 +42,12 @@ public class Fields {
     public static final FieldType STRING_FIELD_TYPE = new FieldType();
 
     static {
-        STRING_FIELD_TYPE.setIndexed(true);
+        STRING_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
         STRING_FIELD_TYPE.setTokenized(false);
     }
 
     public static Field docValueField(String name, AbstractType type, ByteBuffer byteBufferValue, FieldType fieldType) {
-        if (fieldType.docValueType() != null) {
+        if (fieldType.docValuesType() != null) {
             if (fieldType.numericType() != null) return numericDocValuesField(name, type, byteBufferValue);
             else return stringDocValuesField(name, type, byteBufferValue);
         }
@@ -54,7 +55,7 @@ public class Fields {
     }
 
     public static Field field(String name, AbstractType type, ByteBuffer byteBufferValue, FieldType fieldType) {
-        if (fieldType.docValueType() != null) {
+        if (fieldType.docValuesType() != null) {
             if (fieldType.numericType() != null) return numericDocValuesField(name, type, byteBufferValue);
             else return stringDocValuesField(name, type, byteBufferValue);
         }

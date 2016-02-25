@@ -120,15 +120,16 @@ public class PerVNodeIndexContainer implements IndexContainer {
         }
         IndexReader[] indexReadersArr = new IndexReader[indexReaders.size()];
         indexReaders.toArray(indexReadersArr);
-        MultiReader multiReader = new MultiReader(indexReadersArr, false);
-        IndexSearcher allSearcher = new IndexSearcher(multiReader, executorService);
+        MultiReader multiReader = null;
         try {
+            multiReader = new MultiReader(indexReadersArr, false);
+            IndexSearcher allSearcher = new IndexSearcher(multiReader, executorService);
             return searcherCallback.doWithSearcher(allSearcher);
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
             try {
-                multiReader.close();
+                if (multiReader != null) multiReader.close();
             } catch (IOException e) {
                 logger.error("Could not close reader", e);
             }

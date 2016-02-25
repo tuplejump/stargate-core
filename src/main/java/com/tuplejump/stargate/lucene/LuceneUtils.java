@@ -21,6 +21,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,34 +59,31 @@ public class LuceneUtils {
 
     public static NumericConfig numericConfig(FieldType fieldType) {
         if (fieldType.numericType() != null) {
-            NumericConfig numConfig = new NumericConfigTL(fieldType.numericPrecisionStep(), fieldType.numericType());
-            return numConfig;
+            return new NumericConfigTL(fieldType.numericPrecisionStep(), fieldType.numericType());
         }
         return null;
     }
 
     public static File getDirectory(String ksName, String cfName, String indexName, String vNodeName) throws IOException {
-        String fileName = indexName;
         String dirName = Options.defaultIndexesDir;
         dirName = dirName + File.separator + ksName + File.separator + cfName + File.separator + vNodeName;
         if (logger.isDebugEnabled()) {
-            logger.debug("SGIndex - INDEX_FILE_NAME - {}", fileName);
+            logger.debug("SGIndex - INDEX_FILE_NAME - {}", indexName);
             logger.debug("SGIndex - INDEX_DIR_NAME - {}", dirName);
         }
         //will only create parent if not existing.
-        return new File(dirName, fileName);
+        return new File(dirName, indexName);
     }
 
     public static FieldType docValueTypeFrom(FieldType fieldType) {
         FieldType docValType = new FieldType(fieldType);
-        if (fieldType.numericType() != null) docValType.setDocValueType(FieldInfo.DocValuesType.NUMERIC);
-        else docValType.setDocValueType(FieldInfo.DocValuesType.BINARY);
+        if (fieldType.numericType() != null) docValType.setDocValuesType(DocValuesType.NUMERIC);
+        else docValType.setDocValuesType(DocValuesType.BINARY);
         return docValType;
     }
 
     public static FieldType dynamicFieldType(Properties properties) {
         FieldType fieldType = new FieldType();
-        fieldType.setIndexed(properties.isIndexed());
         fieldType.setTokenized(properties.isTokenized());
         fieldType.setStored(properties.isStored());
         fieldType.setStoreTermVectors(properties.isStoreTermVectors());
@@ -139,8 +137,7 @@ public class LuceneUtils {
     }
 
     public static Number numericDocValue(NumericDocValues rowKeyValues, int docId, Type type) throws IOException {
-        Long ref = rowKeyValues == null ? 0l : rowKeyValues.get(docId);
-        if (ref == null) ref = 0l;
+        Long ref = rowKeyValues == null ? 0L : rowKeyValues.get(docId);
         if (type == Type.integer) {
             return ref.intValue();
         } else if (type == Type.bigint) {
@@ -153,34 +150,31 @@ public class LuceneUtils {
     }
 
 
-    public static SortedDocValues getPKBytesDocValues(AtomicReader atomicReader) throws IOException {
+    public static SortedDocValues getPKBytesDocValues(LeafReader atomicReader) throws IOException {
         return atomicReader.getSortedDocValues(LuceneUtils.PK_BYTES);
     }
 
-    public static SortedDocValues getPKNameDocValues(AtomicReader atomicReader) throws IOException {
+    public static SortedDocValues getPKNameDocValues(LeafReader atomicReader) throws IOException {
         return atomicReader.getSortedDocValues(LuceneUtils.PK_NAME_DOC_VAL);
     }
 
-    public static SortedDocValues getRKBytesDocValues(AtomicReader atomicReader) throws IOException {
+    public static SortedDocValues getRKBytesDocValues(LeafReader atomicReader) throws IOException {
         return atomicReader.getSortedDocValues(LuceneUtils.RK_BYTES);
     }
 
 
     public static ByteBuffer byteBufferDocValue(BinaryDocValues docValues, int docId) throws IOException {
-        BytesRef ref = new BytesRef();
-        docValues.get(docId, ref);
+        BytesRef ref = BytesRef.deepCopyOf(docValues.get(docId));
         return ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
     }
 
     public static String stringDocValue(BinaryDocValues rowKeyValues, int docId) throws IOException {
-        BytesRef ref = new BytesRef();
-        rowKeyValues.get(docId, ref);
+        BytesRef ref = rowKeyValues.get(docId);
         return ref.utf8ToString();
     }
 
     public static String primaryKeyName(BinaryDocValues primaryKeyNames, int docId) throws IOException {
-        BytesRef ref = new BytesRef();
-        primaryKeyNames.get(docId, ref);
+        BytesRef ref = primaryKeyNames.get(docId);
         return new String(ref.bytes, ref.offset, ref.length, StandardCharsets.UTF_8);
     }
 
@@ -242,8 +236,8 @@ public class LuceneUtils {
     }
 
     public static Term tsTerm(long ts) {
-        BytesRef tsBytes = new BytesRef();
-        NumericUtils.longToPrefixCodedBytes(ts, NumericUtils.PRECISION_STEP_DEFAULT, tsBytes);
+        BytesRefBuilder tsBytes = new BytesRefBuilder();
+        NumericUtils.longToPrefixCoded(ts, NumericUtils.PRECISION_STEP_DEFAULT, tsBytes);
         return new Term(CF_TS_INDEXED, tsBytes);
     }
 
@@ -277,10 +271,10 @@ public class LuceneUtils {
         if (partitionKeyString == null) {
             return query;
         } else {
-            BooleanQuery finalQuery = new BooleanQuery();
+            BooleanQuery.Builder finalQuery = new BooleanQuery.Builder();
             finalQuery.add(query, BooleanClause.Occur.MUST);
             finalQuery.add(new TermQuery(LuceneUtils.rowkeyTerm(partitionKeyString)), BooleanClause.Occur.MUST);
-            return finalQuery;
+            return finalQuery.build();
         }
     }
 

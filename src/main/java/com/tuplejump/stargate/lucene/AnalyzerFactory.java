@@ -37,22 +37,22 @@ public class AnalyzerFactory {
             Analyzers analyzer = Analyzers.valueOf(analyzerName);
             switch (analyzer) {
                 case SimpleAnalyzer: {
-                    return new SimpleAnalyzer(luceneV);
+                    return new SimpleAnalyzer();
                 }
                 case StandardAnalyzer: {
-                    return new StandardAnalyzer(luceneV);
+                    return new StandardAnalyzer();
                 }
                 case StopAnalyzer: {
-                    return new StopAnalyzer(luceneV);
+                    return new StopAnalyzer();
                 }
                 case WhitespaceAnalyzer: {
-                    return new WhitespaceAnalyzer(luceneV);
+                    return new WhitespaceAnalyzer();
                 }
                 case KeywordAnalyzer: {
-                    return new CaseInsensitiveKeywordAnalyzer(luceneV);
+                    return new CaseInsensitiveKeywordAnalyzer();
                 }
                 default: {
-                    return new StandardAnalyzer(luceneV);
+                    return new StandardAnalyzer();
                 }
             }
         } catch (IllegalArgumentException e) {

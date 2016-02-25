@@ -118,7 +118,6 @@ public abstract class Condition {
             if (!source.incrementToken()) {
                 return null;
             }
-            termAtt.fillBytesRef();
             if (source.incrementToken()) {
                 throw new IllegalArgumentException("analyzer returned too many terms for multiTerm term: " + value);
             }

@@ -17,6 +17,7 @@ targetCompatibility = 1.8
 repositories {
     mavenCentral()
     mavenLocal()
+
 }
 
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
@@ -28,13 +29,13 @@ dependencies {
     compile('org.mvel:mvel2:2.2.2.Final')
 
     //lucene dependencies
-    compile group: 'org.apache.lucene', name: 'lucene-core', version: '4.8.1'
-    compile group: 'org.apache.lucene', name: 'lucene-spatial', version: '4.8.1'
-    compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: '4.8.1'
-    compile('org.apache.lucene:lucene-queryparser:4.8.1') {
+    compile group: 'org.apache.lucene', name: 'lucene-core', version: '5.5.0'
+    compile group: 'org.apache.lucene', name: 'lucene-spatial', version: '5.5.0'
+    compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: '5.5.0'
+    compile('org.apache.lucene:lucene-queryparser:5.5.0') {
         exclude group: 'org.apache.lucene', module: 'lucene-sandbox'
     }
-    compile('org.apache.lucene:lucene-join:4.8.1')
+    compile('org.apache.lucene:lucene-join:5.5.0')
     compile('joda-time:joda-time:2.3')
     compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
 
@@ -84,18 +85,6 @@ task sourcesJar(type: Jar) {
     from sourceSets.main.allSource
 }
 
-task copyLibs(type: Copy) {
-    from configurations.compile
-    into 'build/dist/stargate/libs'
-    include 'lucene-*.jar'
-    include 'joda-*.jar'
-    include 'commons-collections-*.jar'
-    include 'annotations-*.jar'
-    include 'compiler-*.jar'
-    include 'mvel2-*.jar'
-    include 'stream-*.jar'
-    include 'javolution-*.jar'
-}
 
 shadowJar {
     dependencies {
@@ -135,12 +124,13 @@ task copySamples(type: Copy) {
 }
 
 task copyJar(type: Copy) {
-    dependsOn jar
-    from 'build/libs'
+    dependsOn([shadowJar, copySamples])
+    from ('build/libs'){
+        include('*-all.jar')
+    }
     into 'build/dist/stargate/libs'
 }
 
-jar { dependsOn([copyLibs, copySamples]) }
 
 task dist(type: Tar) {
     baseName 'stargate-core'

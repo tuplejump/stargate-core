@@ -29,18 +29,15 @@ import java.io.Reader;
  */
 public class CaseInsensitiveKeywordAnalyzer extends Analyzer {
 
-    Version version;
 
-    public CaseInsensitiveKeywordAnalyzer(Version version) {
-        this.version = version;
+    public CaseInsensitiveKeywordAnalyzer() {
     }
 
     @Override
-    protected TokenStreamComponents createComponents(final String fieldName, final Reader reader) {
-        KeywordTokenizer source = new KeywordTokenizer(reader);
-        LowerCaseFilter filter = new LowerCaseFilter(version, source);
+    protected TokenStreamComponents createComponents(String fieldName) {
+        KeywordTokenizer source = new KeywordTokenizer();
+        LowerCaseFilter filter = new LowerCaseFilter(source);
         return new TokenStreamComponents(source, filter);
     }
-
 
 }

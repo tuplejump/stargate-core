@@ -31,8 +31,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.*;
@@ -41,9 +39,6 @@ import java.util.*;
  * Utilities to read Cassandra configuration
  */
 public class CassandraUtils {
-    private static final Logger logger = LoggerFactory.getLogger(CassandraUtils.class);
-    private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
-
 
     public static String[] getDataDirs() throws IOException, ConfigurationException {
         return DatabaseDescriptor.getAllDataFileLocations();
@@ -60,8 +55,6 @@ public class CassandraUtils {
     }
 
     public static Options getOptions(Properties mapping, ColumnFamilyStore baseCfs, String colName) {
-        Properties primary = mapping;
-        String defaultField = colName;
         Map<String, NumericConfig> numericFieldOptions = new HashMap<>();
         Map<String, FieldType> fieldDocValueTypes = new TreeMap<>();
         Map<String, FieldType> collectionFieldDocValueTypes = new TreeMap<>();
@@ -90,9 +83,7 @@ public class CassandraUtils {
             validators.put(columnName, colDef);
             if (indexedColumnNames.contains(columnName)) {
                 partitionKeysIndexed.put(colName, colDef);
-                Properties properties = mapping.getFields().get(columnName.toLowerCase());
-                addFieldType(columnName, colDef.type, properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
-                added.add(columnName.toLowerCase());
+                addPropertiesAndFieldType(mapping, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes, added, colDef, columnName);
             }
         }
 
@@ -105,9 +96,7 @@ public class CassandraUtils {
             validators.put(columnName, colDef);
             if (indexedColumnNames.contains(columnName)) {
                 clusteringKeysIndexed.put(columnName, colDef);
-                Properties properties = mapping.getFields().get(columnName.toLowerCase());
-                addFieldType(columnName, colDef.type, properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
-                added.add(columnName.toLowerCase());
+                addPropertiesAndFieldType(mapping, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes, added, colDef, columnName);
             }
         }
 
@@ -133,7 +122,7 @@ public class CassandraUtils {
             validators.put(columnName, colDef);
         }
 
-        numericFieldOptions.putAll(primary.getDynamicNumericConfig());
+        numericFieldOptions.putAll(mapping.getDynamicNumericConfig());
 
         Analyzer defaultAnalyzer = mapping.getLuceneAnalyzer();
         Analyzer analyzer = new PerFieldAnalyzerWrapper(defaultAnalyzer, mapping.perFieldAnalyzers());
@@ -151,11 +140,17 @@ public class CassandraUtils {
 
         }
 
-        return new Options(primary, numericFieldOptions,
+        return new Options(mapping, numericFieldOptions,
                 fieldDocValueTypes, collectionFieldDocValueTypes,
                 fieldTypes, collectionFieldTypes, types,
                 nestedFields, clusteringKeysIndexed, partitionKeysIndexed,
-                indexedColumnNames, analyzer, defaultField);
+                indexedColumnNames, analyzer, colName);
+    }
+
+    private static void addPropertiesAndFieldType(Properties mapping, Map<String, NumericConfig> numericFieldOptions, Map<String, FieldType> fieldDocValueTypes, Map<String, FieldType> collectionFieldDocValueTypes, Map<String, FieldType> fieldTypes, Map<String, FieldType[]> collectionFieldTypes, Set<String> added, ColumnDefinition colDef, String columnName) {
+        Properties properties = mapping.getFields().get(columnName.toLowerCase());
+        addFieldType(columnName, colDef.type, properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
+        added.add(columnName.toLowerCase());
     }
 
     private static ColumnDefinition getColumnDefinition(ColumnFamilyStore baseCfs, String columnName) {
@@ -275,7 +270,7 @@ public class CassandraUtils {
 
     public static FieldType fieldType(Properties properties, AbstractType validator) {
         FieldType fieldType = new FieldType();
-        fieldType.setIndexed(properties.isIndexed());
+        fieldType.setIndexOptions(properties.getIndexOptions());
         fieldType.setTokenized(properties.isTokenized());
         fieldType.setStored(properties.isStored());
         fieldType.setStoreTermVectors(properties.isStoreTermVectors());
