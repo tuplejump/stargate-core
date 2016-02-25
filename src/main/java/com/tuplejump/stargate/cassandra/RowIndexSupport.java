@@ -35,6 +35,7 @@ import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
@@ -286,6 +287,8 @@ public class RowIndexSupport {
             try {
                 Field field = type.fieldCreator.field(name, columnDefinition.type, value, fieldType);
                 fields.add(field);
+            } catch (MarshalException e) {
+                fields.add(new Field(name, "_null_", Fields.STRING_FIELD_TYPE));
             } catch (Exception e) {
                 logger.warn("Could not index column {}{}", columnDefinition, name);
                 logger.warn("Exception while indexing column", e);
