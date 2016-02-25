@@ -45,7 +45,7 @@ public class BasicIndexTest extends IndexTestBase {
         try {
             createKS(keyspace);
             createTableAndIndexForRow();
-            ResultSet rs = getResults("TAG2", "magic = '" + mq("tags", "tags:hello* AND state:CA") + "'", true);
+            ResultSet rs = getResults("TAG2", "magic = 'test'", true);
             List<Row> rows = rs.all();
             Assert.assertEquals(true, rows.toString().contains("error"));
         } finally {
