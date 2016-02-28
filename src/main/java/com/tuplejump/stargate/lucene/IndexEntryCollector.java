@@ -26,7 +26,6 @@ import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -58,7 +57,7 @@ public class IndexEntryCollector extends SimpleCollector {
     List<String> numericDocValueNamesToFetch;
     List<String> binaryDocValueNamesToFetch;
     Map<String, NumericDocValues> numericDocValuesMap = new HashMap<>();
-    Map<String, BinaryDocValues> binaryDocValuesMap = new HashMap<>();
+    Map<String, SortedDocValues> stringDocValues = new HashMap<>();
     Options options;
     List<IndexEntry> indexEntries;
     TreeMultimap<DecoratedKey, IndexEntry> indexEntryTreeMultiMap;
@@ -193,10 +192,10 @@ public class IndexEntryCollector extends SimpleCollector {
         primaryKeys = LuceneUtils.getPKBytesDocValues(context.reader());
         rowKeys = LuceneUtils.getRKBytesDocValues(context.reader());
         for (String docValName : numericDocValueNamesToFetch) {
-            numericDocValuesMap.put(docValName, context.reader().getNumericDocValues(Constants.striped + docValName));
+            numericDocValuesMap.put(docValName, context.reader().getNumericDocValues(docValName));
         }
         for (String docValName : binaryDocValueNamesToFetch) {
-            binaryDocValuesMap.put(docValName, context.reader().getBinaryDocValues(Constants.striped + docValName));
+            stringDocValues.put(docValName, context.reader().getSortedDocValues(docValName));
         }
 
     }
@@ -286,7 +285,7 @@ public class IndexEntryCollector extends SimpleCollector {
             Number number = LuceneUtils.numericDocValue(entry.getValue(), doc, type);
             numericDocValues.put(entry.getKey(), number);
         }
-        for (Map.Entry<String, BinaryDocValues> entry : binaryDocValuesMap.entrySet()) {
+        for (Map.Entry<String, SortedDocValues> entry : stringDocValues.entrySet()) {
             binaryDocValues.put(entry.getKey(), LuceneUtils.stringDocValue(entry.getValue(), doc));
         }
         return new IndexEntry(rowKey, pkName, primaryKey, slot, docBase + doc, score, numericDocValues, binaryDocValues);
