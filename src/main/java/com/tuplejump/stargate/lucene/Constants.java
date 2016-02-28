@@ -25,10 +25,6 @@ public final class Constants {
 
     public static final String INDEX_OPTIONS_JSON = "sg_options";
 
-    //lucene options per field
-    public static final String striped = "_striped_";
-    //lucene options
-
     public static final Splitter dotSplitter = Splitter.on('.');
 
 

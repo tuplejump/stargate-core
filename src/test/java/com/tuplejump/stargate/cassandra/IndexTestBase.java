@@ -255,6 +255,17 @@ public class IndexTestBase {
         return String.format(query1, field, value, fun);
     }
 
+    protected String q(String field, String value, String... sort) {
+        List<String> sorts = new ArrayList<>();
+        for (String sortField : sort) {
+            sorts.add("{field:\"" + sortField + "\"}");
+        }
+        String sortString = Joiner.on(",").join(sorts);
+        String query1 = "{ filter:{ type:\"lucene\", field:\"%s\", value:\"%s\" }," +
+                "sort:{ fields:[" + sortString + "]} }";
+        return String.format(query1, field, value);
+    }
+
     protected String q(String field, String value) {
         String query1 = "{ filter:{ type:\"lucene\", field:\"%s\", value:\"%s\" }}";
         return String.format(query1, field, value);

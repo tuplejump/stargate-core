@@ -243,26 +243,28 @@ public class RowIndexSupport {
         FieldType[] fieldTypesArr = options.collectionFieldTypes.get(colName);
         FieldType docValueType = options.collectionFieldDocValueTypes.get(colName);
         AbstractType keyType = validator.nameComparator();
+        FieldCreator keyFieldCreator = CassandraUtils.fromAbstractType(keyType.asCQL3Type()).fieldCreator;
         AbstractType valueType = validator.valueComparator();
+        FieldCreator valueFieldCreator = CassandraUtils.fromAbstractType(valueType.asCQL3Type()).fieldCreator;
         ByteBuffer collectionElement = cellName.collectionElement();
         if (validator instanceof MapType) {
             if (fieldTypesArr != null) {
-                fields.add(Fields.field(colName + "._key", keyType, collectionElement, fieldTypesArr[0]));
-                fields.add(Fields.field(colName + "._value", valueType, column.value(), fieldTypesArr[1]));
-                fields.add(Fields.field((colName + "." + keyType.getString(collectionElement)).toLowerCase(), valueType, column.value(), fieldTypesArr[1]));
+                fields.add(keyFieldCreator.field(colName + "._key", keyType, collectionElement, fieldTypesArr[0]));
+                fields.add(valueFieldCreator.field(colName + "._value", valueType, column.value(), fieldTypesArr[1]));
+                fields.add(valueFieldCreator.field((colName + "." + keyType.getString(collectionElement)).toLowerCase(), valueType, column.value(), fieldTypesArr[1]));
             }
             if (docValueType != null)
-                fields.add(Fields.field((colName + "." + keyType.getString(collectionElement)).toLowerCase(), valueType, column.value(), docValueType));
+                fields.add(Fields.docValueField((colName + "." + keyType.getString(collectionElement)).toLowerCase(), valueType, column.value(), docValueType));
         } else if (validator instanceof SetType) {
             if (fieldTypesArr != null)
-                fields.add(Fields.field(colName, keyType, collectionElement, fieldTypesArr[0]));
+                fields.add(keyFieldCreator.field(colName, keyType, collectionElement, fieldTypesArr[0]));
             if (docValueType != null)
-                fields.add(Fields.field(colName, keyType, collectionElement, docValueType));
+                fields.add(Fields.docValueField(colName, keyType, collectionElement, docValueType));
         } else if (validator instanceof ListType) {
             if (fieldTypesArr != null)
-                fields.add(Fields.field(colName, valueType, column.value(), fieldTypesArr[0]));
+                fields.add(valueFieldCreator.field(colName, valueType, column.value(), fieldTypesArr[0]));
             if (docValueType != null)
-                fields.add(Fields.field(colName, valueType, column.value(), docValueType));
+                fields.add(Fields.docValueField(colName, valueType, column.value(), docValueType));
         } else throw new UnsupportedOperationException("Unsupported collection type " + validator);
 
         return fields;

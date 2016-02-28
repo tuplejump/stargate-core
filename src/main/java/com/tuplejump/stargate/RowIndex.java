@@ -163,7 +163,8 @@ public class RowIndex extends PerRowSecondaryIndex {
                     if (isInfoLoggingEnabled) {
                         logger.info("Closing RowIndex for {}", indexName);
                     }
-                    indexContainer.close();
+                    if (indexContainer != null)
+                        indexContainer.close();
                 }
             });
         } finally {
