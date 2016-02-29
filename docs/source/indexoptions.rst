@@ -31,6 +31,7 @@ Here are the various properties ::
 		analyzer				: <analyzer>,
 		tokenized				: <tokenized>,
 		omitNorms				: <omitNorms>,
+		striped					: <striping>,
 		indexOptions				: <indexOptions>,
 		numericPrecisionStep			: <numericPrecisionStep>,
 		fields					: <sg_options>
@@ -95,8 +96,7 @@ Read lucene docs for explanation on each of them.
 
 Custom Analyzers
 ^^^^^^^^^^^^^^^^
-
-Specifying custom analyzers is a work in progress. Refer to the github issues section for the issue tracking this.
+Custom analyzers may be specified using the fully qualified class name. Lucene 5.5 custom analyzers are required.
 
 Norms 
 ^^^^^^
@@ -106,7 +106,7 @@ Norms allow index time boosts and field length normalization. This allows you to
 
 Index Options
 ^^^^^^^^^^^^^
-**<indexOptions> default:DOCS_ONLY**
+**<indexOptions> default:DOCS**
 
 This controls how much information is stored in the postings lists of the lucene index. For a detailed explanation, refer to lucene documentation. The available options are -
 
@@ -116,7 +116,7 @@ Option                                              Description
 DOCS_AND_FREQS                                      Only documents and term frequencies are indexed: positions are omitted
 DOCS_AND_FREQS_AND_POSITIONS                        Indexes documents, frequencies and positions.
 DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS            Indexes documents, frequencies, positions and offsets.
-DOCS_ONLY                                           Only documents are indexed: term frequencies and positions are omitted.
+DOCS                                                Only documents are indexed: term frequencies and positions are omitted.
 
 --------------------------------------------    ---------------------------------------------------------------------------
 ============================================    ===========================================================================
@@ -126,6 +126,19 @@ Numeric field precision
 **<numericPrecisionStep> default:4**
 
 Read lucene docs for explanation.
+
+Striping/Sorting
+^^^^^^^^^^^^^^^^
+**<striped> default:none**
+
+**Other options:also,only**
+
+This controls whether the index value is stored in a striped/columnar fashion using Lucene doc values. Sortable fields need to be stored in this fashion. For any field which requires sorting use "also" (indicating a doc value field is stored in Lucene along with indexing the field) or "only"(indicating that only a doc value field is stored in lucene) as the option.
+
+ 
+
+
+
 
 
 

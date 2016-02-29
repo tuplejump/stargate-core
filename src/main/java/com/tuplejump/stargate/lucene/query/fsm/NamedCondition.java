@@ -22,7 +22,7 @@ import com.tuplejump.stargate.lucene.query.Selector;
 import com.tuplejump.stargate.lucene.query.function.MatchPartition;
 import com.tuplejump.stargate.lucene.query.function.Tuple;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.BasicOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -57,7 +57,7 @@ public class NamedCondition implements Transition<Tuple> {
     @Override
     public boolean matches(Tuple tuple) {
         String value = tuple.getValue(getAutomatonField()).toString();
-        return BasicOperations.run(automaton, value);
+        return Operations.run(automaton, value);
     }
 
     @Override

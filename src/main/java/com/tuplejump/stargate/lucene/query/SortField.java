@@ -19,6 +19,7 @@ package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.Type;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -68,14 +69,14 @@ public class SortField {
 
 
     public static org.apache.lucene.search.SortField sortField(String name, Properties properties, boolean reverse) {
-        Properties.Type cqlType = properties.getType();
-        if (cqlType == Properties.Type.integer) {
+        Type cqlType = properties.getType();
+        if (cqlType == Type.integer) {
             return new org.apache.lucene.search.SortField(name, org.apache.lucene.search.SortField.Type.INT, reverse);
-        } else if (cqlType == Properties.Type.bigint) {
+        } else if (cqlType == Type.bigint) {
             return new org.apache.lucene.search.SortField(name, org.apache.lucene.search.SortField.Type.LONG, reverse);
-        } else if (cqlType == Properties.Type.bigdecimal) {
+        } else if (cqlType == Type.bigdecimal) {
             return new org.apache.lucene.search.SortField(name, org.apache.lucene.search.SortField.Type.DOUBLE, reverse);
-        } else if (cqlType == Properties.Type.decimal) {
+        } else if (cqlType == Type.decimal) {
             return new org.apache.lucene.search.SortField(name, org.apache.lucene.search.SortField.Type.FLOAT, reverse);
         } else {
             return new org.apache.lucene.search.SortField(name, org.apache.lucene.search.SortField.Type.STRING, reverse);

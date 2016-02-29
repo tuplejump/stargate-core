@@ -58,9 +58,9 @@ public class Search {
      *
      * @param queryCondition  The {@link Condition} for querying, maybe {@code null} meaning no querying.
      * @param filterCondition The {@link Condition} for filtering, maybe {@code null} meaning no filtering.
-     * @param sort The {@link Sort} for sorting, may be {@code null} meaning no sorting
-     * @param function The {@link Function} for aggregation, may be {@code null} meaning no aggregation
-     * @param showScore  To show score in results.
+     * @param sort            The {@link Sort} for sorting, may be {@code null} meaning no sorting
+     * @param function        The {@link Function} for aggregation, may be {@code null} meaning no aggregation
+     * @param showScore       To show score in results.
      */
     @JsonCreator
     public Search(@JsonProperty("query") Condition queryCondition,
@@ -78,7 +78,7 @@ public class Search {
      * Returns {@code true} if the results must be ordered by relevance. If {@code false}, then the results are sorted
      * by the natural Cassandra's order. Results must be ordered by relevance if the querying condition is not {code
      * null}.
-     *
+
      * Relevance is used when the query condition is set, and it is not used when only the filter condition is set.
      *
      * @return {@code true} if the results must be ordered by relevance. If {@code false}, then the results must be
@@ -88,7 +88,7 @@ public class Search {
         return queryCondition != null || sort != null;
     }
 
-    public Function function(Options schema) throws Exception {
+    public Function function() {
         return this.function;
     }
 
@@ -107,15 +107,23 @@ public class Search {
      */
     public Query query(Options schema) throws Exception {
         Query query = queryCondition == null ? null : queryCondition.query(schema);
-        Filter filter = filterCondition == null ? null : filterCondition.filter(schema);
+        Query filter = filterCondition == null ? null : filterCondition.filter(schema);
         if (query == null && filter == null) {
             return new MatchAllDocsQuery();
-        } else if (query != null && filter == null) {
-            return query;
-        } else if (query == null && filter != null) {
-            return new ConstantScoreQuery(filter);
+        } else if (query != null) {
+            if (queryCondition.getBoost() != Condition.DEFAULT_BOOST) {
+                return new BoostQuery(query, queryCondition.getBoost());
+            }
+            if (filter == null) {
+                return query;
+            } else {
+                BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
+                booleanQuery.add(query, BooleanClause.Occur.MUST);
+                booleanQuery.add(filter, BooleanClause.Occur.FILTER);
+                return booleanQuery.build();
+            }
         } else {
-            return new FilteredQuery(query, filter);
+            return new ConstantScoreQuery(filter);
         }
     }
 

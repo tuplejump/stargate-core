@@ -19,6 +19,7 @@ package com.tuplejump.stargate.lucene;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.Version;
@@ -36,7 +37,7 @@ import java.util.Map;
 public class Properties {
 
     public static Properties ID_FIELD = new Properties();
-    public static Version luceneVersion = Version.LUCENE_48;
+    public static Version luceneVersion = Version.LUCENE_5_5_0;
 
     static {
         ID_FIELD.tokenized = false;
@@ -53,34 +54,6 @@ public class Properties {
 
     public enum Striped {
         also, only, none
-    }
-
-    public enum Type {
-        object,
-        map,
-        text,
-        string,
-        integer,
-        bigint,
-        decimal,
-        bigdecimal,
-        bool,
-        date;
-
-        public boolean isNumeric() {
-            return this == bigint || this == bigdecimal || this == integer || this == decimal;
-        }
-
-        public boolean isCharSeq() {
-            return this == string || this == text;
-        }
-
-        public boolean canTokenize() {
-            Type type = this;
-            return !(type.isNumeric() || type == Type.string || type == Type.date || type == Type.bool);
-        }
-
-
     }
 
     @JsonProperty
@@ -130,7 +103,7 @@ public class Properties {
 
 
     @JsonProperty
-    FieldInfo.IndexOptions indexOptions = FieldInfo.IndexOptions.DOCS_ONLY;
+    IndexOptions indexOptions = IndexOptions.DOCS;
 
     @JsonProperty
     int numericPrecisionStep = NumericUtils.PRECISION_STEP_DEFAULT;
@@ -154,11 +127,11 @@ public class Properties {
         if (analyzerObj == null) {
             if (getAnalyzer() == null) {
                 if (getType() != null && !getType().canTokenize())
-                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.KeywordAnalyzer.name(), Properties.luceneVersion);
+                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.KeywordAnalyzer.name());
                 else
-                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.StandardAnalyzer.name(), Properties.luceneVersion);
+                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.StandardAnalyzer.name());
             } else {
-                analyzerObj = AnalyzerFactory.getAnalyzer(getAnalyzer(), Properties.luceneVersion);
+                analyzerObj = AnalyzerFactory.getAnalyzer(getAnalyzer());
             }
         }
         return analyzerObj;
@@ -264,7 +237,7 @@ public class Properties {
         return omitNorms != null ? omitNorms : true;
     }
 
-    public FieldInfo.IndexOptions getIndexOptions() {
+    public IndexOptions getIndexOptions() {
         return indexOptions;
     }
 
@@ -290,7 +263,7 @@ public class Properties {
             for (Map.Entry<String, Properties> fieldOptions : getFields().entrySet()) {
                 String colName = fieldOptions.getKey();
                 Properties props = fieldOptions.getValue();
-                if (props.getType() == Properties.Type.object || props.getType() == Type.map) {
+                if (props.getType() == Type.object || props.getType() == Type.map) {
                     Map<String, Analyzer> fieldObjectAnalyzers = props.perFieldAnalyzers();
                     for (Map.Entry<String, Analyzer> entry : fieldObjectAnalyzers.entrySet()) {
                         perFieldAnalyzers.put(colName + "." + entry.getKey(), entry.getValue());

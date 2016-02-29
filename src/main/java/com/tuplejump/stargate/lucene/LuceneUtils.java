@@ -19,9 +19,9 @@ package com.tuplejump.stargate.lucene;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +43,6 @@ public class LuceneUtils {
     public static final String PK_NAME_DOC_VAL = "_pk_name_val";
     public static final String PK_INDEXED = "_pk_idx";
     public static final String PK_BYTES = "_pk_bytes";
-    public static final String CF_TS_DOC_VAL = "_cf_ts_val";
     public static final String CF_TS_INDEXED = "_cf_ts";
     private static final Logger logger = LoggerFactory.getLogger(LuceneUtils.class);
     //  NumberFormat instances are not thread safe
@@ -60,34 +59,31 @@ public class LuceneUtils {
 
     public static NumericConfig numericConfig(FieldType fieldType) {
         if (fieldType.numericType() != null) {
-            NumericConfig numConfig = new NumericConfigTL(fieldType.numericPrecisionStep(), fieldType.numericType());
-            return numConfig;
+            return new NumericConfigTL(fieldType.numericPrecisionStep(), fieldType.numericType());
         }
         return null;
     }
 
     public static File getDirectory(String ksName, String cfName, String indexName, String vNodeName) throws IOException {
-        String fileName = indexName;
         String dirName = Options.defaultIndexesDir;
         dirName = dirName + File.separator + ksName + File.separator + cfName + File.separator + vNodeName;
         if (logger.isDebugEnabled()) {
-            logger.debug("SGIndex - INDEX_FILE_NAME - {}", fileName);
+            logger.debug("SGIndex - INDEX_FILE_NAME - {}", indexName);
             logger.debug("SGIndex - INDEX_DIR_NAME - {}", dirName);
         }
         //will only create parent if not existing.
-        return new File(dirName, fileName);
+        return new File(dirName, indexName);
     }
 
     public static FieldType docValueTypeFrom(FieldType fieldType) {
         FieldType docValType = new FieldType(fieldType);
-        if (fieldType.numericType() != null) docValType.setDocValueType(FieldInfo.DocValuesType.NUMERIC);
-        else docValType.setDocValueType(FieldInfo.DocValuesType.BINARY);
+        if (fieldType.numericType() != null) docValType.setDocValuesType(DocValuesType.NUMERIC);
+        else docValType.setDocValuesType(DocValuesType.BINARY);
         return docValType;
     }
 
     public static FieldType dynamicFieldType(Properties properties) {
         FieldType fieldType = new FieldType();
-        fieldType.setIndexed(properties.isIndexed());
         fieldType.setTokenized(properties.isTokenized());
         fieldType.setStored(properties.isStored());
         fieldType.setStoreTermVectors(properties.isStoreTermVectors());
@@ -140,52 +136,45 @@ public class LuceneUtils {
         Files.delete(file.toPath());
     }
 
-    public static Number numericDocValue(NumericDocValues rowKeyValues, int docId, Properties.Type type) throws IOException {
-        Long ref = rowKeyValues == null ? 0l : rowKeyValues.get(docId);
-        if (ref == null) ref = 0l;
-        if (type == Properties.Type.integer) {
+    public static Number numericDocValue(NumericDocValues rowKeyValues, int docId, Type type) throws IOException {
+        Long ref = rowKeyValues == null ? 0L : rowKeyValues.get(docId);
+        if (type == Type.integer) {
             return ref.intValue();
-        } else if (type == Properties.Type.bigint) {
+        } else if (type == Type.bigint) {
             return ref;
-        } else if (type == Properties.Type.decimal) {
+        } else if (type == Type.decimal) {
             return Float.intBitsToFloat(ref.intValue());
-        } else if (type == Properties.Type.bigdecimal) {
+        } else if (type == Type.bigdecimal) {
             return Double.longBitsToDouble(ref);
         } else throw new IllegalArgumentException(String.format("Invalid type for numeric doc values <%s>", type));
     }
 
 
-    public static SortedDocValues getPKBytesDocValues(AtomicReader atomicReader) throws IOException {
+    public static SortedDocValues getPKBytesDocValues(LeafReader atomicReader) throws IOException {
         return atomicReader.getSortedDocValues(LuceneUtils.PK_BYTES);
     }
 
-    public static SortedDocValues getPKNameDocValues(AtomicReader atomicReader) throws IOException {
+    public static SortedDocValues getPKNameDocValues(LeafReader atomicReader) throws IOException {
         return atomicReader.getSortedDocValues(LuceneUtils.PK_NAME_DOC_VAL);
     }
 
-    public static SortedDocValues getRKBytesDocValues(AtomicReader atomicReader) throws IOException {
+    public static SortedDocValues getRKBytesDocValues(LeafReader atomicReader) throws IOException {
         return atomicReader.getSortedDocValues(LuceneUtils.RK_BYTES);
     }
 
-    public static NumericDocValues getTSDocValues(AtomicReader atomicReader) throws IOException {
-        return atomicReader.getNumericDocValues(LuceneUtils.CF_TS_DOC_VAL);
-    }
 
     public static ByteBuffer byteBufferDocValue(BinaryDocValues docValues, int docId) throws IOException {
-        BytesRef ref = new BytesRef();
-        docValues.get(docId, ref);
+        BytesRef ref = BytesRef.deepCopyOf(docValues.get(docId));
         return ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
     }
 
     public static String stringDocValue(BinaryDocValues rowKeyValues, int docId) throws IOException {
-        BytesRef ref = new BytesRef();
-        rowKeyValues.get(docId, ref);
+        BytesRef ref = rowKeyValues.get(docId);
         return ref.utf8ToString();
     }
 
     public static String primaryKeyName(BinaryDocValues primaryKeyNames, int docId) throws IOException {
-        BytesRef ref = new BytesRef();
-        primaryKeyNames.get(docId, ref);
+        BytesRef ref = primaryKeyNames.get(docId);
         return new String(ref.bytes, ref.offset, ref.length, StandardCharsets.UTF_8);
     }
 
@@ -229,15 +218,6 @@ public class LuceneUtils {
         return new LongField(CF_TS_INDEXED, timestamp, fieldType);
     }
 
-    public static Field tsDocValues(final long timestamp) {
-        return new NumericDocValuesField(CF_TS_DOC_VAL, timestamp) {
-            @Override
-            public String toString() {
-                return String.format("Timestamp NumericDocValuesField<%s>", timestamp);
-            }
-        };
-    }
-
 
     public static Term primaryKeyTerm(String pkString) {
         return new Term(PK_INDEXED, pkString);
@@ -256,26 +236,26 @@ public class LuceneUtils {
     }
 
     public static Term tsTerm(long ts) {
-        BytesRef tsBytes = new BytesRef();
-        NumericUtils.longToPrefixCodedBytes(ts, NumericUtils.PRECISION_STEP_DEFAULT, tsBytes);
+        BytesRefBuilder tsBytes = new BytesRefBuilder();
+        NumericUtils.longToPrefixCoded(ts, NumericUtils.PRECISION_STEP_DEFAULT, tsBytes);
         return new Term(CF_TS_INDEXED, tsBytes);
     }
 
     public static Field field(String name, Properties properties, String value, FieldType fieldType) {
-        Properties.Type type = properties.getType();
-        if (type == Properties.Type.integer) {
+        Type type = properties.getType();
+        if (type == Type.integer) {
             return new IntField(name, Integer.parseInt(value), fieldType);
-        } else if (type == Properties.Type.bigint) {
+        } else if (type == Type.bigint) {
             return new LongField(name, Long.parseLong(value), fieldType);
-        } else if (type == Properties.Type.bigdecimal) {
+        } else if (type == Type.bigdecimal) {
             return new DoubleField(name, Double.parseDouble(value), fieldType);
-        } else if (type == Properties.Type.decimal) {
+        } else if (type == Type.decimal) {
             return new FloatField(name, Float.parseFloat(value), fieldType);
-        } else if (type == Properties.Type.date) {
+        } else if (type == Type.date) {
             //TODO - set correct locale
             FormatDateTimeFormatter formatter = Dates.forPattern(value, Locale.US);
             return new LongField(name, formatter.parser().parseMillis(value), fieldType);
-        } else if (type == Properties.Type.bool) {
+        } else if (type == Type.bool) {
             Boolean val = Boolean.parseBoolean(value);
             return new Field(name, val.toString(), fieldType);
         } else {
@@ -285,6 +265,17 @@ public class LuceneUtils {
 
     public static Query getPKRangeDeleteQuery(String startPK, String endPK) {
         return TermRangeQuery.newStringRange(PK_INDEXED, startPK, endPK, true, true);
+    }
+
+    public static Query getQueryUpdatedWithPKCondition(Query query, String partitionKeyString) {
+        if (partitionKeyString == null) {
+            return query;
+        } else {
+            BooleanQuery.Builder finalQuery = new BooleanQuery.Builder();
+            finalQuery.add(query, BooleanClause.Occur.MUST);
+            finalQuery.add(new TermQuery(LuceneUtils.rowkeyTerm(partitionKeyString)), BooleanClause.Occur.MUST);
+            return finalQuery.build();
+        }
     }
 
     public static class NumericConfigTL extends NumericConfig {

@@ -21,9 +21,7 @@ import com.tuplejump.stargate.Utils;
 import com.tuplejump.stargate.cassandra.ResultMapper;
 import com.tuplejump.stargate.cassandra.RowFetcher;
 import com.tuplejump.stargate.cassandra.SearchSupport;
-import com.tuplejump.stargate.lucene.Constants;
-import com.tuplejump.stargate.lucene.IndexEntryCollector;
-import com.tuplejump.stargate.lucene.Options;
+import com.tuplejump.stargate.lucene.*;
 import com.tuplejump.stargate.lucene.Properties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Row;
@@ -197,7 +195,7 @@ public class AggregateFunction implements Function {
     }
 
 
-    public static Properties.Type getLuceneType(Options options, String field) {
+    public static Type getLuceneType(Options options, String field) {
         String validatorFieldName = getColumnName(field);
         if (validatorFieldName == null) return null;
         return options.types.get(validatorFieldName);
@@ -227,7 +225,7 @@ public class AggregateFunction implements Function {
 
     public void load(Tuple tuple, IndexEntryCollector.IndexEntry entry) {
         for (String field : positions.keySet()) {
-            Properties.Type validator = options.types.get(field);
+            Type validator = options.types.get(field);
             load(tuple, entry, field, validator);
             if (validator == null) {
                 Iterator<String> fieldNameParts = Constants.dotSplitter.split(field).iterator();
@@ -235,7 +233,7 @@ public class AggregateFunction implements Function {
                 if (options.nestedFields.contains(columnName)) {
                     Properties columnProps = options.fields.get(columnName);
                     Properties fieldProps;
-                    if (columnProps.getType() == Properties.Type.map) {
+                    if (columnProps.getType() == Type.map) {
                         fieldProps = columnProps.getFields().get("_value");
                     } else {
                         fieldProps = columnProps.getFields().get(fieldNameParts.next());
@@ -246,11 +244,11 @@ public class AggregateFunction implements Function {
         }
     }
 
-    private void load(Tuple tuple, IndexEntryCollector.IndexEntry entry, String field, Properties.Type validator) {
+    private void load(Tuple tuple, IndexEntryCollector.IndexEntry entry, String field, Type validator) {
         if (validator != null) {
             if (validator.isNumeric()) {
                 tuple.tuple[this.positions.get(field)] = entry.getNumber(field);
-            } else if (validator == Properties.Type.date) {
+            } else if (validator == Type.date) {
                 Number number = entry.getNumber(field);
                 tuple.tuple[this.positions.get(field)] = new Date(number.longValue());
             } else {

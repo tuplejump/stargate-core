@@ -87,7 +87,6 @@ public class LuceneCondition extends Condition {
             parser.setNumericConfigMap(schema.numericFieldOptions);
             parser.setAllowLeadingWildcard(true);
             Query luceneQuery = parser.parse(query, getDefaultField(schema));
-            luceneQuery.setBoost(boost);
             if (logger.isDebugEnabled()) {
                 logger.debug("Lucene query is {}", luceneQuery);
             }

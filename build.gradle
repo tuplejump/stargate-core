@@ -1,10 +1,14 @@
+plugins {
+    id "com.github.johnrengelman.shadow" version "1.2.3"
+}
+
 apply plugin: 'java'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 apply plugin: 'maven'
 apply plugin: 'signing'
 
-version = '1.1.1-SNAPSHOT'
+version = '1.1.1'
 group = 'com.tuplejump'
 
 sourceCompatibility = 1.8
@@ -17,6 +21,8 @@ repositories {
 
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
+def luceneVersion = '5.5.0'
+
 dependencies {
 
     compile('com.clearspring.analytics:stream:2.7.0')
@@ -24,13 +30,13 @@ dependencies {
     compile('org.mvel:mvel2:2.2.2.Final')
 
     //lucene dependencies
-    compile group: 'org.apache.lucene', name: 'lucene-core', version: '4.8.1'
-    compile group: 'org.apache.lucene', name: 'lucene-spatial', version: '4.8.1'
-    compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: '4.8.1'
-    compile('org.apache.lucene:lucene-queryparser:4.8.1') {
+    compile group: 'org.apache.lucene', name: 'lucene-core', version: luceneVersion
+    compile group: 'org.apache.lucene', name: 'lucene-spatial', version: luceneVersion
+    compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: luceneVersion
+    compile("org.apache.lucene:lucene-queryparser:$luceneVersion") {
         exclude group: 'org.apache.lucene', module: 'lucene-sandbox'
     }
-    compile('org.apache.lucene:lucene-join:4.8.1')
+    compile("org.apache.lucene:lucene-join:$luceneVersion")
     compile('joda-time:joda-time:2.3')
     compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
 
@@ -42,7 +48,7 @@ dependencies {
     compile('org.slf4j:slf4j-api:1.7.2')
     compile('org.slf4j:slf4j-log4j12:1.7.2')
 
-    compile('org.apache.cassandra:cassandra-all:2.1.11') {
+    compile('org.apache.cassandra:cassandra-all:2.1.12') {
         exclude group: 'asm'
         exclude group: 'org.apache.mina'
     }
@@ -80,18 +86,38 @@ task sourcesJar(type: Jar) {
     from sourceSets.main.allSource
 }
 
-task copyLibs(type: Copy) {
-    from configurations.compile
-    into 'build/dist/stargate/libs'
-    include 'lucene-*.jar'
-    include 'joda-*.jar'
-    include 'commons-collections-*.jar'
-    include 'annotations-*.jar'
-    include 'compiler-*.jar'
-    include 'mvel2-*.jar'
-    include 'stream-*.jar'
-    include 'javolution-*.jar'
+
+shadowJar {
+    dependencies {
+        include(dependency('com.clearspring.analytics:stream'))
+        include(dependency('org.mvel:mvel2'))
+        include(dependency('org.apache.lucene:lucene-core'))
+        include(dependency('org.apache.lucene:lucene-grouping'))
+        include(dependency('org.apache.lucene:lucene-spatial'))
+        include(dependency('org.apache.lucene:lucene-analyzers-common'))
+        include(dependency('org.apache.lucene:lucene-queries'))
+        include(dependency('org.apache.lucene:lucene-queryparser'))
+        include(dependency('org.apache.lucene:lucene-join'))
+        include(dependency('joda-time:joda-time'))
+        include(dependency('commons-collections:commons-collections'))
+        include(dependency('org.javolution:javolution'))
+    }
+    relocate 'com.clearspring.analytics', 'shaded.com.clearspring.analytics'
 }
+
+task copyJarToCCM(dependsOn: shadowJar) << {
+    if (project.hasProperty('cassandraVersion')) {
+        copy {
+            from('build/libs') {
+              include('*-all.jar')
+            }
+            into System.getProperty('user.home') + '/.ccm/repository/' + project.property('cassandraVersion') + '/lib'
+        }
+    } else {
+        throw new RuntimeException("Please set cassandraVersion before running this")
+    }
+}
+
 
 task copySamples(type: Copy) {
     from 'src/test/resources/samples'
@@ -99,12 +125,13 @@ task copySamples(type: Copy) {
 }
 
 task copyJar(type: Copy) {
-    dependsOn jar
-    from 'build/libs'
+    dependsOn([shadowJar, copySamples])
+    from ('build/libs'){
+        include('*-all.jar')
+    }
     into 'build/dist/stargate/libs'
 }
 
-jar { dependsOn([copyLibs, copySamples]) }
 
 task dist(type: Tar) {
     baseName 'stargate-core'
@@ -112,17 +139,6 @@ task dist(type: Tar) {
     compression 'GZIP'
     dependsOn copyJar
     from('build/dist')
-}
-
-task copyJarToCCM(dependsOn: copyJar) << {
-    if (project.hasProperty('cassandraVersion')) {
-        copy {
-            from 'build/dist/stargate/libs'
-            into System.getProperty('user.home') + '/.ccm/repository/' + project.property('cassandraVersion') + '/lib'
-        }
-    } else {
-        throw new RuntimeException("Please set cassandraVersion before running this")
-    }
 }
 
 install {

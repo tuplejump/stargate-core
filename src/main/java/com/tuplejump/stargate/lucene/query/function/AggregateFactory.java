@@ -16,7 +16,7 @@
 
 package com.tuplejump.stargate.lucene.query.function;
 
-import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.Type;
 import org.codehaus.jackson.annotate.JsonAnyGetter;
 import org.codehaus.jackson.annotate.JsonAnySetter;
 import org.codehaus.jackson.annotate.JsonProperty;
@@ -51,7 +51,7 @@ public class AggregateFactory {
         dynamicProperties.put(name, value);
     }
 
-    public Aggregate getAggregate(Properties.Type valueType) {
+    public Aggregate getAggregate(Type valueType) {
         if (field == null && distinct)
             throw new UnsupportedOperationException("Distinct cannot be specified when field is null");
         if ("count".equalsIgnoreCase(type)) return new Count(this, distinct);

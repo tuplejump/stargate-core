@@ -26,7 +26,6 @@ public class IndexEventHandler implements EventHandler<IndexEntryEvent> {
         if ((sequence % numberOfConsumers) == ordinal) {
             ByteBuffer rowkeyBuffer = event.getRowKey();
             ColumnFamily columnFamily = event.getColumnFamily();
-
             final RowIndexSupport rowIndexSupport = indexingService.support.get(columnFamily.metadata().cfName);
             try {
                 rowIndexSupport.indexRow(rowkeyBuffer, columnFamily);
@@ -34,11 +33,13 @@ public class IndexEventHandler implements EventHandler<IndexEntryEvent> {
                 logger.error("Error occurred while indexing row of [" + columnFamily.metadata().cfName + "]", e);
             } finally {
                 event.setData(null, null);
+                long readGen = indexingService.reads.incrementAndGet();
+                if (logger.isDebugEnabled())
+                    logger.debug("Read gen:" + readGen);
+
             }
 
-            long readGen = indexingService.reads.incrementAndGet();
-            if (logger.isDebugEnabled())
-                logger.debug("Read gen:" + readGen);
+
         }
     }
 }

@@ -19,6 +19,7 @@ package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.Type;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
@@ -103,7 +104,7 @@ public class WildcardCondition extends Condition implements Selector {
 
         Query query;
         Properties properties = schema.getProperties(field);
-        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+        Type fieldType = properties != null ? properties.getType() : Type.text;
         if (fieldType.isCharSeq()) {
             Term term = new Term(field, value);
             query = new WildcardQuery(term);
@@ -111,7 +112,6 @@ public class WildcardCondition extends Condition implements Selector {
             String message = String.format("Wildcard queries are not supported by %s mapper", fieldType);
             throw new UnsupportedOperationException(message);
         }
-        query.setBoost(boost);
         return query;
     }
 

@@ -19,6 +19,7 @@ package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.Type;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -82,7 +83,6 @@ public class PrefixCondition extends Condition {
      */
     @Override
     public Query query(Options schema) {
-
         if (field == null || field.trim().isEmpty()) {
             throw new IllegalArgumentException("Field name required");
         }
@@ -92,7 +92,7 @@ public class PrefixCondition extends Condition {
 
         Query query;
         Properties properties = schema.getProperties(field);
-        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+        Type fieldType = properties != null ? properties.getType() : Type.text;
         if (fieldType.isCharSeq()) {
             Term term = new Term(field, value);
             query = new PrefixQuery(term);
@@ -100,7 +100,6 @@ public class PrefixCondition extends Condition {
             String message = String.format("Prefix queries are not supported by %s mapper", fieldType);
             throw new UnsupportedOperationException(message);
         }
-        query.setBoost(boost);
         return query;
     }
 

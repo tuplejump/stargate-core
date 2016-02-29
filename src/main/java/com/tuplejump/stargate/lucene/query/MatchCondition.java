@@ -19,13 +19,14 @@ package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.Type;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.BasicAutomata;
+import org.apache.lucene.util.automaton.Automata;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 
@@ -96,28 +97,28 @@ public class MatchCondition extends Condition implements Selector {
         }
         NumericConfig numericConfig = schema.numericFieldOptions.get(field);
         Properties properties = schema.getProperties(field);
-        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+        Type fieldType = properties != null ? properties.getType() : Type.text;
         Query query;
-        if (fieldType.isCharSeq() || fieldType == Properties.Type.bool) {
+        if (fieldType.isCharSeq() || fieldType == Type.bool) {
             String analyzedValue = analyze(field, value.toString(), schema.analyzer);
             if (analyzedValue == null) {
                 throw new IllegalArgumentException("Value discarded by analyzer");
             }
             Term term = new Term(field, analyzedValue);
             query = new TermQuery(term);
-        } else if (fieldType == Properties.Type.integer) {
+        } else if (fieldType == Type.integer) {
             assert numericConfig != null;
             Integer value = numericConfig.getNumberFormat().parse(this.value.toString()).intValue();
             query = NumericRangeQuery.newIntRange(field, value, value, true, true);
-        } else if (fieldType == Properties.Type.bigint || fieldType == Properties.Type.date) {
+        } else if (fieldType == Type.bigint || fieldType == Type.date) {
             assert numericConfig != null;
             Long value = numericConfig.getNumberFormat().parse(this.value.toString()).longValue();
             query = NumericRangeQuery.newLongRange(field, value, value, true, true);
-        } else if (fieldType == Properties.Type.decimal) {
+        } else if (fieldType == Type.decimal) {
             assert numericConfig != null;
             Float value = numericConfig.getNumberFormat().parse(this.value.toString()).floatValue();
             query = NumericRangeQuery.newFloatRange(field, value, value, true, true);
-        } else if (fieldType == Properties.Type.bigdecimal) {
+        } else if (fieldType == Type.bigdecimal) {
             assert numericConfig != null;
             Double value = numericConfig.getNumberFormat().parse(this.value.toString()).doubleValue();
             query = NumericRangeQuery.newDoubleRange(field, value, value, true, true);
@@ -125,7 +126,6 @@ public class MatchCondition extends Condition implements Selector {
             String message = String.format("Match queries are not supported by %s field type", fieldType);
             throw new UnsupportedOperationException(message);
         }
-        query.setBoost(boost);
         return query;
     }
 
@@ -162,32 +162,32 @@ public class MatchCondition extends Condition implements Selector {
         try {
             NumericConfig numericConfig = schema.numericFieldOptions.get(field);
             Properties properties = schema.getProperties(field);
-            Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
+            Type fieldType = properties != null ? properties.getType() : Type.text;
             if (fieldType.isCharSeq()) {
                 String analyzedValue = analyze(field, value.toString(), schema.analyzer);
                 if (analyzedValue == null) {
                     throw new IllegalArgumentException("Value discarded by analyzer");
                 }
-                return BasicAutomata.makeString(analyzedValue);
-            } else if (fieldType == Properties.Type.integer) {
+                return Automata.makeString(analyzedValue);
+            } else if (fieldType == Type.integer) {
                 assert numericConfig != null;
                 Integer value = null;
 
                 value = numericConfig.getNumberFormat().parse(this.value.toString()).intValue();
 
-                return BasicAutomata.makeString(value.toString());
-            } else if (fieldType == Properties.Type.bigint || fieldType == Properties.Type.date) {
+                return Automata.makeString(value.toString());
+            } else if (fieldType == Type.bigint || fieldType == Type.date) {
                 assert numericConfig != null;
                 Long value = numericConfig.getNumberFormat().parse(this.value.toString()).longValue();
-                return BasicAutomata.makeString(value.toString());
-            } else if (fieldType == Properties.Type.decimal) {
+                return Automata.makeString(value.toString());
+            } else if (fieldType == Type.decimal) {
                 assert numericConfig != null;
                 Float value = numericConfig.getNumberFormat().parse(this.value.toString()).floatValue();
-                return BasicAutomata.makeString(value.toString());
-            } else if (fieldType == Properties.Type.bigdecimal) {
+                return Automata.makeString(value.toString());
+            } else if (fieldType == Type.bigdecimal) {
                 assert numericConfig != null;
                 Double value = numericConfig.getNumberFormat().parse(this.value.toString()).doubleValue();
-                return BasicAutomata.makeString(value.toString());
+                return Automata.makeString(value.toString());
             } else {
                 String message = String.format("Match pattern queries are not supported by %s mapper", fieldType);
                 throw new UnsupportedOperationException(message);

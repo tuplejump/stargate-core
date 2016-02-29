@@ -19,6 +19,7 @@ package com.tuplejump.stargate.lucene.query;
 
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.Type;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -93,8 +94,8 @@ public class FuzzyCondition extends Condition implements Selector {
     public Automaton getAutomaton(Options schema) {
         Properties properties = schema.getProperties(field);
         String message;
-        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
-        if (fieldType == Properties.Type.string || fieldType == Properties.Type.text) {
+        Type fieldType = properties != null ? properties.getType() : Type.text;
+        if (fieldType == Type.string || fieldType == Type.text) {
             String analyzedValue = analyze(field, value, schema.analyzer);
             LevenshteinAutomata levenshteinAutomata = new LevenshteinAutomata(analyzedValue, transpositions);
             return levenshteinAutomata.toAutomaton(maxEdits);
@@ -181,12 +182,11 @@ public class FuzzyCondition extends Condition implements Selector {
 
         Properties properties = schema.getProperties(field);
         String message;
-        Properties.Type fieldType = properties != null ? properties.getType() : Properties.Type.text;
-        if (fieldType == Properties.Type.string || fieldType == Properties.Type.text) {
+        Type fieldType = properties != null ? properties.getType() : Type.text;
+        if (fieldType == Type.string || fieldType == Type.text) {
             String analyzedValue = analyze(field, value, schema.analyzer);
             Term term = new Term(field, analyzedValue);
             Query query = new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
-            query.setBoost(boost);
             return query;
         }
         message = String.format("Fuzzy queries cannot be supported for field type %s", fieldType);

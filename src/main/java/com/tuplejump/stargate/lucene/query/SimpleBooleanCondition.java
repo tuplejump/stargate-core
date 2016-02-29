@@ -57,8 +57,7 @@ public class SimpleBooleanCondition extends Condition {
      */
     @Override
     public Query query(Options schema) throws Exception {
-        BooleanQuery luceneQuery = new BooleanQuery();
-        luceneQuery.setBoost(boost);
+        BooleanQuery.Builder luceneQuery = new BooleanQuery.Builder();
         if (groupType == GroupType.OR) {
             for (Condition query : conditions) {
                 luceneQuery.add(query.query(schema), BooleanClause.Occur.SHOULD);
@@ -73,7 +72,7 @@ public class SimpleBooleanCondition extends Condition {
             }
 
         }
-        return luceneQuery;
+        return luceneQuery.build();
     }
 
     @Override

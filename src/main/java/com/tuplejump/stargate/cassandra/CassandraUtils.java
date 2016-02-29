@@ -20,6 +20,7 @@ import com.tuplejump.stargate.Fields;
 import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.Properties;
+import com.tuplejump.stargate.lucene.Type;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
@@ -30,20 +31,14 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.URL;
 import java.util.*;
 
 /**
  * Utilities to read Cassandra configuration
  */
 public class CassandraUtils {
-    private static final Logger logger = LoggerFactory.getLogger(CassandraUtils.class);
-    private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
-
 
     public static String[] getDataDirs() throws IOException, ConfigurationException {
         return DatabaseDescriptor.getAllDataFileLocations();
@@ -60,8 +55,6 @@ public class CassandraUtils {
     }
 
     public static Options getOptions(Properties mapping, ColumnFamilyStore baseCfs, String colName) {
-        Properties primary = mapping;
-        String defaultField = colName;
         Map<String, NumericConfig> numericFieldOptions = new HashMap<>();
         Map<String, FieldType> fieldDocValueTypes = new TreeMap<>();
         Map<String, FieldType> collectionFieldDocValueTypes = new TreeMap<>();
@@ -71,7 +64,6 @@ public class CassandraUtils {
         Map<String, ColumnDefinition> validators = new TreeMap<>();
         Map<String, ColumnDefinition> clusteringKeysIndexed = new LinkedHashMap<>();
         Map<String, ColumnDefinition> partitionKeysIndexed = new LinkedHashMap<>();
-        Map<String, Analyzer> perFieldAnalyzers;
         Set<String> indexedColumnNames;
 
 
@@ -91,9 +83,7 @@ public class CassandraUtils {
             validators.put(columnName, colDef);
             if (indexedColumnNames.contains(columnName)) {
                 partitionKeysIndexed.put(colName, colDef);
-                Properties properties = mapping.getFields().get(columnName.toLowerCase());
-                addFieldType(columnName, colDef.type, properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
-                added.add(columnName.toLowerCase());
+                addPropertiesAndFieldType(mapping, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes, added, colDef, columnName);
             }
         }
 
@@ -106,9 +96,7 @@ public class CassandraUtils {
             validators.put(columnName, colDef);
             if (indexedColumnNames.contains(columnName)) {
                 clusteringKeysIndexed.put(columnName, colDef);
-                Properties properties = mapping.getFields().get(columnName.toLowerCase());
-                addFieldType(columnName, colDef.type, properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
-                added.add(columnName.toLowerCase());
+                addPropertiesAndFieldType(mapping, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes, added, colDef, columnName);
             }
         }
 
@@ -122,7 +110,7 @@ public class CassandraUtils {
                 } else {
                     throw new IllegalArgumentException(String.format("Column Definition for %s not found", columnName));
                 }
-                if (options.getType() == Properties.Type.object) {
+                if (options.getType() == Type.object) {
                     mapping.getFields().putAll(options.getFields());
                 }
             }
@@ -134,12 +122,11 @@ public class CassandraUtils {
             validators.put(columnName, colDef);
         }
 
-        numericFieldOptions.putAll(primary.getDynamicNumericConfig());
+        numericFieldOptions.putAll(mapping.getDynamicNumericConfig());
 
         Analyzer defaultAnalyzer = mapping.getLuceneAnalyzer();
-        perFieldAnalyzers = mapping.perFieldAnalyzers();
-        Analyzer analyzer = new PerFieldAnalyzerWrapper(defaultAnalyzer, perFieldAnalyzers);
-        Map<String, Properties.Type> types = new TreeMap<>();
+        Analyzer analyzer = new PerFieldAnalyzerWrapper(defaultAnalyzer, mapping.perFieldAnalyzers());
+        Map<String, Type> types = new TreeMap<>();
         Set<String> nestedFields = new TreeSet<>();
         for (Map.Entry<String, ColumnDefinition> entry : validators.entrySet()) {
             CQL3Type cql3Type = entry.getValue().type.asCQL3Type();
@@ -153,7 +140,17 @@ public class CassandraUtils {
 
         }
 
-        return new Options(primary, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes, types, nestedFields, clusteringKeysIndexed, partitionKeysIndexed, perFieldAnalyzers, indexedColumnNames, analyzer, defaultField);
+        return new Options(mapping, numericFieldOptions,
+                fieldDocValueTypes, collectionFieldDocValueTypes,
+                fieldTypes, collectionFieldTypes, types,
+                nestedFields, clusteringKeysIndexed, partitionKeysIndexed,
+                indexedColumnNames, analyzer, colName);
+    }
+
+    private static void addPropertiesAndFieldType(Properties mapping, Map<String, NumericConfig> numericFieldOptions, Map<String, FieldType> fieldDocValueTypes, Map<String, FieldType> collectionFieldDocValueTypes, Map<String, FieldType> fieldTypes, Map<String, FieldType[]> collectionFieldTypes, Set<String> added, ColumnDefinition colDef, String columnName) {
+        Properties properties = mapping.getFields().get(columnName.toLowerCase());
+        addFieldType(columnName, colDef.type, properties, numericFieldOptions, fieldDocValueTypes, collectionFieldDocValueTypes, fieldTypes, collectionFieldTypes);
+        added.add(columnName.toLowerCase());
     }
 
     private static ColumnDefinition getColumnDefinition(ColumnFamilyStore baseCfs, String columnName) {
@@ -171,7 +168,7 @@ public class CassandraUtils {
 
         if (validator.isCollection()) {
             if (validator instanceof MapType) {
-                properties.setType(Properties.Type.map);
+                properties.setType(Type.map);
                 MapType mapType = (MapType) validator;
                 AbstractType keyValidator = mapType.getKeysType();
                 AbstractType valueValidator = mapType.getValuesType();
@@ -237,43 +234,43 @@ public class CassandraUtils {
     public static void setFromAbstractType(Properties properties, AbstractType type) {
         if (properties.getType() != null) return;
         CQL3Type cqlType = type.asCQL3Type();
-        Properties.Type fromAbstractType = fromAbstractType(cqlType);
+        Type fromAbstractType = fromAbstractType(cqlType);
         properties.setType(fromAbstractType);
 
     }
 
-    public static Properties.Type fromAbstractType(CQL3Type cqlType) {
-        Properties.Type fromAbstractType;
+    public static Type fromAbstractType(CQL3Type cqlType) {
+        Type fromAbstractType;
         if (cqlType == CQL3Type.Native.INT) {
-            fromAbstractType = Properties.Type.integer;
+            fromAbstractType = Type.integer;
         } else if (cqlType == CQL3Type.Native.VARINT || cqlType == CQL3Type.Native.BIGINT || cqlType == CQL3Type.Native.COUNTER) {
-            fromAbstractType = Properties.Type.bigint;
+            fromAbstractType = Type.bigint;
         } else if (cqlType == CQL3Type.Native.DECIMAL || cqlType == CQL3Type.Native.DOUBLE) {
-            fromAbstractType = Properties.Type.bigdecimal;
+            fromAbstractType = Type.bigdecimal;
         } else if (cqlType == CQL3Type.Native.FLOAT) {
-            fromAbstractType = Properties.Type.decimal;
+            fromAbstractType = Type.decimal;
         } else if (cqlType == CQL3Type.Native.TEXT || cqlType == CQL3Type.Native.ASCII) {
-            fromAbstractType = Properties.Type.text;
+            fromAbstractType = Type.text;
         } else if (cqlType == CQL3Type.Native.VARCHAR) {
-            fromAbstractType = Properties.Type.string;
+            fromAbstractType = Type.string;
         } else if (cqlType == CQL3Type.Native.UUID) {
-            fromAbstractType = Properties.Type.string;
+            fromAbstractType = Type.uuid;
         } else if (cqlType == CQL3Type.Native.TIMEUUID) {
             //TimeUUID toString and reorder to make it comparable.
-            fromAbstractType = Properties.Type.string;
+            fromAbstractType = Type.timeuuid;
         } else if (cqlType == CQL3Type.Native.TIMESTAMP) {
-            fromAbstractType = Properties.Type.date;
+            fromAbstractType = Type.date;
         } else if (cqlType == CQL3Type.Native.BOOLEAN) {
-            fromAbstractType = Properties.Type.bool;
+            fromAbstractType = Type.bool;
         } else {
-            fromAbstractType = Properties.Type.text;
+            fromAbstractType = Type.text;
         }
         return fromAbstractType;
     }
 
     public static FieldType fieldType(Properties properties, AbstractType validator) {
         FieldType fieldType = new FieldType();
-        fieldType.setIndexed(properties.isIndexed());
+        fieldType.setIndexOptions(properties.getIndexOptions());
         fieldType.setTokenized(properties.isTokenized());
         fieldType.setStored(properties.isStored());
         fieldType.setStoreTermVectors(properties.isStoreTermVectors());

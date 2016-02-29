@@ -239,8 +239,8 @@ As a reference the table below lists the queries that are possible and along wit
 
 Sort
 ^^^^^
-
-A sort is specified as follows ::
+Sortable fields need to be stored as striped fields as specified in Index options. Once a field is marked as striped while indexing,
+ A sort may then be is specified as follows ::
 
 	{
        fields: [
@@ -250,3 +250,16 @@ A sort is specified as follows ::
     }
 
 where <name> is the name of the field on which the sort is to be applied and reverse is specified optionally as true to reflect the sort order on a field.
+
+Sorting across partitions
+^^^^^^^^^^^^^^^^^^^^^^^^^
+Sorting should be used only when the partition key is specified in the CQL clause. Sorting should be avoided when the complete partition key is not specified as this leads to a distributed sorting. Sorting across partitions or distributed sorting is not supported fully. This is left out on purpose because distributed sorting leads to deep paging. Read next section for an overview of deep paging.
+
+Pagination
+^^^^^^^^^^
+Pagination is done via usual CQL means on clustering keys.
+
+Pagination with strgate sorting is efficient only when the partition key is specified but should be avoided as this leads to deep paging.Deep paging refers to specifying a large start offset into the search results. Basic paging can be inefficient with large start values since to return rows 1,000,000 through 1,000,010 in a sorted row list (only 10 documents), because the query engine must find the top 1,000,010 documents and then take the last 10 to return to the user. Although Stargae is smart enough to only retrieve the data from Cassandra for the final 10 documents, there is still the overhead of sorting the internal ids of the top 1,000,010 documents.
+
+Deep paging via basic paging controls is even more inefficient for distributed searches (across partition keys) since the sort values for the first 1,000,010 documents from each shard need to be returned and merged at an aggregator node in order to find the correct 10. Hence this is not supported and may lead to incorrect results.
+
