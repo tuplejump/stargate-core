@@ -1,7 +1,7 @@
 Installation
 =============
 
-Stargate-core is currently tested on Cassandra 2.1.10, 2.1.11
+Stargate-core is currently tested on Cassandra 2.1.12, 2.1.13
 
 
 Install from binaries

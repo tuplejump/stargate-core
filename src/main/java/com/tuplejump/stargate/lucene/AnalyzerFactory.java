@@ -16,6 +16,7 @@
 
 package com.tuplejump.stargate.lucene;
 
+import org.apache.commons.lang3.ClassUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
@@ -32,7 +33,7 @@ public class AnalyzerFactory {
         StandardAnalyzer, WhitespaceAnalyzer, StopAnalyzer, SimpleAnalyzer, KeywordAnalyzer
     }
 
-    public static Analyzer getAnalyzer(String analyzerName, Version luceneV) {
+    public static Analyzer getAnalyzer(String analyzerName) {
         try {
             Analyzers analyzer = Analyzers.valueOf(analyzerName);
             switch (analyzer) {
@@ -56,7 +57,17 @@ public class AnalyzerFactory {
                 }
             }
         } catch (IllegalArgumentException e) {
-
+            try {
+                Class clazz = ClassUtils.getClass(analyzerName);
+                return (Analyzer) clazz.newInstance();
+            } catch (ClassNotFoundException e1) {
+                throw new IllegalArgumentException("No analyzer class found with name [" + analyzerName + "]");
+            } catch (InstantiationException e1) {
+                throw new IllegalArgumentException("Could not construct an object of analyzer class with name [" + analyzerName + "]. " +
+                        "Unable to find no-args constructor");
+            } catch (IllegalAccessException e1) {
+                e1.printStackTrace();
+            }
         }
         return null;
     }
