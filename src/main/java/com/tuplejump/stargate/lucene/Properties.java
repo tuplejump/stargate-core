@@ -127,11 +127,11 @@ public class Properties {
         if (analyzerObj == null) {
             if (getAnalyzer() == null) {
                 if (getType() != null && !getType().canTokenize())
-                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.KeywordAnalyzer.name(), Properties.luceneVersion);
+                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.KeywordAnalyzer.name());
                 else
-                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.StandardAnalyzer.name(), Properties.luceneVersion);
+                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.StandardAnalyzer.name());
             } else {
-                analyzerObj = AnalyzerFactory.getAnalyzer(getAnalyzer(), Properties.luceneVersion);
+                analyzerObj = AnalyzerFactory.getAnalyzer(getAnalyzer());
             }
         }
         return analyzerObj;

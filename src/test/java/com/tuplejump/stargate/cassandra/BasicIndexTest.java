@@ -140,7 +140,7 @@ public class BasicIndexTest extends IndexTestBase {
                 "\t\"metaColumn\":true,\n" +
                 "\t\"fields\":{\n" +
                 "\t\t\"tags\":{\"type\":\"text\"},\n" +
-                "\t\t\"state\":{\"striped\":\"also\"}\n" +
+                "\t\t\"state\":{\"striped\":\"also\",\"analyzer\":\"org.apache.lucene.analysis.core.KeywordAnalyzer\"}\n" +
                 "\t}\n" +
                 "}\n";
         getSession().execute("USE " + keyspace + ";");
