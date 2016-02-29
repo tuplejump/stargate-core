@@ -2,18 +2,14 @@ Lucene based indexing in Cassandra
 
 [![Build Status](https://travis-ci.org/tuplejump/stargate-core.svg?branch=master)](https://travis-ci.org/tuplejump/stargate-core)
 
-Website
-
-http://tuplejump.github.io/stargate
-
-Downloads
-
-http://downloads.tuplejump.com/stargate-core-0.9.5.tar.gz
-
 Documentation
 
 http://stargate-core.readthedocs.org
- 
+
+Downloads
+
+http://downloads.tuplejump.com/stargate-core-1.1.1.tar.gz
+
 We use github issues for feature and bug tracking.
 Issues may be reported at https://github.com/tuplejump/stargate-core/issues
 
