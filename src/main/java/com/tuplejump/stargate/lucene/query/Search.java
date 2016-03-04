@@ -17,10 +17,12 @@
 
 package com.tuplejump.stargate.lucene.query;
 
+import com.tuplejump.stargate.cassandra.TableMapper;
 import com.tuplejump.stargate.lucene.Options;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import com.tuplejump.stargate.lucene.query.function.NoOp;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.SortField;
 import org.codehaus.jackson.annotate.JsonCreator;
 import org.codehaus.jackson.annotate.JsonProperty;
 import org.slf4j.Logger;
@@ -129,6 +131,10 @@ public class Search {
 
     public org.apache.lucene.search.SortField[] sort(Options schema) {
         return sort == null ? null : sort.sort(schema);
+    }
+
+    public org.apache.lucene.search.SortField[] primaryKeySort(TableMapper tableMapper, boolean reverseClustering) {
+        return new SortField[]{reverseClustering ? tableMapper.pkSortFieldReverse : tableMapper.pkSortField};
     }
 
     /**

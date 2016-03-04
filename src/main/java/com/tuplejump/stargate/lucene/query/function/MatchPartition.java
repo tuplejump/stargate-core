@@ -122,16 +122,21 @@ public class MatchPartition implements Function {
         return Collections.singletonList(row);
     }
 
+    @Override
+    public boolean needsPaging() {
+        return false;
+    }
+
     private List<Tuple> getAllMatches(ResultMapper resultMapper, Map<String, Integer> positions) {
         List<Tuple> allMatches = new ArrayList<>();
 
         TreeMultimap<DecoratedKey, IndexEntryCollector.IndexEntry> docs = resultMapper.docsByRowKey();
         for (final DecoratedKey dk : docs.keySet()) {
             List<IndexEntryCollector.IndexEntry> entries = new ArrayList<>(docs.get(dk));
-            final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchRangeSlice(entries, dk);
+            final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchRangeSlice(entries, dk,false);
             List<Tuple> tuples = new ArrayList<>(fullSlice.size());
             for (IndexEntryCollector.IndexEntry entry : entries) {
-                CellName cellName = entry.clusteringKey;
+                CellName cellName = entry.clusteringKey();
                 ColumnFamily cf = fullSlice.get(cellName);
                 if (cf != null) {
                     Tuple tuple = aggregateFunction.createTuple(options);
