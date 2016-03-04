@@ -27,6 +27,7 @@ import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.BoundedComposite;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ExtendedFilter;
@@ -228,15 +229,18 @@ public class SearchSupport extends SecondaryIndexSearcher {
         try {
             Composite start = (Composite) getPrivateProperty(pageRange, "firstPartitionColumnStart");
             Composite end = (Composite) getPrivateProperty(pageRange, "lastPartitionColumnFinish");
-            if (start != null) {
-                CellName clusteringKey = tableMapper.extractClusteringKey(start);
-                CellName endKey = tableMapper.extractClusteringKey(end);
-                if (!clusteringKey.isSameCQL3RowAs(tableMapper.clusteringCType, endKey)) {
-                    ByteBuffer primaryKeyBuff = tableMapper.primaryKey(dk.getKey(), clusteringKey);
-                    return primaryKeyBuff;
-                }
-
+            if (start == null || start.isEmpty() || start instanceof BoundedComposite) {
+                return null;
             }
+            CellName clusteringKey = tableMapper.extractClusteringKey(start);
+            if (end == null || end.isEmpty() || end instanceof BoundedComposite) {
+                return tableMapper.primaryKey(dk.getKey(), clusteringKey);
+            }
+            CellName endKey = tableMapper.extractClusteringKey(end);
+            if (!clusteringKey.isSameCQL3RowAs(tableMapper.clusteringCType, endKey)) {
+                return tableMapper.primaryKey(dk.getKey(), clusteringKey);
+            }
+
         } catch (NoSuchFieldException e) {
             //do nothing;
         } catch (IllegalAccessException e) {
