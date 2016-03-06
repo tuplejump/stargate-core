@@ -138,16 +138,10 @@ public class SearchSupport extends SecondaryIndexSearcher {
 
                     function.init(options);
                     final boolean reverseClustering = filter.dataRange.columnFilter(null).isReversed();
-                    if (logger.isWarnEnabled()) {
-                        logger.warn("Current limit " + filter.currentLimit() + " and reverse is " + reverseClustering);
-                    }
                     FieldDoc afterDoc = getAfterDoc(searcher, reverseClustering, filter, search);
                     IndexEntryCollector collector = new IndexEntryCollector(afterDoc, reverseClustering, tableMapper, search, options, resultsLimit);
                     searcher.search(query, collector);
-                    timer2.endLogTime("Lucene search for [" + collector.getTotalHits() + "] results ");
-                    if (SearchSupport.logger.isDebugEnabled()) {
-                        SearchSupport.logger.debug(String.format("Search results [%s]", collector.getTotalHits()));
-                    }
+                    timer2.endLogTime("Lucene search for searching [" + collector.getTotalHits() + "]. Collected [" + collector.getCollectedHits() + "] results ");
                     ResultMapper resultMapper = new ResultMapper(tableMapper, searchSupport, filter, collector, function.shouldTryScoring() && search.isShowScore(), reverseClustering);
                     Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
                     results = function.process(resultMapper, baseCfs, currentIndex);
@@ -184,16 +178,16 @@ public class SearchSupport extends SecondaryIndexSearcher {
             DataRange.Paging paging = (DataRange.Paging) filter.dataRange;
             DecoratedKey dk = (DecoratedKey) filter.dataRange.keyRange().left;
             ByteBuffer afterPK = getPageStart(dk, paging);
-            if (logger.isWarnEnabled()) {
-                logger.warn("Paged query - After PK is " + afterPK);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Paged query - After PK is " + afterPK);
             }
             if (afterPK != null) {
                 String pk = tableMapper.primaryKeyType.getString(afterPK);
                 Sort sort = new Sort(search.primaryKeySort(tableMapper, reverseClustering));
                 TopFieldDocs docs = searcher.search(new TermQuery(LuceneUtils.primaryKeyTerm(pk)), 1, sort);
                 afterDoc = (FieldDoc) docs.scoreDocs[0];
-                if (logger.isWarnEnabled()) {
-                    logger.warn("After Doc is " + afterDoc.doc + " and pk is " + pk);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("After Doc is " + afterDoc.doc + " and pk is " + pk);
                 }
             }
         }

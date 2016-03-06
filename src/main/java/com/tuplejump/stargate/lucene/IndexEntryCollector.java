@@ -71,6 +71,10 @@ public class IndexEntryCollector implements Collector {
     }
 
     public int getTotalHits() {
+        return totalHits;
+    }
+
+    public int getCollectedHits() {
         return collectedHits;
     }
 
