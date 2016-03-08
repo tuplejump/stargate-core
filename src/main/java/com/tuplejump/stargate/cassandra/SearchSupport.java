@@ -100,7 +100,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
         try {
             String queryString = getQueryString(matchThisIndex(clause));
             Search search = getQuery(queryString);
-            return getRows(mainFilter, search, queryString);
+            return getRows(mainFilter, search);
         } catch (Exception e) {
             logger.error("Exception occurred while querying", e);
             if (tableMapper.isMetaColumn) {
@@ -114,7 +114,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
         }
     }
 
-    protected List<Row> getRows(final ExtendedFilter filter, final Search search, final String queryString) {
+    protected List<Row> getRows(final ExtendedFilter filter, final Search search) {
         final SearchSupport searchSupport = this;
         AbstractBounds<RowPosition> keyRange = filter.dataRange.keyRange();
         final Range<Token> filterRange = new Range<>(keyRange.left.getToken(), keyRange.right.getToken());
