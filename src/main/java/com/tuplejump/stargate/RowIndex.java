@@ -30,7 +30,9 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.index.PerRowSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.commons.collections.map.LRUMap;
 import org.apache.lucene.index.Term;
@@ -132,6 +134,9 @@ public class RowIndex extends PerRowSecondaryIndex {
 
     @Override
     public void init() {
+        if (!(StorageService.getPartitioner() instanceof Murmur3Partitioner)) {
+            throw new RuntimeException("Stargate currently only supports Mumur3Partitioner");
+        }
         writeLock.lock();
         final Boolean isInfoLoggingEnabled = logger.isInfoEnabled();
         try {

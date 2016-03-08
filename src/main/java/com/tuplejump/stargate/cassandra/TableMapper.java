@@ -55,6 +55,13 @@ public class TableMapper {
     public final SortField pkSortField = getPkSort(false);
     public final SortField pkSortFieldReverse = getPkSort(true);
 
+    public final SortField tokenSortField = new SortField(LuceneUtils.TOKEN_LONG, SortField.Type.LONG, false);
+    public final SortField tokenSortFieldReverse = new SortField(LuceneUtils.TOKEN_LONG, SortField.Type.LONG, true);
+    {
+        tokenSortField.setMissingValue(CassandraUtils.MINIMUM_TOKEN_VALUE);
+        tokenSortFieldReverse.setMissingValue(CassandraUtils.MINIMUM_TOKEN_VALUE);
+    }
+
     public TableMapper(ColumnFamilyStore table, boolean isMetaColumn, ColumnDefinition primaryColumnDefinition) {
         this.table = table;
         this.cfMetaData = table.metadata;

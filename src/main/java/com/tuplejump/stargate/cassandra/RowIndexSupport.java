@@ -273,10 +273,12 @@ public class RowIndexSupport {
     protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pkBuf) {
         return Arrays.asList(
                 LuceneUtils.rkBytesDocValue(rowKey.getKey()),
-                LuceneUtils.primaryKeyField(pkName),
+                LuceneUtils.rowKeyIndexed(rowKeyString(rowKey)),
                 LuceneUtils.pkBytesDocValue(pkBuf),
+                LuceneUtils.primaryKeyField(pkName),
                 LuceneUtils.tokenIndexed(rowKey.getToken()),
-                LuceneUtils.rowKeyIndexed(rowKeyString(rowKey)));
+                LuceneUtils.tokenBytesDocValue(rowKey.getToken())
+        );
     }
 
     private String rowKeyString(DecoratedKey rowKey) {

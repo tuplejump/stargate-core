@@ -18,6 +18,7 @@
 package com.tuplejump.stargate.lucene;
 
 import com.google.common.collect.TreeMultimap;
+import com.tuplejump.stargate.cassandra.CassandraUtils;
 import com.tuplejump.stargate.cassandra.SearchSupport;
 import com.tuplejump.stargate.cassandra.TableMapper;
 import com.tuplejump.stargate.lucene.query.Search;
@@ -87,18 +88,21 @@ public class IndexEntryCollector implements Collector {
         if (sortFields == null) {
             hitQueue = FieldValueHitQueue.create(search.primaryKeySort(tableMapper, reverseClustering), maxResults);
             isSorted = false;
+            FieldComparator<?>[] comparators = hitQueue.getComparators();
+            if (afterDoc != null) {
+                logger.warn("Got afterDoc " + afterDoc);
+                // Tell all comparators their top value:
+                for (int i = 0; i < comparators.length; i++) {
+                    @SuppressWarnings("unchecked")
+                    FieldComparator<Object> comparator = (FieldComparator<Object>) comparators[i];
+                    comparator.setTopValue(afterDoc.fields[i]);
+                }
+            } else {
+                ((FieldComparator<Long>) comparators[0]).setTopValue(CassandraUtils.MINIMUM_TOKEN_VALUE);
+            }
         } else {
             hitQueue = FieldValueHitQueue.create(sortFields, maxResults);
             isSorted = true;
-        }
-        if (afterDoc != null) {
-            FieldComparator<?>[] comparators = hitQueue.getComparators();
-            // Tell all comparators their top value:
-            for (int i = 0; i < comparators.length; i++) {
-                @SuppressWarnings("unchecked")
-                FieldComparator<Object> comparator = (FieldComparator<Object>) comparators[i];
-                comparator.setTopValue(afterDoc.fields[i]);
-            }
         }
 
 
@@ -183,7 +187,12 @@ public class IndexEntryCollector implements Collector {
     private final Comparator<DecoratedKey> dkComparator = new Comparator<DecoratedKey>() {
         @Override
         public int compare(DecoratedKey o1, DecoratedKey o2) {
-            return tableMapper.primaryKeyAbstractType.compare(o1.getKey(), o2.getKey());
+            int cmp = o1.getToken().compareTo(o2.getToken());
+            if (cmp != 0) {
+                return cmp;
+            } else {
+                return tableMapper.primaryKeyAbstractType.compare(o1.getKey(), o2.getKey());
+            }
         }
     };
 

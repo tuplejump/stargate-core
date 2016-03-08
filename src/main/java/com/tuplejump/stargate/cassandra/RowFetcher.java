@@ -96,6 +96,13 @@ public class RowFetcher {
 
         for (DecoratedKey dk : docs.keySet()) {
             NavigableSet<IndexEntryCollector.IndexEntry> entries = docs.get(dk);
+            if (!resultMapper.filter.dataRange.contains(dk)) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Skipping entry {} outside of assigned scan range", dk.getToken());
+                }
+                continue;
+            }
+
             IDiskAtomFilter colFilter = resultMapper.filter.columnFilter(dk.getKey());
             final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchPagedRangeSlice(entries, dk, limit, resultMapper.reverseSort);
 

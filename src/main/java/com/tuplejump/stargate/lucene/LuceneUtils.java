@@ -44,6 +44,7 @@ public class LuceneUtils {
 
     public static final String RK_BYTES = "_rk_bytes";
     public static final String PK_BYTES = "_pk_bytes";
+    public static final String TOKEN_LONG = "_token_val";
     public static final String CF_TS_INDEXED = "_cf_ts";
     private static final Logger logger = LoggerFactory.getLogger(LuceneUtils.class);
     //  NumberFormat instances are not thread safe
@@ -178,6 +179,10 @@ public class LuceneUtils {
     public static Field rkBytesDocValue(final ByteBuffer byteBufferValue) {
         BytesRef bytesRef = new BytesRef(byteBufferValue.array(), byteBufferValue.arrayOffset(), byteBufferValue.limit());
         return new SortedDocValuesField(RK_BYTES, bytesRef);
+    }
+
+    public static Field tokenBytesDocValue(final Token token) {
+        return new NumericDocValuesField(TOKEN_LONG, ((Number) token.getTokenValue()).longValue());
     }
 
 

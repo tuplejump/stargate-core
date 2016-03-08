@@ -134,7 +134,10 @@ public class Search {
     }
 
     public org.apache.lucene.search.SortField[] primaryKeySort(TableMapper tableMapper, boolean reverseClustering) {
-        return new SortField[]{reverseClustering ? tableMapper.pkSortFieldReverse : tableMapper.pkSortField};
+        return new SortField[]{
+                reverseClustering ? tableMapper.tokenSortFieldReverse : tableMapper.tokenSortField,
+                reverseClustering ? tableMapper.pkSortFieldReverse : tableMapper.pkSortField
+        };
     }
 
     /**

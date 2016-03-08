@@ -136,7 +136,9 @@ public class SearchSupport extends SecondaryIndexSearcher {
 
                     function.init(options);
                     final boolean reverseClustering = filter.dataRange.columnFilter(null).isReversed();
+                    Utils.SimpleTimer afterDocTimer = Utils.getStartedTimer(logger);
                     FieldDoc afterDoc = getAfterDoc(searcher, reverseClustering, filter, search);
+                    afterDocTimer.endLogTime("AfterDoc search took ");
                     boolean moreResultsNeeded = false;
                     do {
                         Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
@@ -148,10 +150,12 @@ public class SearchSupport extends SecondaryIndexSearcher {
                         List<Row> rows = function.process(resultMapper, baseCfs, currentIndex);
                         results.addAll(rows);
                         timer3.endLogTime("Aggregation [" + results.size() + "] results");
-                        moreResultsNeeded = function.needsPaging() && (rows.size() != 0) && (results.size() != resultsLimit);
+                        moreResultsNeeded = function.needsPaging() && (collector.getTotalHits() > collector.getCollectedHits()) && (rows.size() != 0) && (results.size() != resultsLimit);
                         if (moreResultsNeeded) {
+                            afterDocTimer.start();
                             Row lastRow = results.get(results.size() - 1);
                             afterDoc = getAfterDoc(searcher, reverseClustering, search, tableMapper.primaryKey(lastRow.key.getKey(), tableMapper.extractClusteringKey(lastRow.cf.iterator().next().name())));
+                            afterDocTimer.endLogTime("AfterDoc search took ");
                         }
                     } while (moreResultsNeeded);
                     timer.endLogTime("Search with results [" + results.size() + "] ");
