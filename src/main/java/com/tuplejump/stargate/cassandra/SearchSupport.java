@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -124,11 +125,8 @@ public class SearchSupport extends SecondaryIndexSearcher {
             @Override
             public List<Row> doWithSearcher(org.apache.lucene.search.IndexSearcher searcher) throws Exception {
                 Utils.SimpleTimer timer = Utils.getStartedTimer(logger);
-                List<Row> results = null;
-                if (search == null) {
-                    results = Collections.EMPTY_LIST;
-                } else {
-                    Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
+                List<Row> results = new LinkedList<>();
+                if (search != null) {
                     Function function = search.function();
                     Query query = LuceneUtils.getQueryUpdatedWithPKCondition(search.query(options), getPartitionKeyString(filter));
                     int resultsLimit = filter.currentLimit();
@@ -139,13 +137,23 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     function.init(options);
                     final boolean reverseClustering = filter.dataRange.columnFilter(null).isReversed();
                     FieldDoc afterDoc = getAfterDoc(searcher, reverseClustering, filter, search);
-                    IndexEntryCollector collector = new IndexEntryCollector(afterDoc, reverseClustering, tableMapper, search, options, resultsLimit);
-                    searcher.search(query, collector);
-                    timer2.endLogTime("Lucene search for searching [" + collector.getTotalHits() + "]. Collected [" + collector.getCollectedHits() + "] results ");
-                    ResultMapper resultMapper = new ResultMapper(tableMapper, searchSupport, filter, collector, function.shouldTryScoring() && search.isShowScore(), reverseClustering);
-                    Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
-                    results = function.process(resultMapper, baseCfs, currentIndex);
-                    timer3.endLogTime("Aggregation [" + results.size() + "] results");
+                    boolean moreResultsNeeded = false;
+                    do {
+                        Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
+                        IndexEntryCollector collector = new IndexEntryCollector(afterDoc, reverseClustering, tableMapper, search, options, resultsLimit);
+                        searcher.search(query, collector);
+                        timer2.endLogTime("Lucene search for searching [" + collector.getTotalHits() + "]. Collected [" + collector.getCollectedHits() + "] results ");
+                        ResultMapper resultMapper = new ResultMapper(tableMapper, searchSupport, filter, collector, function.shouldTryScoring() && search.isShowScore(), reverseClustering);
+                        Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
+                        List<Row> rows = function.process(resultMapper, baseCfs, currentIndex);
+                        results.addAll(rows);
+                        timer3.endLogTime("Aggregation [" + results.size() + "] results");
+                        moreResultsNeeded = function.needsPaging() && (rows.size() != 0) && (results.size() != resultsLimit);
+                        if (moreResultsNeeded) {
+                            Row lastRow = results.get(results.size() - 1);
+                            afterDoc = getAfterDoc(searcher, reverseClustering, search, tableMapper.primaryKey(lastRow.key.getKey(), tableMapper.extractClusteringKey(lastRow.cf.iterator().next().name())));
+                        }
+                    } while (moreResultsNeeded);
                     timer.endLogTime("Search with results [" + results.size() + "] ");
                 }
 
@@ -181,14 +189,20 @@ public class SearchSupport extends SecondaryIndexSearcher {
             if (logger.isDebugEnabled()) {
                 logger.debug("Paged query - After PK is " + afterPK);
             }
-            if (afterPK != null) {
-                String pk = tableMapper.primaryKeyType.getString(afterPK);
-                Sort sort = new Sort(search.primaryKeySort(tableMapper, reverseClustering));
-                TopFieldDocs docs = searcher.search(new TermQuery(LuceneUtils.primaryKeyTerm(pk)), 1, sort);
-                afterDoc = (FieldDoc) docs.scoreDocs[0];
-                if (logger.isDebugEnabled()) {
-                    logger.debug("After Doc is " + afterDoc.doc + " and pk is " + pk);
-                }
+            afterDoc = getAfterDoc(searcher, reverseClustering, search, afterPK);
+        }
+        return afterDoc;
+    }
+
+    private FieldDoc getAfterDoc(IndexSearcher searcher, boolean reverseClustering, Search search, ByteBuffer afterPK) throws IOException {
+        FieldDoc afterDoc = null;
+        if (afterPK != null) {
+            String pk = tableMapper.primaryKeyType.getString(afterPK);
+            Sort sort = new Sort(search.primaryKeySort(tableMapper, reverseClustering));
+            TopFieldDocs docs = searcher.search(new TermQuery(LuceneUtils.primaryKeyTerm(pk)), 1, sort);
+            afterDoc = (FieldDoc) docs.scoreDocs[0];
+            if (logger.isDebugEnabled()) {
+                logger.debug("After Doc is " + afterDoc.doc + " and pk is " + pk);
             }
         }
         return afterDoc;
