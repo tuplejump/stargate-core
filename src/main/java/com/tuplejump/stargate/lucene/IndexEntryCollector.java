@@ -175,8 +175,8 @@ public class IndexEntryCollector implements Collector {
                 indexEntries.add(entry);
 
             }
+            Collections.reverse(indexEntries);
         }
-        Collections.reverse(indexEntries);
         return indexEntries;
     }
 
