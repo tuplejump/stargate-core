@@ -26,6 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.lucene.analysis.Analyzer;
@@ -40,7 +41,8 @@ import java.util.*;
  * Utilities to read Cassandra configuration
  */
 public class CassandraUtils {
-    public static final Long MINIMUM_TOKEN_VALUE = (Long) StorageService.getPartitioner().getMinimumToken().getTokenValue();
+    public static final Token MINIMUM_TOKEN = StorageService.getPartitioner().getMinimumToken();
+    public static final Long MINIMUM_TOKEN_VALUE = (Long) MINIMUM_TOKEN.getTokenValue();
 
     public static String[] getDataDirs() throws IOException, ConfigurationException {
         return DatabaseDescriptor.getAllDataFileLocations();
@@ -54,6 +56,10 @@ public class CassandraUtils {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static boolean isMinimumToken(Token token) {
+        return MINIMUM_TOKEN.compareTo(token) == 0;
     }
 
     public static Options getOptions(Properties mapping, ColumnFamilyStore baseCfs, String colName) {
