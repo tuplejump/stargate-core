@@ -34,6 +34,9 @@ import java.nio.file.Files;
 import java.text.NumberFormat;
 import java.util.Locale;
 
+import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
+import static org.apache.lucene.search.BooleanClause.Occur.MUST;
+
 /**
  * User: satya
  */
@@ -268,15 +271,21 @@ public class LuceneUtils {
         return TermRangeQuery.newStringRange(PK_INDEXED, startPK, endPK, true, true);
     }
 
-    public static Query getQueryUpdatedWithPKCondition(Query query, String partitionKeyString) {
-        if (partitionKeyString == null) {
-            return query;
-        } else {
-            BooleanQuery.Builder finalQuery = new BooleanQuery.Builder();
-            finalQuery.add(query, BooleanClause.Occur.MUST);
-            finalQuery.add(new TermQuery(LuceneUtils.rowkeyTerm(partitionKeyString)), BooleanClause.Occur.MUST);
-            return finalQuery.build();
+    public static Query buildQuery(Query query, Query filter, Query range) {
+        if (query == null && filter == null && range == null) {
+            return new MatchAllDocsQuery();
         }
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        if (range != null) {
+            builder.add(range, FILTER);
+        }
+        if (filter != null) {
+            builder.add(filter, FILTER);
+        }
+        if (query != null) {
+            builder.add(query, MUST);
+        }
+        return new CachingWrapperQuery(builder.build());
     }
 
     public static class NumericConfigTL extends NumericConfig {

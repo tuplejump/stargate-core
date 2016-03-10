@@ -31,6 +31,7 @@ dependencies {
 
     //lucene dependencies
     compile group: 'org.apache.lucene', name: 'lucene-core', version: luceneVersion
+    compile group: 'org.apache.lucene', name: 'lucene-sandbox', version: luceneVersion
     compile group: 'org.apache.lucene', name: 'lucene-spatial', version: luceneVersion
     compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: luceneVersion
     compile("org.apache.lucene:lucene-queryparser:$luceneVersion") {

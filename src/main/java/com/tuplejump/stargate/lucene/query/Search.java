@@ -99,34 +99,12 @@ public class Search {
         return showScore;
     }
 
-    /**
-     * Returns the Lucene's {@link Query} representation of this search. This {@link Query} include both the querying
-     * and filtering {@link Condition}s. If none of them is set, then a {@link MatchAllDocsQuery} is returned.
-     *
-     * @param schema the schema
-     * @return The Lucene's {@link Query} representation of this search.
-     * @throws Exception when the query cannot be constructed
-     */
     public Query query(Options schema) throws Exception {
-        Query query = queryCondition == null ? null : queryCondition.query(schema);
-        Query filter = filterCondition == null ? null : filterCondition.filter(schema);
-        if (query == null && filter == null) {
-            return new MatchAllDocsQuery();
-        } else if (query != null) {
-            if (queryCondition.getBoost() != Condition.DEFAULT_BOOST) {
-                return new BoostQuery(query, queryCondition.getBoost());
-            }
-            if (filter == null) {
-                return query;
-            } else {
-                BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
-                booleanQuery.add(query, BooleanClause.Occur.MUST);
-                booleanQuery.add(filter, BooleanClause.Occur.FILTER);
-                return booleanQuery.build();
-            }
-        } else {
-            return new ConstantScoreQuery(filter);
-        }
+        return queryCondition == null ? null : queryCondition.query(schema);
+    }
+
+    public Query filter(Options schema) throws Exception {
+        return filterCondition == null ? null : filterCondition.filter(schema);
     }
 
     public org.apache.lucene.search.SortField[] sort(Options schema) {

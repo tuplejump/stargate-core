@@ -18,10 +18,7 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.lucene.IndexEntryCollector;
-import com.tuplejump.stargate.lucene.LuceneUtils;
-import com.tuplejump.stargate.lucene.Options;
-import com.tuplejump.stargate.lucene.SearcherCallback;
+import com.tuplejump.stargate.lucene.*;
 import com.tuplejump.stargate.lucene.query.Search;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -31,12 +28,14 @@ import org.apache.cassandra.db.composites.BoundedComposite;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ExtendedFilter;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.lucene.search.*;
 import org.slf4j.Logger;
@@ -49,6 +48,9 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+
+import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
+import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 
 /**
  * User: satya
@@ -128,7 +130,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
                 List<Row> results = new LinkedList<>();
                 if (search != null) {
                     Function function = search.function();
-                    Query query = LuceneUtils.getQueryUpdatedWithPKCondition(search.query(options), getPartitionKeyString(filter));
+                    Query query = LuceneUtils.buildQuery(search.query(options), search.filter(options), getDataRangeQuery(filter.dataRange));
                     int resultsLimit = filter.currentLimit();
                     if (resultsLimit == 0) {
                         resultsLimit = 1;
@@ -138,7 +140,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
                     final boolean reverseClustering = filter.dataRange.columnFilter(null).isReversed();
                     Utils.SimpleTimer afterDocTimer = Utils.getStartedTimer(logger);
                     FieldDoc afterDoc = getAfterDoc(searcher, reverseClustering, filter, search);
-                    afterDocTimer.endLogTime("AfterDoc search took ");
+                    afterDocTimer.endLogTime("AfterDoc search ");
                     boolean moreResultsNeeded = false;
                     do {
                         Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
@@ -155,7 +157,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
                             afterDocTimer.start();
                             Row lastRow = results.get(results.size() - 1);
                             afterDoc = getAfterDoc(searcher, reverseClustering, search, tableMapper.primaryKey(lastRow.key.getKey(), tableMapper.extractClusteringKey(lastRow.cf.iterator().next().name())));
-                            afterDocTimer.endLogTime("AfterDoc search took ");
+                            afterDocTimer.endLogTime("AfterDoc search ");
                         }
                     } while (moreResultsNeeded);
                     timer.endLogTime("Search with results [" + results.size() + "] ");
@@ -182,6 +184,76 @@ public class SearchSupport extends SecondaryIndexSearcher {
         };
 
         return currentIndex.search(sc);
+    }
+
+    private Query getDataRangeQuery(DataRange dataRange) {
+        RowPosition startPosition = dataRange.startKey();
+        RowPosition stopPosition = dataRange.stopKey();
+        Token startToken = startPosition.getToken();
+        Token stopToken = stopPosition.getToken();
+        boolean isSameToken = startToken.compareTo(stopToken) == 0 && !CassandraUtils.isMinimumToken(startToken);
+        BooleanClause.Occur occur = isSameToken ? FILTER : SHOULD;
+        boolean includeStart = (startPosition.kind() != RowPosition.Kind.MAX_BOUND);
+        boolean includeStop = (stopPosition.kind() != RowPosition.Kind.MIN_BOUND);
+        SliceQueryFilter sqf;
+        if (startPosition instanceof DecoratedKey) {
+            sqf = (SliceQueryFilter) dataRange.columnFilter(((DecoratedKey) startPosition).getKey());
+        } else {
+            sqf = (SliceQueryFilter) dataRange.columnFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        }
+        Composite startName = sqf.start();
+        Composite stopName = sqf.finish();
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+
+        if (!startName.isEmpty()) {
+            BooleanQuery.Builder b = new BooleanQuery.Builder();
+            b.add(getTokenQuery(startToken), FILTER);
+            b.add(getClusteringKeyQuery(startName, null), FILTER);
+            builder.add(b.build(), occur);
+            includeStart = false;
+        }
+
+        if (!stopName.isEmpty()) {
+            BooleanQuery.Builder b = new BooleanQuery.Builder();
+            b.add(getTokenQuery(stopToken), FILTER);
+            b.add(getClusteringKeyQuery(null, stopName), FILTER);
+            builder.add(b.build(), occur);
+            includeStop = false;
+        }
+
+        BooleanQuery query = builder.build();
+        if (!isSameToken) {
+            Query rangeQuery = getTokenQuery(startToken, stopToken, includeStart, includeStop);
+            if (rangeQuery != null) {
+                builder.add(rangeQuery, SHOULD);
+                query = builder.build();
+            }
+        } else if (query.clauses().isEmpty()) {
+            return getTokenQuery(startToken);
+        }
+
+        return query.clauses().isEmpty() ? null : query;
+    }
+
+    private Query getTokenQuery(Token token) {
+        Long value = (Long) token.getTokenValue();
+        return NumericRangeQuery.newLongRange(LuceneUtils.TOKEN_INDEXED, value, value, true, true);
+    }
+
+    private Query getTokenQuery(Token lower, Token upper, boolean includeLower, boolean includeUpper) {
+        if (lower != null && upper != null) {
+            if (CassandraUtils.isMinimumToken(lower) && CassandraUtils.isMinimumToken(upper) && (includeLower || includeUpper)) {
+                return null;
+            }
+        }
+        Long start = lower == null || lower.isMinimum() ? null : (Long) lower.getTokenValue();
+        Long stop = upper == null || upper.isMinimum() ? null : (Long) upper.getTokenValue();
+        return DocValuesRangeQuery.newLongRange(LuceneUtils.TOKEN_LONG, start, stop, includeLower, includeUpper);
+    }
+
+    private Query getClusteringKeyQuery(Composite start, Composite stop) {
+        return new ClusteringKeyMultiTermQuery(start, stop, tableMapper);
     }
 
     private FieldDoc getAfterDoc(IndexSearcher searcher, boolean reverseClustering, ExtendedFilter filter, Search search) throws IOException {
@@ -221,17 +293,6 @@ public class SearchSupport extends SecondaryIndexSearcher {
                 return expression;
             } else if (colName.equalsIgnoreCase(tableMapper.primaryColumnName())) {
                 return expression;
-            }
-        }
-        return null;
-    }
-
-    protected String getPartitionKeyString(ExtendedFilter mainFilter) {
-        AbstractBounds<RowPosition> keyRange = mainFilter.dataRange.keyRange();
-        if (keyRange != null && keyRange.left != null && keyRange.left instanceof DecoratedKey) {
-            DecoratedKey left = (DecoratedKey) keyRange.left;
-            if (keyRange.right instanceof DecoratedKey && left.equals(keyRange.right)) {
-                return tableMapper.primaryKeyAbstractType.getString(left.getKey());
             }
         }
         return null;
