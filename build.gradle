@@ -38,7 +38,7 @@ dependencies {
     }
     compile("org.apache.lucene:lucene-join:$luceneVersion")
     compile('joda-time:joda-time:2.3')
-    compile group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
+    compile group: 'commons-collections', name: 'commons-collections', version: '3.2.2'
 
     //provided dependencies - do not copy into dist
     compile('org.codehaus.jackson:jackson-mapper-asl:1.9.2')
