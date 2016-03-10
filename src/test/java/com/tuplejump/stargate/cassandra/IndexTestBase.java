@@ -22,8 +22,10 @@ import com.datastax.driver.core.Session;
 import com.google.common.base.Joiner;
 import com.tuplejump.stargate.lucene.Properties;
 import com.tuplejump.stargate.util.CQLUnitD;
+import com.tuplejump.stargate.util.Record;
 import junit.framework.Assert;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.compound.hyphenation.TernaryTree;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
@@ -42,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.SyncFailedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
@@ -412,5 +415,23 @@ public class IndexTestBase {
 
     }
 
+    public void insertRecord(String keyspace, String tName, Record record) {
+        getSession().execute("insert into " + keyspace + "." + tName + record.getInsertString());
+    }
 
+    public void insertRecords(String keyspace, String tName, List<Record> records) {
+        records.forEach(rec -> {
+            insertRecord(keyspace, tName, rec);
+        });
+    }
+
+    public List<Record> getRecords(String tName, String where, boolean hasWhr, String indexCol) {
+        ResultSet resultSet = getResults(tName, where, hasWhr);
+        List<Record> fetched = new ArrayList<Record>();
+        resultSet.all().iterator().forEachRemaining(row -> {
+            Record tempRecord = new Record(row, indexCol);
+            fetched.add(tempRecord);
+        });
+        return fetched;
+    }
 }

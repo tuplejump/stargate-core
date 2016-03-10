@@ -20,13 +20,14 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.tuplejump.stargate.StargateMBean;
 import com.tuplejump.stargate.util.CQLUnitD;
+import com.tuplejump.stargate.util.Record;
 import junit.framework.Assert;
 import org.junit.Test;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.lang.management.ManagementFactory;
-import java.util.List;
+import java.util.*;
 
 
 /**
@@ -38,6 +39,9 @@ public class BasicIndexTest extends IndexTestBase {
     public BasicIndexTest() {
         cassandraCQLUnit = CQLUnitD.getCQLUnit(null);
     }
+
+    List<Record> recordsForRow = new ArrayList<Record>();
+    List<Record> recordsForRowNulls = new ArrayList<Record>();
 
     @Test
     public void shouldReportErrorRow() throws Exception {
@@ -60,12 +64,23 @@ public class BasicIndexTest extends IndexTestBase {
         try {
             createKS(keyspace);
             createTableAndIndexForRowNulls();
-            countResults("TAG_NULL", "", false, true);
-            Assert.assertEquals(4, countResults("TAG_NULL", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true));
-            Assert.assertEquals(4, countResults("TAG_NULL", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
-            Assert.assertEquals(4, countResults("TAG_NULL", "magic = '" + q("tags", "tags:hello2 AND state:CA") + "'", true));
-            Assert.assertEquals(12, countResults("TAG_NULL", "magic = '" + mq("tags", "tag2") + "'", true));
 
+            countResults("TAG_NULL", "", false, true);
+            Assert.assertEquals(Arrays.asList(recordsForRowNulls.get(15), recordsForRowNulls.get(35), recordsForRowNulls.get(5),
+                    recordsForRowNulls.get(25)), getRecords("TAG_NULL", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true, "magic"));
+
+            Assert.assertEquals(Arrays.asList(recordsForRowNulls.get(15), recordsForRowNulls.get(35), recordsForRowNulls.get(5),
+                    recordsForRowNulls.get(25)), getRecords("TAG_NULL", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true, "magic"));
+
+            Assert.assertEquals(Arrays.asList(recordsForRowNulls.get(15), recordsForRowNulls.get(35),
+                    recordsForRowNulls.get(5), recordsForRowNulls.get(25)),
+                    getRecords("TAG_NULL", "magic = '" + q("tags", "tags:hello2 AND state:CA") + "'", true, "magic"));
+
+            Assert.assertEquals(Arrays.asList(recordsForRowNulls.get(12), recordsForRowNulls.get(17),
+                    recordsForRowNulls.get(18), recordsForRowNulls.get(32), recordsForRowNulls.get(37),
+                    recordsForRowNulls.get(38), recordsForRowNulls.get(2), recordsForRowNulls.get(7),
+                    recordsForRowNulls.get(8), recordsForRowNulls.get(22), recordsForRowNulls.get(27),
+                    recordsForRowNulls.get(28)), getRecords("TAG_NULL", "magic = '" + mq("tags", "tag2") + "'", true, "magic"));
         } finally {
             dropTable(keyspace, "TAG_NULL");
             dropKS(keyspace);
@@ -78,33 +93,80 @@ public class BasicIndexTest extends IndexTestBase {
         try {
             createKS(keyspace);
             createTableAndIndexForRow();
+            ResultSet resultSet = getResults("TAG2", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true);
+
             countResults("TAG2", "", false, true);
-            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true));
-            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true));
-            Assert.assertEquals(8, countResults("TAG2", "magic = '" + q("tags", "tags:hello2 AND state:CA") + "'", true));
-            Assert.assertEquals(16, countResults("TAG2", "magic = '" + mq("tags", "tag2") + "'", true));
+            Assert.assertEquals(Arrays.asList(recordsForRow.get(10), recordsForRow.get(15), recordsForRow.get(17),
+                    recordsForRow.get(30), recordsForRow.get(35), recordsForRow.get(37), recordsForRow.get(0),
+                    recordsForRow.get(5), recordsForRow.get(7), recordsForRow.get(20), recordsForRow.get(25),
+                    recordsForRow.get(27)), getRecords("TAG2", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true, "magic"));
+
+            Assert.assertEquals(Arrays.asList(recordsForRow.get(10), recordsForRow.get(15), recordsForRow.get(17),
+                    recordsForRow.get(30), recordsForRow.get(35), recordsForRow.get(37), recordsForRow.get(0),
+                    recordsForRow.get(5), recordsForRow.get(7), recordsForRow.get(20), recordsForRow.get(25),
+                    recordsForRow.get(27)), getRecords("TAG2", "magic = '" + q("tags", "tags:hello? AND state:CA") + "'", true, "magic"));
+
+            Assert.assertEquals(Arrays.asList(recordsForRow.get(15), recordsForRow.get(17), recordsForRow.get(35),
+                    recordsForRow.get(37), recordsForRow.get(5), recordsForRow.get(7), recordsForRow.get(25),
+                    recordsForRow.get(27)), getRecords("TAG2", "magic = '" + q("tags", "tags:hello2 AND state:CA") + "'", true, "magic"));
+
+            Assert.assertEquals(Arrays.asList(recordsForRow.get(12), recordsForRow.get(13), recordsForRow.get(17),
+                    recordsForRow.get(18), recordsForRow.get(32), recordsForRow.get(33), recordsForRow.get(37),
+                    recordsForRow.get(38), recordsForRow.get(2), recordsForRow.get(3), recordsForRow.get(7),
+                    recordsForRow.get(8), recordsForRow.get(22), recordsForRow.get(23), recordsForRow.get(27),
+                    recordsForRow.get(28)), getRecords("TAG2", "magic = '" + mq("tags", "tag2") + "'", true, "magic"));
 
             for (int i = 0; i < 40; i = i + 10) {
                 updateTagData("TAG2", (i + 1) + " AND segment =" + i);
             }
-            Assert.assertEquals(40, countResults("TAG2", "magic = '" + q("tags", "h*") + "'", true));
-            Assert.assertEquals(12, countResults("TAG2", "magic = '" + q("tags", "hello1") + "'", true));
+            String[] fields = {"key", "tags", "state", "segment"};
+            String[] fieldsType = {"int", "text", "varchar", "int", "text"};
+            Record updated01 = new Record(fields, new Object[]{1, "hello2 tag1 lol1", "NY", 0}, fieldsType);
+            Record updated11 = new Record(fields, new Object[]{11, "hello2 tag1 lol1", "NY", 10}, fieldsType);
+            Record updated21 = new Record(fields, new Object[]{21, "hello2 tag1 lol1", "NY", 20}, fieldsType);
+            Record updated31 = new Record(fields, new Object[]{31, "hello2 tag1 lol1", "NY", 30}, fieldsType);
+
+            Assert.assertEquals(Arrays.asList(updated11, recordsForRow.get(11), recordsForRow.get(12), recordsForRow.get(13),
+                    recordsForRow.get(14), recordsForRow.get(15), recordsForRow.get(16), recordsForRow.get(17),
+                    recordsForRow.get(18), recordsForRow.get(19), updated31, recordsForRow.get(31),
+                    recordsForRow.get(32), recordsForRow.get(33), recordsForRow.get(34), recordsForRow.get(35),
+                    recordsForRow.get(36), recordsForRow.get(37), recordsForRow.get(38), recordsForRow.get(39),
+                    updated01, recordsForRow.get(1), recordsForRow.get(2), recordsForRow.get(3),
+                    recordsForRow.get(4), recordsForRow.get(5), recordsForRow.get(6), recordsForRow.get(7),
+                    recordsForRow.get(8), recordsForRow.get(9), updated21, recordsForRow.get(21),
+                    recordsForRow.get(22), recordsForRow.get(23), recordsForRow.get(24), recordsForRow.get(25),
+                    recordsForRow.get(26), recordsForRow.get(27), recordsForRow.get(28), recordsForRow.get(29)),
+                    getRecords("TAG2", "magic = '" + q("tags", "h*") + "'", true, "magic"));
+
+            Assert.assertEquals(getRecords("TAG2", "magic = '" + q("tags", "hello1") + "'", true, "magic"), Arrays.asList(
+                    recordsForRow.get(11), recordsForRow.get(12), recordsForRow.get(13), recordsForRow.get(31),
+                    recordsForRow.get(32), recordsForRow.get(33), recordsForRow.get(1), recordsForRow.get(2),
+                    recordsForRow.get(3), recordsForRow.get(21), recordsForRow.get(22), recordsForRow.get(23)));
             int i = 0;
             while (i < 20) {
                 i = i + 10;
                 deleteTagData("TAG2", "segment", false, i);
             }
-            Assert.assertEquals(16, countResults("TAG2", "magic = '" + q("tags", "hello*") + "'", true));
-            Assert.assertEquals(5, countResults("TAG2", "magic = '" + q("tags", "hello*","state") + "' limit 5", true));
+            Assert.assertEquals(Arrays.asList(updated31, recordsForRow.get(31), recordsForRow.get(32), recordsForRow.get(33),
+                    recordsForRow.get(35), recordsForRow.get(36), recordsForRow.get(37), recordsForRow.get(38),
+                    updated01, recordsForRow.get(1), recordsForRow.get(2), recordsForRow.get(3), recordsForRow.get(5),
+                    recordsForRow.get(6), recordsForRow.get(7), recordsForRow.get(8)),
+                    getRecords("TAG2", "magic = '" + q("tags", "hello*") + "'", true, "magic"));
+
+            //TODO: Ordering of sorted result
+            Assert.assertEquals(5, countResults("TAG2", "magic = '" + q("tags", "hello*", "state") + "' limit 5", true));
             Assert.assertEquals(1, countStarResults("TAG2", "magic = '" + q("tags", "hello*") + "'", true));
             Assert.assertEquals(1, countResults("TAG2", "segment=30 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
             Assert.assertEquals(0, countResults("TAG2", "segment=20 and key=36 AND magic = '" + mq("tags", "tag1") + "'", true));
             testJMX();
 
-        } finally {
+        } finally
+
+        {
             dropTable(keyspace, "TAG2");
             dropKS(keyspace);
         }
+
     }
 
     private void testJMX() throws Exception {
@@ -135,6 +197,8 @@ public class BasicIndexTest extends IndexTestBase {
     }
 
     private void createTableAndIndexForRow() throws InterruptedException {
+        String[] fields = {"key", "tags", "state", "segment"};
+        String[] fieldTypes = {"int", "text", "varchar", "int", "text"};
         String options = "{\n" +
                 "\t\"numShards\":1024,\n" +
                 "\t\"metaColumn\":true,\n" +
@@ -150,22 +214,26 @@ public class BasicIndexTest extends IndexTestBase {
             if (i == 20) {
                 getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG2(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
             }
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 1) + ",'hello1 tag1 lol1', 'CA'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 2) + ",'hello1 tag1 lol2', 'LA'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 3) + ",'hello1 tag2 lol1', 'NY'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 4) + ",'hello1 tag2 lol2', 'TX'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 5) + ",'hllo3 tag3 lol3',  'TX'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 6) + ",'hello2 tag1 lol1', 'CA'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 7) + ",'hello2 tag1 lol2', 'NY'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 8) + ",'hello2 tag2 lol1', 'CA'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 9) + ",'hello2 tag2 lol2', 'TX'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG2 (key,tags,state,segment) values (" + (i + 10) + ",'hllo3 tag3 lol3', 'TX'," + i + ")");
-
+            Record r1 = new Record(fields, new Object[]{(i + 1), "hello1 tag1 lol1", "CA", i}, fieldTypes);
+            Record r2 = new Record(fields, new Object[]{(i + 2), "hello1 tag1 lol2", "LA", i}, fieldTypes);
+            Record r3 = new Record(fields, new Object[]{(i + 3), "hello1 tag2 lol1", "NY", i}, fieldTypes);
+            Record r4 = new Record(fields, new Object[]{(i + 4), "hello1 tag2 lol2", "TX", i}, fieldTypes);
+            Record r5 = new Record(fields, new Object[]{(i + 5), "hllo3 tag3 lol3", "TX", i}, fieldTypes);
+            Record r6 = new Record(fields, new Object[]{(i + 6), "hello2 tag1 lol1", "CA", i}, fieldTypes);
+            Record r7 = new Record(fields, new Object[]{(i + 7), "hello2 tag1 lol2", "NY", i}, fieldTypes);
+            Record r8 = new Record(fields, new Object[]{(i + 8), "hello2 tag2 lol1", "CA", i}, fieldTypes);
+            Record r9 = new Record(fields, new Object[]{(i + 9), "hello2 tag2 lol2", "TX", i}, fieldTypes);
+            Record r10 = new Record(fields, new Object[]{(i + 10), "hllo3 tag3 lol3", "TX", i}, fieldTypes);
+            List<Record> tempRecords = Arrays.asList(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10);
+            recordsForRow.addAll(tempRecords);
+            insertRecords(keyspace, "TAG2", tempRecords);
             i = i + 10;
         }
     }
 
     private void createTableAndIndexForRowNulls() throws InterruptedException {
+        String[] fields = {"key", "tags", "state", "segment"};
+        String[] fieldTypes = {"int", "text", "varchar", "int", "text"};
         String options = "{\n" +
                 "\t\"numShards\":1024,\n" +
                 "\t\"metaColumn\":true,\n" +
@@ -181,16 +249,19 @@ public class BasicIndexTest extends IndexTestBase {
             if (i == 20) {
                 getSession().execute("CREATE CUSTOM INDEX ntagsandstate ON TAG_NULL(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
             }
-            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 1) + ",null, 'CA'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 2) + ",'hello1 tag1 lol2', null," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 3) + ",'hello1 tag2 lol1', 'NY'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 4) + ",null, 'TX'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 5) + ",'hllo3 tag3 lol3',  'TX'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 6) + ",'hello2 tag1 lol1', 'CA'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 7) + ",'hello2 tag1 lol2', 'NY'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 8) + ",'hello2 tag2 lol1', null," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 9) + ",'hello2 tag2 lol2', 'TX'," + i + ")");
-            getSession().execute("insert into " + keyspace + ".TAG_NULL (key,tags,state,segment) values (" + (i + 10) + ",'hllo3 tag3 lol3', 'TX'," + i + ")");
+            Record r1 = new Record(fields, new Object[]{(i + 1), null, "CA", i}, fieldTypes);
+            Record r2 = new Record(fields, new Object[]{(i + 2), "hello1 tag1 lol2", null, i}, fieldTypes);
+            Record r3 = new Record(fields, new Object[]{(i + 3), "hello1 tag2 lol1", "NY", i}, fieldTypes);
+            Record r4 = new Record(fields, new Object[]{(i + 4), null, "TX", i}, fieldTypes);
+            Record r5 = new Record(fields, new Object[]{(i + 5), "hllo3 tag3 lol3", "TX", i}, fieldTypes);
+            Record r6 = new Record(fields, new Object[]{(i + 6), "hello2 tag1 lol1", "CA", i}, fieldTypes);
+            Record r7 = new Record(fields, new Object[]{(i + 7), "hello2 tag1 lol2", "NY", i}, fieldTypes);
+            Record r8 = new Record(fields, new Object[]{(i + 8), "hello2 tag2 lol1", null, i}, fieldTypes);
+            Record r9 = new Record(fields, new Object[]{(i + 9), "hello2 tag2 lol2", "TX", i}, fieldTypes);
+            Record r10 = new Record(fields, new Object[]{(i + 10), "hllo3 tag3 lol3", "TX", i}, fieldTypes);
+            List<Record> tempRecords = Arrays.asList(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10);
+            recordsForRowNulls.addAll(tempRecords);
+            insertRecords(keyspace, "TAG_NULL", tempRecords);
             i = i + 10;
         }
     }
