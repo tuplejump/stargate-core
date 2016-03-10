@@ -218,7 +218,7 @@ public class TableMapper {
         return partitionKey;
     }
 
-    public ByteBuffer primaryKey(ByteBuffer rowKey, CellName clusteringKey) {
+    public ByteBuffer primaryKey(ByteBuffer rowKey, Composite clusteringKey) {
         return primaryKeyType.builder().add(rowKey).add(clusteringKey.toByteBuffer()).build();
     }
 
