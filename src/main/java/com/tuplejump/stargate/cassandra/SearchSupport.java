@@ -54,7 +54,7 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 
 /**
  * User: satya
- * <p/>
+ * 
  * A searcher which can be used with a SGIndex
  * Includes features to make lucene queries etc.
  */
