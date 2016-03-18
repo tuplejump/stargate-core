@@ -17,8 +17,9 @@
 
 package com.tuplejump.stargate.lucene;
 
-import com.google.common.collect.Ordering;
 import com.google.common.collect.TreeMultimap;
+import com.tuplejump.stargate.cassandra.CassandraUtils;
+import com.tuplejump.stargate.cassandra.SearchSupport;
 import com.tuplejump.stargate.cassandra.TableMapper;
 import com.tuplejump.stargate.lucene.query.Search;
 import com.tuplejump.stargate.lucene.query.function.AggregateFunction;
@@ -30,6 +31,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -40,18 +43,15 @@ import java.util.*;
  * A custom lucene collector to retrieve index entries.
  * An IndexEntry reads from DocValues to construct the row key, primary key and timestamp info.
  */
-public class IndexEntryCollector extends SimpleCollector {
-
+public class IndexEntryCollector implements Collector {
+    public static final Logger logger = LoggerFactory.getLogger(SearchSupport.class);
     public final FieldValueHitQueue<IndexEntry> hitQueue;
-    LeafFieldComparator[] comparators;
     int docBase;
     int totalHits;
+    int collectedHits;
     boolean queueFull;
     IndexEntry bottom;
-    Scorer scorer;
     int numHits;
-    final int[] reverseMul;
-    SortedDocValues pkNames;
     SortedDocValues primaryKeys;
     SortedDocValues rowKeys;
     List<String> numericDocValueNamesToFetch;
@@ -63,9 +63,9 @@ public class IndexEntryCollector extends SimpleCollector {
     TreeMultimap<DecoratedKey, IndexEntry> indexEntryTreeMultiMap;
     TableMapper tableMapper;
     public final boolean isSorted;
-
-
     boolean canByPassRowFetch;
+    FieldDoc after = null;
+    Integer afterDoc = null;
 
     public boolean canByPassRowFetch() {
         return canByPassRowFetch;
@@ -75,21 +75,38 @@ public class IndexEntryCollector extends SimpleCollector {
         return totalHits;
     }
 
-    public IndexEntryCollector(TableMapper tableMapper, Search search, Options options, int maxResults) throws IOException {
+    public int getCollectedHits() {
+        return collectedHits;
+    }
+
+    public IndexEntryCollector(FieldDoc afterDoc, boolean reverseClustering, TableMapper tableMapper, Search search, Options options, int maxResults) throws IOException {
+        this.after = afterDoc;
         Function function = search.function();
         this.tableMapper = tableMapper;
         this.options = options;
         org.apache.lucene.search.SortField[] sortFields = search.usesSorting() ? search.sort(options) : null;
         if (sortFields == null) {
-            hitQueue = FieldValueHitQueue.create(new org.apache.lucene.search.SortField[]{org.apache.lucene.search.SortField.FIELD_SCORE}, maxResults);
+            hitQueue = FieldValueHitQueue.create(search.primaryKeySort(tableMapper, reverseClustering), maxResults);
             isSorted = false;
+            FieldComparator<?>[] comparators = hitQueue.getComparators();
+            if (afterDoc != null) {
+                logger.warn("Got afterDoc " + afterDoc);
+                // Tell all comparators their top value:
+                for (int i = 0; i < comparators.length; i++) {
+                    @SuppressWarnings("unchecked")
+                    FieldComparator<Object> comparator = (FieldComparator<Object>) comparators[i];
+                    comparator.setTopValue(afterDoc.fields[i]);
+                }
+            } else {
+                ((FieldComparator<Long>) comparators[0]).setTopValue(CassandraUtils.MINIMUM_TOKEN_VALUE);
+            }
         } else {
             hitQueue = FieldValueHitQueue.create(sortFields, maxResults);
             isSorted = true;
         }
 
+
         numHits = maxResults;
-        reverseMul = hitQueue.getReverseMul();
         numericDocValueNamesToFetch = new ArrayList<>();
         binaryDocValueNamesToFetch = new ArrayList<>();
 
@@ -160,37 +177,75 @@ public class IndexEntryCollector extends SimpleCollector {
             IndexEntry entry;
             while ((entry = hitQueue.pop()) != null) {
                 indexEntries.add(entry);
+
             }
+            Collections.reverse(indexEntries);
         }
         return indexEntries;
     }
 
+    private final Comparator<DecoratedKey> dkComparator = new Comparator<DecoratedKey>() {
+        @Override
+        public int compare(DecoratedKey o1, DecoratedKey o2) {
+            int cmp = o1.getToken().compareTo(o2.getToken());
+            if (cmp != 0) {
+                return cmp;
+            } else {
+                return tableMapper.primaryKeyAbstractType.compare(o1.getKey(), o2.getKey());
+            }
+        }
+    };
+
+    private final Comparator<IndexEntry> entryComparator = new Comparator<IndexEntry>() {
+        @Override
+        public int compare(IndexEntry o1, IndexEntry o2) {
+            return tableMapper.clusteringCType.compare(o1.clusteringKey(), o2.clusteringKey());
+        }
+    };
+
     public TreeMultimap<DecoratedKey, IndexEntry> docsByRowKey() {
         if (indexEntries != null) throw new IllegalStateException("Hit queue already traversed");
         if (indexEntryTreeMultiMap == null) {
-            indexEntryTreeMultiMap = TreeMultimap.create(Ordering.natural(), new Comparator<IndexEntry>() {
-                @Override
-                public int compare(IndexEntry o1, IndexEntry o2) {
-                    return tableMapper.clusteringCType.compare(o1.clusteringKey, o2.clusteringKey);
-                }
-            });
+            indexEntryTreeMultiMap = TreeMultimap.create(dkComparator, entryComparator);
             IndexEntry entry;
             while ((entry = hitQueue.pop()) != null) {
-                indexEntryTreeMultiMap.put(entry.decoratedKey, entry);
+                indexEntryTreeMultiMap.put(entry.decoratedKey(), entry);
             }
-
         }
         return indexEntryTreeMultiMap;
     }
 
 
+    private void setIndexEntryValues(int doc, IndexEntry indexEntry) throws IOException {
+        ByteBuffer primaryKey = LuceneUtils.byteBufferDocValue(primaryKeys, doc);
+        ByteBuffer rowKey = LuceneUtils.byteBufferDocValue(rowKeys, doc);
+        Map<String, Number> numericDocValues = null;
+
+        if (!numericDocValueNamesToFetch.isEmpty()) {
+            numericDocValues = new HashMap<>();
+            for (Map.Entry<String, NumericDocValues> entry : numericDocValuesMap.entrySet()) {
+                Type type = AggregateFunction.getLuceneType(options, entry.getKey());
+                Number number = LuceneUtils.numericDocValue(entry.getValue(), doc, type);
+                numericDocValues.put(entry.getKey(), number);
+            }
+        }
+        Map<String, String> binaryDocValues = null;
+        if (!binaryDocValueNamesToFetch.isEmpty()) {
+            binaryDocValues = new HashMap<>();
+            for (Map.Entry<String, SortedDocValues> entry : stringDocValues.entrySet()) {
+                binaryDocValues.put(entry.getKey(), LuceneUtils.stringDocValue(entry.getValue(), doc));
+            }
+        }
+        indexEntry.setIndexEntryValue(rowKey, primaryKey, numericDocValues, binaryDocValues);
+    }
+
+
     @Override
-    protected void doSetNextReader(LeafReaderContext context) throws IOException {
+    public LeafCollector getLeafCollector(final LeafReaderContext context) throws IOException {
         docBase = context.docBase;
-        comparators = hitQueue.getComparators(context);
-        pkNames = LuceneUtils.getPKNameDocValues(context.reader());
         primaryKeys = LuceneUtils.getPKBytesDocValues(context.reader());
         rowKeys = LuceneUtils.getRKBytesDocValues(context.reader());
+        if (after != null) afterDoc = after.doc - docBase;
         for (String docValName : numericDocValueNamesToFetch) {
             numericDocValuesMap.put(docValName, context.reader().getNumericDocValues(docValName));
         }
@@ -198,97 +253,121 @@ public class IndexEntryCollector extends SimpleCollector {
             stringDocValues.put(docValName, context.reader().getSortedDocValues(docValName));
         }
 
-    }
+        return new LeafCollector() {
+            final LeafFieldComparator[] comparators = hitQueue.getComparators(context);
+            final int[] reverseMul = hitQueue.getReverseMul();
 
-    @Override
-    public void setScorer(Scorer scorer) throws IOException {
-        // set the scorer on all comparators
-        for (int i = 0; i < comparators.length; i++) {
-            comparators[i].setScorer(scorer);
-        }
-        this.scorer = scorer;
-    }
+            Scorer scorer;
 
-    @Override
-    public void collect(int doc) throws IOException {
-        ++totalHits;
-        if (queueFull) {
-            // Fastmatch: return if this hit is not competitive
-            for (int i = 0; ; i++) {
-                final int c = reverseMul[i] * comparators[i].compareBottom(doc);
-                if (c < 0) {
-                    // Definitely not competitive.
-                    return;
-                } else if (c > 0) {
-                    // Definitely competitive.
-                    break;
-                } else if (i == comparators.length - 1) {
-                    // Here c=0. If we're at the last comparator, this doc is not
-                    // competitive, since docs are visited in doc Id order, which means
-                    // this doc cannot compete with any other document in the queue.
-                    return;
+
+            protected final int compareBottom(int doc) throws IOException {
+                int cmp = reverseMul[0] * comparators[0].compareBottom(doc);
+                if (cmp != 0) {
+                    return cmp;
+                }
+                for (int i = 1; i < comparators.length; ++i) {
+                    cmp = reverseMul[i] * comparators[i].compareBottom(doc);
+                    if (cmp != 0) {
+                        return cmp;
+                    }
+                }
+                return 0;
+            }
+
+            protected final void copy(int slot, int doc) throws IOException {
+                for (LeafFieldComparator comparator : comparators) {
+                    comparator.copy(slot, doc);
                 }
             }
 
-            int slot = bottom.slot;
-            // This hit is competitive - replace bottom element in queue & adjustTop
-            for (int i = 0; i < comparators.length; i++) {
-                comparators[i].copy(slot, doc);
-            }
-
-            // Compute score only if it is competitive.
-            final float score = scorer.score();
-            updateBottom(slot, doc, score);
-
-            for (int i = 0; i < comparators.length; i++) {
-                comparators[i].setBottom(bottom.slot);
-            }
-        } else {
-            // Startup transient: queue hasn't gathered numHits yet
-            final int slot = totalHits - 1;
-            // Copy hit into queue
-            for (int i = 0; i < comparators.length; i++) {
-                comparators[i].copy(slot, doc);
-            }
-
-            // Compute score only if it is competitive.
-            final float score = scorer.score();
-            add(slot, doc, score);
-            if (queueFull) {
-                for (int i = 0; i < comparators.length; i++) {
-                    comparators[i].setBottom(bottom.slot);
+            protected final void setBottom(int slot) {
+                for (LeafFieldComparator comparator : comparators) {
+                    comparator.setBottom(slot);
                 }
             }
-        }
-    }
 
-    final void updateBottom(int slot, int doc, float score) throws IOException {
-        hitQueue.pop();
-        bottom = getIndexEntry(slot, doc, score);
-        hitQueue.add(bottom);
-    }
+            protected final int compareTop(int doc) throws IOException {
+                int cmp = reverseMul[0] * comparators[0].compareTop(doc);
+                if (cmp != 0) {
+                    return cmp;
+                }
+                for (int i = 1; i < comparators.length; ++i) {
+                    cmp = reverseMul[i] * comparators[i].compareTop(doc);
+                    if (cmp != 0) {
+                        return cmp;
+                    }
+                }
+                return 0;
+            }
 
-    final void add(int slot, int doc, float score) throws IOException {
-        IndexEntry entry = getIndexEntry(slot, doc, score);
-        bottom = hitQueue.add(entry);
-        queueFull = (totalHits == numHits);
-    }
+            final void updateBottom(int doc, float score) throws IOException {
+                bottom.doc = docBase + doc;
+                bottom.score = score;
+                setIndexEntryValues(doc, bottom);
+                bottom = hitQueue.updateTop();
+            }
 
-    IndexEntry getIndexEntry(int slot, int doc, float score) throws IOException {
-        String pkName = LuceneUtils.primaryKeyName(pkNames, doc);
-        ByteBuffer primaryKey = LuceneUtils.byteBufferDocValue(primaryKeys, doc);
-        ByteBuffer rowKey = LuceneUtils.byteBufferDocValue(rowKeys, doc);
-        Map<String, Number> numericDocValues = new HashMap<>();
-        Map<String, String> binaryDocValues = new HashMap<>();
-        for (Map.Entry<String, NumericDocValues> entry : numericDocValuesMap.entrySet()) {
-            Type type = AggregateFunction.getLuceneType(options, entry.getKey());
-            Number number = LuceneUtils.numericDocValue(entry.getValue(), doc, type);
-            numericDocValues.put(entry.getKey(), number);
-        }
-        for (Map.Entry<String, SortedDocValues> entry : stringDocValues.entrySet()) {
-            binaryDocValues.put(entry.getKey(), LuceneUtils.stringDocValue(entry.getValue(), doc));
-        }
-        return new IndexEntry(rowKey, pkName, primaryKey, slot, docBase + doc, score, numericDocValues, binaryDocValues);
+            @Override
+            public void setScorer(Scorer scorer) throws IOException {
+                // set the scorer on all comparators
+                this.scorer = scorer;
+                for (LeafFieldComparator comparator : comparators) {
+                    comparator.setScorer(scorer);
+                }
+
+            }
+
+
+            @Override
+            public void collect(int doc) throws IOException {
+                //System.out.println("  collect doc=" + doc);
+
+                totalHits++;
+
+                float score = Float.NaN;
+
+                if (queueFull) {
+                    // Fastmatch: return if this hit is no better than
+                    // the worst hit currently in the queue:
+                    final int cmp = compareBottom(doc);
+                    if (cmp <= 0) {
+                        // not competitive since documents are visited in doc id order
+                        return;
+                    }
+                }
+
+                final int topCmp = compareTop(doc);
+                if (topCmp > 0 || (topCmp == 0 && doc <= afterDoc)) {
+                    // Already collected on a previous page
+                    return;
+                }
+
+                if (queueFull) {
+                    // This hit is competitive - replace bottom element in queue & adjustTop
+                    copy(bottom.slot, doc);
+
+                    updateBottom(doc, score);
+
+                    setBottom(bottom.slot);
+                } else {
+                    collectedHits++;
+
+                    // Startup transient: queue hasn't gathered numHits yet
+                    final int slot = collectedHits - 1;
+                    //System.out.println("    slot=" + slot);
+                    // Copy hit into queue
+                    copy(slot, doc);
+
+                    IndexEntry entry = new IndexEntry(slot, docBase + doc, score);
+                    setIndexEntryValues(doc, entry);
+                    bottom = hitQueue.add(entry);
+                    queueFull = collectedHits == numHits;
+                    if (queueFull) {
+                        setBottom(bottom.slot);
+                    }
+                }
+            }
+        };
     }
 
     @Override
@@ -298,29 +377,28 @@ public class IndexEntryCollector extends SimpleCollector {
 
 
     public class IndexEntry extends FieldValueHitQueue.Entry {
-        public final String pkName;
-        public final ByteBuffer primaryKey;
-        public final ByteBuffer rowKey;
-        public float score;
-        Map<String, Number> numericDocValuesMap;
-        Map<String, String> binaryDocValuesMap;
-        public final CellName clusteringKey;
-        public final DecoratedKey decoratedKey;
 
-        public IndexEntry(ByteBuffer rowKey, String pkName, ByteBuffer primaryKey,
-                          int slot, int doc, float score,
-                          Map<String, Number> numericDocValuesMap,
-                          Map<String, String> binaryDocValuesMap) {
+        public ByteBuffer primaryKey;
+        public ByteBuffer rowKey;
+        public Map<String, Number> numericDocValuesMap;
+        public Map<String, String> binaryDocValuesMap;
+
+
+        public IndexEntry(int slot, int doc, float score) {
             super(slot, doc, score);
-            this.rowKey = rowKey;
-            this.pkName = pkName;
-            this.primaryKey = primaryKey;
-            this.clusteringKey = tableMapper.makeClusteringKey(primaryKey);
-            this.decoratedKey = tableMapper.decorateKey(rowKey);
 
-            this.score = score;
-            this.binaryDocValuesMap = binaryDocValuesMap;
+        }
+
+        public void setIndexEntryValue(ByteBuffer rowKey, ByteBuffer primaryKey, Map<String, Number> numericDocValuesMap, Map<String, String> binaryDocValuesMap) {
+            this.rowKey = rowKey;
+            this.primaryKey = primaryKey;
             this.numericDocValuesMap = numericDocValuesMap;
+            this.binaryDocValuesMap = binaryDocValuesMap;
+        }
+
+
+        public final DecoratedKey decoratedKey() {
+            return tableMapper.decorateKey(rowKey);
         }
 
 
@@ -332,9 +410,13 @@ public class IndexEntryCollector extends SimpleCollector {
             return binaryDocValuesMap.get(field);
         }
 
-        @Override
-        public String toString() {
-            return super.toString() + "pkName[" + pkName + "]";
+        public String pkName() {
+            ByteBuffer primaryKeyBuff = tableMapper.primaryKey(rowKey, clusteringKey());
+            return tableMapper.primaryKeyType.getString(primaryKeyBuff);
+        }
+
+        public CellName clusteringKey() {
+            return tableMapper.makeClusteringKey(primaryKey);
         }
     }
 

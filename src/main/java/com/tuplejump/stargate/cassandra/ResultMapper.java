@@ -48,19 +48,21 @@ public class ResultMapper {
     public final boolean showScore;
     public final TableMapper tableMapper;
     public final SearchSupport searchSupport;
+    public final boolean reverseSort;
 
-    public ResultMapper(TableMapper tableMapper, SearchSupport searchSupport, ExtendedFilter filter, IndexEntryCollector collector, boolean showScore) throws Exception {
+    public ResultMapper(TableMapper tableMapper, SearchSupport searchSupport, ExtendedFilter filter, IndexEntryCollector collector, boolean showScore, boolean reverseSort) throws Exception {
         this.tableMapper = tableMapper;
         this.searchSupport = searchSupport;
         this.filter = filter;
         this.collector = collector;
         this.limit = filter.currentLimit();
         this.showScore = showScore;
+        this.reverseSort = reverseSort;
     }
 
 
-    public Map<CellName, ColumnFamily> fetchRangeSlice(Collection<IndexEntry> entries, DecoratedKey dk) {
-        return getCellNameColumnFamilyMap(dk, getColumnSlices(entries));
+    public Map<CellName, ColumnFamily> fetchRangeSlice(Collection<IndexEntry> entries, DecoratedKey dk, boolean reversed) {
+        return getCellNameColumnFamilyMap(dk, getColumnSlices(entries), reversed);
     }
 
 
@@ -77,7 +79,7 @@ public class ResultMapper {
         ColumnSlice[] columnSlices = new ColumnSlice[entries.size()];
         int i = 0;
         for (IndexEntry entry : entries) {
-            Composite start = tableMapper.start(entry.clusteringKey);
+            Composite start = tableMapper.start(entry.clusteringKey());
             Composite end = tableMapper.end(start);
             ColumnSlice columnSlice = new ColumnSlice(start, end);
             columnSlices[i++] = columnSlice;
@@ -86,14 +88,14 @@ public class ResultMapper {
         return columnSlices;
     }
 
-    public Map<CellName, ColumnFamily> fetchPagedRangeSlice(Collection<IndexEntry> entries, DecoratedKey dk, int pageSize) {
-        return getCellNameColumnFamilyMap(dk, getPagedColumnSlices(dk, entries, pageSize));
+    public Map<CellName, ColumnFamily> fetchPagedRangeSlice(Collection<IndexEntry> entries, DecoratedKey dk, int pageSize, boolean reversed) {
+        return getCellNameColumnFamilyMap(dk, getPagedColumnSlices(dk, entries, pageSize), reversed);
     }
 
     private ColumnSlice[] getPagedColumnSlices(DecoratedKey dk, Collection<IndexEntry> entries, int pageSize) {
         ArrayList<ColumnSlice> columnSlices = new ArrayList<>(Math.min(entries.size(), pageSize));
         for (IndexEntry entry : entries) {
-            CellName cellName = entry.clusteringKey;
+            CellName cellName = entry.clusteringKey();
             if (!filter.columnFilter(dk.getKey()).maySelectPrefix(tableMapper.table.getComparator(), cellName.start())) {
                 continue;
             }
@@ -108,8 +110,8 @@ public class ResultMapper {
         return columnSlices.toArray(new ColumnSlice[columnSlices.size()]);
     }
 
-    private Map<CellName, ColumnFamily> getCellNameColumnFamilyMap(DecoratedKey dk, ColumnSlice[] columnSlices) {
-        SliceQueryFilter sliceQueryFilter = new SliceQueryFilter(columnSlices, false, Integer.MAX_VALUE);
+    private Map<CellName, ColumnFamily> getCellNameColumnFamilyMap(DecoratedKey dk, ColumnSlice[] columnSlices, boolean reversed) {
+        SliceQueryFilter sliceQueryFilter = new SliceQueryFilter(columnSlices, reversed, Integer.MAX_VALUE);
         QueryFilter queryFilter = new QueryFilter(dk, tableMapper.table.name, sliceQueryFilter, filter.timestamp);
         ColumnFamily columnFamily = tableMapper.table.getColumnFamily(queryFilter);
         return tableMapper.getRows(columnFamily);

@@ -17,6 +17,7 @@
 package com.tuplejump.stargate.util;
 
 import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.QueryOptions;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import org.cassandraunit.dataset.CQLDataSet;
@@ -28,7 +29,7 @@ import java.util.Set;
 
 /**
  * User: satya
- *
+ * 
  * Dataloader implementation to use with CQLUnitD
  */
 public class CQLDataLoaderD {

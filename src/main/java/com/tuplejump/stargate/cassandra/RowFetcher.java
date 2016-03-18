@@ -23,6 +23,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,11 +54,10 @@ public class RowFetcher {
     }
 
     public List<Row> fetchRows() throws IOException {
-        if(isSorted){
+        if (isSorted) {
             return fetchSorted();
-        }
-        else{
-            return fetchIOOptimized();
+        } else {
+            return fetchClusteringKeySorted();
         }
 
     }
@@ -67,19 +67,22 @@ public class RowFetcher {
         List<IndexEntryCollector.IndexEntry> docsSorted = resultMapper.docs();
         List<IndexEntryCollector.IndexEntry> sliceList;
         for (IndexEntryCollector.IndexEntry input : docsSorted) {
-            CellName cellName = input.clusteringKey;
-            DecoratedKey dk = input.decoratedKey;
+            CellName cellName = input.clusteringKey();
+            DecoratedKey dk = input.decoratedKey();
+            IDiskAtomFilter colFilter = resultMapper.filter.columnFilter(dk.getKey());
             sliceList = new ArrayList<>();
             sliceList.add(input);
-            Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchRangeSlice(sliceList, dk);
-            if (!resultMapper.filter.columnFilter(dk.getKey()).maySelectPrefix(table.getComparator(), cellName.start())) {
+            Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchRangeSlice(sliceList, dk, false);
+            if (!colFilter.maySelectPrefix(table.getComparator(), cellName.start())) {
                 continue;
             }
             ColumnFamily data = fullSlice.get(cellName);
-            if (data == null || resultMapper.searchSupport.deleteIfNotLatest(dk, data.maxTimestamp(), input.pkName, data))
+            if (data == null || resultMapper.searchSupport.deleteIfNotLatest(dk, data.maxTimestamp(), input.pkName(), data)) {
                 continue;
+            }
             float score = input.score;
             ColumnFamily cleanColumnFamily = resultMapper.showScore ? scored(score, data) : data;
+
             rows.add(new Row(dk, cleanColumnFamily));
             columnsCount++;
             if (columnsCount > limit) break;
@@ -87,36 +90,37 @@ public class RowFetcher {
         return rows;
     }
 
-    private List<Row> fetchIOOptimized() throws IOException {
+    private List<Row> fetchClusteringKeySorted() throws IOException {
         List<Row> rows = new ArrayList<>();
         TreeMultimap<DecoratedKey, IndexEntryCollector.IndexEntry> docs = resultMapper.docsByRowKey();
 
         for (DecoratedKey dk : docs.keySet()) {
             NavigableSet<IndexEntryCollector.IndexEntry> entries = docs.get(dk);
-
             if (!resultMapper.filter.dataRange.contains(dk)) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Skipping entry {} outside of assigned scan range", dk.getToken());
                 }
                 continue;
             }
-            final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchPagedRangeSlice(entries, dk, limit);
+
+            IDiskAtomFilter colFilter = resultMapper.filter.columnFilter(dk.getKey());
+            final Map<CellName, ColumnFamily> fullSlice = resultMapper.fetchPagedRangeSlice(entries, dk, limit, resultMapper.reverseSort);
 
             for (IndexEntryCollector.IndexEntry input : entries) {
-                CellName cellName = input.clusteringKey;
-                if (!resultMapper.filter.columnFilter(dk.getKey()).maySelectPrefix(table.getComparator(), cellName.start())) {
+                CellName cellName = input.clusteringKey();
+                if (!colFilter.maySelectPrefix(table.getComparator(), cellName.start())) {
                     continue;
                 }
                 ColumnFamily data = fullSlice.get(cellName);
-                if (data == null || resultMapper.searchSupport.deleteIfNotLatest(dk, data.maxTimestamp(), input.pkName, data))
+                if (data == null || resultMapper.searchSupport.deleteIfNotLatest(dk, data.maxTimestamp(), input.pkName(), data))
                     continue;
                 float score = input.score;
                 ColumnFamily cleanColumnFamily = resultMapper.showScore ? scored(score, data) : data;
                 rows.add(new Row(dk, cleanColumnFamily));
                 columnsCount++;
-                if (columnsCount > limit) break;
+                if (columnsCount >= limit) break;
             }
-            if (columnsCount > limit) break;
+            if (columnsCount >= limit) break;
         }
 
         return rows;

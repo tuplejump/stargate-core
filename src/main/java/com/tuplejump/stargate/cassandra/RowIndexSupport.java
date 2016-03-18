@@ -126,7 +126,7 @@ public class RowIndexSupport {
         List<List<Field>> entries = builder.entries;
         for (int i = 0; i < primaryKeys.size(); i++) {
             Pair pkPair = primaryKeys.get(i);
-            String pk = (String) pkPair.left;
+            String pkName = (String) pkPair.left;
             ByteBuffer pkBuf = (ByteBuffer) pkPair.right;
             List<Field> fields = entries.get(i);
             boolean isPartialUpdate = false;
@@ -135,13 +135,13 @@ public class RowIndexSupport {
                     logger.debug("Column family update -" + dk);
                 isPartialUpdate = true;
             }
-            fields.addAll(idFields(dk, pk, pkBuf));
+            fields.addAll(idFields(dk, pkName, pkBuf));
             long ts = timestamps.get(i);
             fields.add(LuceneUtils.tsField(ts, tsFieldType));
             if (isPartialUpdate) {
                 loadOldRow(dk, pkBuf, fields);
             }
-            Term pkTerm = new Term(LuceneUtils.PK_INDEXED, LuceneUtils.primaryKeyField(pk).stringValue());
+            Term pkTerm = new Term(LuceneUtils.PK_INDEXED, LuceneUtils.primaryKeyField(pkName).stringValue());
             indexer.upsert(pkTerm, fields);
         }
     }
@@ -270,12 +270,15 @@ public class RowIndexSupport {
         return fields;
     }
 
-    protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pk) {
+    protected List<Field> idFields(DecoratedKey rowKey, String pkName, ByteBuffer pkBuf) {
         return Arrays.asList(
                 LuceneUtils.rkBytesDocValue(rowKey.getKey()),
+                LuceneUtils.rowKeyIndexed(rowKeyString(rowKey)),
+                LuceneUtils.pkBytesDocValue(pkBuf),
                 LuceneUtils.primaryKeyField(pkName),
-                LuceneUtils.pkBytesDocValue(pk), LuceneUtils.pkNameDocValue(pkName),
-                LuceneUtils.rowKeyIndexed(rowKeyString(rowKey)));
+                LuceneUtils.tokenIndexed(rowKey.getToken()),
+                LuceneUtils.tokenBytesDocValue(rowKey.getToken())
+        );
     }
 
     private String rowKeyString(DecoratedKey rowKey) {

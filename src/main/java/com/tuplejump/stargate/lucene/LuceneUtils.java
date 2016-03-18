@@ -16,6 +16,7 @@
 
 package com.tuplejump.stargate.lucene;
 
+import org.apache.cassandra.dht.Token;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queryparser.flexible.standard.config.NumericConfig;
@@ -29,20 +30,24 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.NumberFormat;
 import java.util.Locale;
+
+import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
+import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 
 /**
  * User: satya
  */
 public class LuceneUtils {
     public static final String RK_INDEXED = "_rk_idx";
-    public static final String RK_BYTES = "_rk_bytes";
-    public static final String PK_NAME_DOC_VAL = "_pk_name_val";
     public static final String PK_INDEXED = "_pk_idx";
+    public static final String TOKEN_INDEXED = "_token_idx";
+
+    public static final String RK_BYTES = "_rk_bytes";
     public static final String PK_BYTES = "_pk_bytes";
+    public static final String TOKEN_LONG = "_token_val";
     public static final String CF_TS_INDEXED = "_cf_ts";
     private static final Logger logger = LoggerFactory.getLogger(LuceneUtils.class);
     //  NumberFormat instances are not thread safe
@@ -154,10 +159,6 @@ public class LuceneUtils {
         return atomicReader.getSortedDocValues(LuceneUtils.PK_BYTES);
     }
 
-    public static SortedDocValues getPKNameDocValues(LeafReader atomicReader) throws IOException {
-        return atomicReader.getSortedDocValues(LuceneUtils.PK_NAME_DOC_VAL);
-    }
-
     public static SortedDocValues getRKBytesDocValues(LeafReader atomicReader) throws IOException {
         return atomicReader.getSortedDocValues(LuceneUtils.RK_BYTES);
     }
@@ -173,11 +174,6 @@ public class LuceneUtils {
         return ref.utf8ToString();
     }
 
-    public static String primaryKeyName(BinaryDocValues primaryKeyNames, int docId) throws IOException {
-        BytesRef ref = primaryKeyNames.get(docId);
-        return new String(ref.bytes, ref.offset, ref.length, StandardCharsets.UTF_8);
-    }
-
     public static Field pkBytesDocValue(final ByteBuffer byteBufferValue) {
         BytesRef bytesRef = new BytesRef(byteBufferValue.array(), byteBufferValue.arrayOffset(), byteBufferValue.limit());
         return new SortedDocValuesField(PK_BYTES, bytesRef);
@@ -188,15 +184,10 @@ public class LuceneUtils {
         return new SortedDocValuesField(RK_BYTES, bytesRef);
     }
 
-    public static Field pkNameDocValue(final String pkName) {
-        BytesRef bytesRef = new BytesRef(pkName.getBytes(StandardCharsets.UTF_8));
-        return new SortedDocValuesField(PK_NAME_DOC_VAL, bytesRef) {
-            @Override
-            public String toString() {
-                return String.format("PK Name String->BinaryDocValuesField<%s>", pkName);
-            }
-        };
+    public static Field tokenBytesDocValue(final Token token) {
+        return new NumericDocValuesField(TOKEN_LONG, ((Number) token.getTokenValue()).longValue());
     }
+
 
     public static Field textField(String name, String value) {
         return new TextField(name, value, Field.Store.NO);
@@ -235,6 +226,19 @@ public class LuceneUtils {
         return new StringField(RK_INDEXED, rkValue, Field.Store.NO);
     }
 
+
+    public static Term tokenTerm(Token token) {
+        Long value = (Long) token.getTokenValue();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
+        NumericUtils.longToPrefixCoded(value, 0, bytesRef);
+        return new Term(TOKEN_INDEXED, bytesRef.get());
+    }
+
+    public static Field tokenIndexed(Token token) {
+        Long value = (Long) token.getTokenValue();
+        return new LongField(TOKEN_INDEXED, value, Field.Store.NO);
+    }
+
     public static Term tsTerm(long ts) {
         BytesRefBuilder tsBytes = new BytesRefBuilder();
         NumericUtils.longToPrefixCoded(ts, NumericUtils.PRECISION_STEP_DEFAULT, tsBytes);
@@ -267,15 +271,21 @@ public class LuceneUtils {
         return TermRangeQuery.newStringRange(PK_INDEXED, startPK, endPK, true, true);
     }
 
-    public static Query getQueryUpdatedWithPKCondition(Query query, String partitionKeyString) {
-        if (partitionKeyString == null) {
-            return query;
-        } else {
-            BooleanQuery.Builder finalQuery = new BooleanQuery.Builder();
-            finalQuery.add(query, BooleanClause.Occur.MUST);
-            finalQuery.add(new TermQuery(LuceneUtils.rowkeyTerm(partitionKeyString)), BooleanClause.Occur.MUST);
-            return finalQuery.build();
+    public static Query buildQuery(Query query, Query filter, Query range) {
+        if (query == null && filter == null && range == null) {
+            return new MatchAllDocsQuery();
         }
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        if (range != null) {
+            builder.add(range, FILTER);
+        }
+        if (filter != null) {
+            builder.add(filter, FILTER);
+        }
+        if (query != null) {
+            builder.add(query, MUST);
+        }
+        return new CachingWrapperQuery(builder.build());
     }
 
     public static class NumericConfigTL extends NumericConfig {

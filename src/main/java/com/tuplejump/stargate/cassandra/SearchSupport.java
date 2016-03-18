@@ -18,38 +18,43 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.RowIndex;
 import com.tuplejump.stargate.Utils;
-import com.tuplejump.stargate.lucene.IndexEntryCollector;
-import com.tuplejump.stargate.lucene.LuceneUtils;
-import com.tuplejump.stargate.lucene.Options;
-import com.tuplejump.stargate.lucene.SearcherCallback;
+import com.tuplejump.stargate.lucene.*;
 import com.tuplejump.stargate.lucene.query.Search;
 import com.tuplejump.stargate.lucene.query.function.Function;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.composites.BoundedComposite;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.db.filter.ExtendedFilter;
+import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang3.StringEscapeUtils;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
+
+import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
+import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 
 /**
  * User: satya
- * <p>
+ * 
  * A searcher which can be used with a SGIndex
  * Includes features to make lucene queries etc.
  */
@@ -71,11 +76,6 @@ public class SearchSupport extends SecondaryIndexSearcher {
         this.currentIndex = currentIndex;
         this.fieldNames = options.fieldTypes.keySet();
         this.tableMapper = currentIndex.getTableMapper();
-    }
-
-
-    protected Search getQuery(IndexExpression predicate) throws Exception {
-        return Search.fromJson(getQueryString(predicate));
     }
 
     protected Search getQuery(String queryString) throws Exception {
@@ -102,7 +102,7 @@ public class SearchSupport extends SecondaryIndexSearcher {
         try {
             String queryString = getQueryString(matchThisIndex(clause));
             Search search = getQuery(queryString);
-            return getRows(mainFilter, search, queryString);
+            return getRows(mainFilter, search);
         } catch (Exception e) {
             logger.error("Exception occurred while querying", e);
             if (tableMapper.isMetaColumn) {
@@ -116,57 +116,53 @@ public class SearchSupport extends SecondaryIndexSearcher {
         }
     }
 
-    protected List<Row> getRows(final ExtendedFilter filter, final Search search, final String queryString) {
+    protected List<Row> getRows(final ExtendedFilter filter, final Search search) {
         final SearchSupport searchSupport = this;
         AbstractBounds<RowPosition> keyRange = filter.dataRange.keyRange();
         final Range<Token> filterRange = new Range<>(keyRange.left.getToken(), keyRange.right.getToken());
         final boolean isSingleToken = filterRange.left.equals(filterRange.right);
         final boolean isFullRange = isSingleToken && baseCfs.partitioner.getMinimumToken().equals(filterRange.left);
-        final boolean shouldSaveToCache = isPagingQuery(filter.dataRange);
-        final boolean shouldRetrieveFromCache = shouldSaveToCache && !isFirstPage((DataRange.Paging) filter.dataRange);
 
         SearcherCallback<List<Row>> sc = new SearcherCallback<List<Row>>() {
             @Override
             public List<Row> doWithSearcher(org.apache.lucene.search.IndexSearcher searcher) throws Exception {
                 Utils.SimpleTimer timer = Utils.getStartedTimer(logger);
-                List<Row> results;
-                if (search == null) {
-                    results = new ArrayList<>();
-                } else {
-                    Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
+                List<Row> results = new LinkedList<>();
+                if (search != null) {
                     Function function = search.function();
-                    Query query = LuceneUtils.getQueryUpdatedWithPKCondition(search.query(options), getPartitionKeyString(filter));
-                    int resultsLimit = searcher.getIndexReader().maxDoc();
+                    Query query = LuceneUtils.buildQuery(search.query(options), search.filter(options), getDataRangeQuery(filter.dataRange));
+                    int resultsLimit = filter.currentLimit();
                     if (resultsLimit == 0) {
                         resultsLimit = 1;
                     }
+
                     function.init(options);
-                    IndexEntryCollector collector = null;
-                    if (shouldRetrieveFromCache) {
-                        collector = currentIndex.collectorMap.get(queryString);
-                    }
-                    if (collector == null) {
-                        collector = new IndexEntryCollector(tableMapper, search, options, resultsLimit);
+                    final boolean reverseClustering = filter.dataRange.columnFilter(null).isReversed();
+                    Utils.SimpleTimer afterDocTimer = Utils.getStartedTimer(logger);
+                    FieldDoc afterDoc = getAfterDoc(searcher, reverseClustering, filter, search);
+                    afterDocTimer.endLogTime("AfterDoc search ");
+                    boolean moreResultsNeeded = false;
+                    do {
+                        Utils.SimpleTimer timer2 = Utils.getStartedTimer(SearchSupport.logger);
+                        IndexEntryCollector collector = new IndexEntryCollector(afterDoc, reverseClustering, tableMapper, search, options, resultsLimit);
                         searcher.search(query, collector);
-                        if (shouldSaveToCache) {
-                            currentIndex.collectorMap.put(queryString, collector);
+                        timer2.endLogTime("Lucene search for searching [" + collector.getTotalHits() + "]. Collected [" + collector.getCollectedHits() + "] results ");
+                        ResultMapper resultMapper = new ResultMapper(tableMapper, searchSupport, filter, collector, function.shouldTryScoring() && search.isShowScore(), reverseClustering);
+                        Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
+                        List<Row> rows = function.process(resultMapper, baseCfs, currentIndex);
+                        results.addAll(rows);
+                        timer3.endLogTime("Aggregation [" + results.size() + "] results");
+                        moreResultsNeeded = function.needsPaging() && (collector.getTotalHits() > collector.getCollectedHits()) && (rows.size() != 0) && (results.size() != resultsLimit);
+                        if (moreResultsNeeded) {
+                            afterDocTimer.start();
+                            Row lastRow = results.get(results.size() - 1);
+                            afterDoc = getAfterDoc(searcher, reverseClustering, search, tableMapper.primaryKey(lastRow.key.getKey(), tableMapper.extractClusteringKey(lastRow.cf.iterator().next().name())));
+                            afterDocTimer.endLogTime("AfterDoc search ");
                         }
-                        if (logger.isInfoEnabled()) {
-                            logger.info("Adding collector to cache");
-                        }
-                    } else if (logger.isInfoEnabled()){
-                        logger.info("Found collector in cache");
-                    }
-                    timer2.endLogTime("Lucene search for [" + collector.getTotalHits() + "] results ");
-                    if (SearchSupport.logger.isDebugEnabled()) {
-                        SearchSupport.logger.debug(String.format("Search results [%s]", collector.getTotalHits()));
-                    }
-                    ResultMapper iter = new ResultMapper(tableMapper, searchSupport, filter, collector, function.shouldTryScoring() && search.isShowScore());
-                    Utils.SimpleTimer timer3 = Utils.getStartedTimer(SearchSupport.logger);
-                    results = function.process(iter, baseCfs, currentIndex);
-                    timer3.endLogTime("Aggregation [" + results.size() + "] results");
+                    } while (moreResultsNeeded);
+                    timer.endLogTime("Search with results [" + results.size() + "] ");
                 }
-                timer.endLogTime("Search with results [" + results.size() + "] ");
+
                 return results;
 
             }
@@ -190,6 +186,104 @@ public class SearchSupport extends SecondaryIndexSearcher {
         return currentIndex.search(sc);
     }
 
+    private Query getDataRangeQuery(DataRange dataRange) {
+        RowPosition startPosition = dataRange.startKey();
+        RowPosition stopPosition = dataRange.stopKey();
+        Token startToken = startPosition.getToken();
+        Token stopToken = stopPosition.getToken();
+        boolean isSameToken = startToken.compareTo(stopToken) == 0 && !CassandraUtils.isMinimumToken(startToken);
+        BooleanClause.Occur occur = isSameToken ? FILTER : SHOULD;
+        boolean includeStart = (startPosition.kind() != RowPosition.Kind.MAX_BOUND);
+        boolean includeStop = (stopPosition.kind() != RowPosition.Kind.MIN_BOUND);
+        SliceQueryFilter sqf;
+        if (startPosition instanceof DecoratedKey) {
+            sqf = (SliceQueryFilter) dataRange.columnFilter(((DecoratedKey) startPosition).getKey());
+        } else {
+            sqf = (SliceQueryFilter) dataRange.columnFilter(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        }
+        Composite startName = sqf.start();
+        Composite stopName = sqf.finish();
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+
+        if (!startName.isEmpty()) {
+            BooleanQuery.Builder b = new BooleanQuery.Builder();
+            b.add(getTokenQuery(startToken), FILTER);
+            b.add(getClusteringKeyQuery(startName, null), FILTER);
+            builder.add(b.build(), occur);
+            includeStart = false;
+        }
+
+        if (!stopName.isEmpty()) {
+            BooleanQuery.Builder b = new BooleanQuery.Builder();
+            b.add(getTokenQuery(stopToken), FILTER);
+            b.add(getClusteringKeyQuery(null, stopName), FILTER);
+            builder.add(b.build(), occur);
+            includeStop = false;
+        }
+
+        BooleanQuery query = builder.build();
+        if (!isSameToken) {
+            Query rangeQuery = getTokenQuery(startToken, stopToken, includeStart, includeStop);
+            if (rangeQuery != null) {
+                builder.add(rangeQuery, SHOULD);
+                query = builder.build();
+            }
+        } else if (query.clauses().isEmpty()) {
+            return getTokenQuery(startToken);
+        }
+
+        return query.clauses().isEmpty() ? null : query;
+    }
+
+    private Query getTokenQuery(Token token) {
+        Long value = (Long) token.getTokenValue();
+        return NumericRangeQuery.newLongRange(LuceneUtils.TOKEN_INDEXED, value, value, true, true);
+    }
+
+    private Query getTokenQuery(Token lower, Token upper, boolean includeLower, boolean includeUpper) {
+        if (lower != null && upper != null) {
+            if (CassandraUtils.isMinimumToken(lower) && CassandraUtils.isMinimumToken(upper) && (includeLower || includeUpper)) {
+                return null;
+            }
+        }
+        Long start = lower == null || lower.isMinimum() ? null : (Long) lower.getTokenValue();
+        Long stop = upper == null || upper.isMinimum() ? null : (Long) upper.getTokenValue();
+        return DocValuesRangeQuery.newLongRange(LuceneUtils.TOKEN_LONG, start, stop, includeLower, includeUpper);
+    }
+
+    private Query getClusteringKeyQuery(Composite start, Composite stop) {
+        return new ClusteringKeyMultiTermQuery(start, stop, tableMapper);
+    }
+
+    private FieldDoc getAfterDoc(IndexSearcher searcher, boolean reverseClustering, ExtendedFilter filter, Search search) throws IOException {
+        FieldDoc afterDoc = null;
+        if (isPagingQuery(filter.dataRange) && filter.dataRange.keyRange().left instanceof DecoratedKey) {
+            DataRange.Paging paging = (DataRange.Paging) filter.dataRange;
+            DecoratedKey dk = (DecoratedKey) filter.dataRange.keyRange().left;
+            ByteBuffer afterPK = getPageStart(dk, paging);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Paged query - After PK is " + afterPK);
+            }
+            afterDoc = getAfterDoc(searcher, reverseClustering, search, afterPK);
+        }
+        return afterDoc;
+    }
+
+    private FieldDoc getAfterDoc(IndexSearcher searcher, boolean reverseClustering, Search search, ByteBuffer afterPK) throws IOException {
+        FieldDoc afterDoc = null;
+        if (afterPK != null) {
+            String pk = tableMapper.primaryKeyType.getString(afterPK);
+            Sort sort = new Sort(search.primaryKeySort(tableMapper, reverseClustering));
+            TopFieldDocs docs = searcher.search(new TermQuery(LuceneUtils.primaryKeyTerm(pk)), 1, sort);
+            afterDoc = (FieldDoc) docs.scoreDocs[0];
+            if (logger.isDebugEnabled()) {
+                logger.debug("After Doc is " + afterDoc.doc + " and pk is " + pk);
+            }
+        }
+        return afterDoc;
+    }
+
     protected IndexExpression matchThisIndex(List<IndexExpression> clause) {
         for (IndexExpression expression : clause) {
             ColumnDefinition cfDef = baseCfs.metadata.getColumnDefinition(expression.column);
@@ -204,14 +298,26 @@ public class SearchSupport extends SecondaryIndexSearcher {
         return null;
     }
 
-    protected String getPartitionKeyString(ExtendedFilter mainFilter) {
-        AbstractBounds<RowPosition> keyRange = mainFilter.dataRange.keyRange();
-        if (keyRange != null && keyRange.left != null && keyRange.left instanceof DecoratedKey) {
-            DecoratedKey left = (DecoratedKey) keyRange.left;
-            DecoratedKey right = (DecoratedKey) keyRange.right;
-            if (left.equals(right)) {
-                return tableMapper.primaryKeyAbstractType.getString(left.getKey());
+    private ByteBuffer getPageStart(DecoratedKey dk, DataRange.Paging pageRange) {
+        try {
+            Composite start = (Composite) getPrivateProperty(pageRange, "firstPartitionColumnStart");
+            Composite end = (Composite) getPrivateProperty(pageRange, "lastPartitionColumnFinish");
+            if (start == null || start.isEmpty() || start instanceof BoundedComposite) {
+                return null;
             }
+            CellName clusteringKey = tableMapper.extractClusteringKey(start);
+            if (end == null || end.isEmpty() || end instanceof BoundedComposite) {
+                return tableMapper.primaryKey(dk.getKey(), clusteringKey);
+            }
+            CellName endKey = tableMapper.extractClusteringKey(end);
+            if (!clusteringKey.isSameCQL3RowAs(tableMapper.clusteringCType, endKey)) {
+                return tableMapper.primaryKey(dk.getKey(), clusteringKey);
+            }
+
+        } catch (NoSuchFieldException e) {
+            //do nothing;
+        } catch (IllegalAccessException e) {
+            //do nothing
         }
         return null;
     }
@@ -220,18 +326,6 @@ public class SearchSupport extends SecondaryIndexSearcher {
         return (dataRange instanceof DataRange.Paging);
     }
 
-    private boolean isFirstPage(DataRange.Paging pageRange) {
-        try {
-            Composite start = (Composite) getPrivateProperty(pageRange, "firstPartitionColumnStart");
-            Composite finish = (Composite) getPrivateProperty(pageRange, "lastPartitionColumnFinish");
-            return (start == finish) && (start == Composites.EMPTY);
-        } catch (NoSuchFieldException e) {
-            //do nothing;
-        } catch (IllegalAccessException e) {
-            //do nothing
-        }
-        return false;
-    }
 
     private Object getPrivateProperty(Object instance, String fieldName) throws NoSuchFieldException, IllegalAccessException {
         Field field = instance.getClass().getDeclaredField(fieldName);

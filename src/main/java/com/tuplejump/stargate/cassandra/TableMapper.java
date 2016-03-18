@@ -17,6 +17,7 @@
 package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.Fields;
+import com.tuplejump.stargate.lucene.LuceneUtils;
 import com.tuplejump.stargate.lucene.query.function.Tuple;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -24,7 +25,12 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.BytesRef;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -46,6 +52,16 @@ public class TableMapper {
     public final ColumnDefinition primaryColumnDefinition;
     public final CFMetaData cfMetaData;
 
+    public final SortField pkSortField = getPkSort(false);
+    public final SortField pkSortFieldReverse = getPkSort(true);
+
+    public final SortField tokenSortField = new SortField(LuceneUtils.TOKEN_LONG, SortField.Type.LONG, false);
+    public final SortField tokenSortFieldReverse = new SortField(LuceneUtils.TOKEN_LONG, SortField.Type.LONG, true);
+    {
+        tokenSortField.setMissingValue(CassandraUtils.MINIMUM_TOKEN_VALUE);
+        tokenSortFieldReverse.setMissingValue(CassandraUtils.MINIMUM_TOKEN_VALUE);
+    }
+
     public TableMapper(ColumnFamilyStore table, boolean isMetaColumn, ColumnDefinition primaryColumnDefinition) {
         this.table = table;
         this.cfMetaData = table.metadata;
@@ -56,6 +72,30 @@ public class TableMapper {
         this.defaultPartitionKey = defaultPartitionKey();
         this.isMetaColumn = isMetaColumn;
         this.primaryColumnDefinition = primaryColumnDefinition;
+    }
+
+    private SortField getPkSort(final boolean reverseClustering) {
+        final TableMapper tableMapper = this;
+        FieldComparatorSource pkComparatorSource = new FieldComparatorSource() {
+            @Override
+            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, final boolean reversed) throws IOException {
+                return new FieldComparator.TermValComparator(numHits, fieldname, reversed) {
+                    @Override
+                    public int compareValues(BytesRef val1, BytesRef val2) {
+                        if (val1 == null || val2 == null) {
+                            return super.compareValues(val1, val2);
+                        } else {
+                            return tableMapper.primaryKeyType.compare(fromBytesRef(val1), fromBytesRef(val2));
+                        }
+                    }
+                };
+            }
+        };
+        return new SortField(LuceneUtils.PK_BYTES, pkComparatorSource, reverseClustering);
+    }
+
+    public static ByteBuffer fromBytesRef(BytesRef ref) {
+        return ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
     }
 
     public String primaryColumnName() {
@@ -178,11 +218,11 @@ public class TableMapper {
         return partitionKey;
     }
 
-    public ByteBuffer primaryKey(ByteBuffer rowKey, CellName clusteringKey) {
+    public ByteBuffer primaryKey(ByteBuffer rowKey, Composite clusteringKey) {
         return primaryKeyType.builder().add(rowKey).add(clusteringKey.toByteBuffer()).build();
     }
 
-    public CellName extractClusteringKey(CellName cellName) {
+    public CellName extractClusteringKey(Composite cellName) {
         int clusterColumns = table.metadata.clusteringColumns().size();
         Object[] components = new ByteBuffer[clusterColumns + 1];
         for (int i = 0; i < clusterColumns; i++) {
@@ -199,6 +239,8 @@ public class TableMapper {
 
     public final Map<CellName, ColumnFamily> getRows(ColumnFamily columnFamily) {
         Map<CellName, ColumnFamily> columnFamilies = new LinkedHashMap<>();
+        if (columnFamily == null)
+            return columnFamilies;
         for (Cell cell : columnFamily) {
             CellName cellName = cell.name();
             CellName clusteringKey = extractClusteringKey(cellName);

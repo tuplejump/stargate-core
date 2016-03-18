@@ -43,4 +43,6 @@ public interface Function {
     boolean shouldTryScoring();
 
     List<Row> process(ResultMapper resultMapper, ColumnFamilyStore table, RowIndex currentIndex) throws Exception;
+
+    boolean needsPaging();
 }

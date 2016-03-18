@@ -46,6 +46,11 @@ public class NoOp implements Function {
         return rowFetcher.fetchRows();
     }
 
+    @Override
+    public boolean needsPaging() {
+        return true;
+    }
+
 
     public String getFunction() {
         return "no-op";

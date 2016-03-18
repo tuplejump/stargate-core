@@ -113,6 +113,11 @@ public class AggregateFunction implements Function {
         return Collections.singletonList(row);
     }
 
+    @Override
+    public boolean needsPaging() {
+        return false;
+    }
+
     public Tuple createTuple(Options options) {
         return new Tuple(options.nestedFields, positions, simpleExpressions);
     }
