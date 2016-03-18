@@ -88,18 +88,18 @@ public class VariousQueriesTest extends IndexTestBase {
         getSession().execute("CREATE TABLE sample_table (part int,uid int,otherid int,othername varchar,searchName varchar,joindate timestamp,magic text,PRIMARY KEY (part, uid,otherid,searchName));");
 
         getSession().execute("CREATE CUSTOM INDEX sample_table_searchName_key ON sample_table(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-01',0, 1,  1, 'CCTV', 'CCTV')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-02',0, 2,  2, 'CCTV', 'CCTV')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-03',0, 4,  4, 'CCTV', 'CCTV')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-04',0, 5,  5, 'CCTV', 'CCTV')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-05',0, 8,  8, 'CCTV', 'CCTV')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-06',0, 3,  3, 'CATV', 'CATV')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-01',0, 6,  6, 'CATV', 'CATV')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-01',0, 9,  9, 'CATV', 'CATV')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-02',0, 7,  7, 'CATV', 'CATV')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-03',0, 10, 10, 'CATV', 'CATV')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-04',0, 11,  11, 'AAAA ', 'AAAA aaaa cccc BBBB')");
-        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-05',0, 12,  12, 'AAAA ', 'AAAA bbbb aaaa AAAA BBBB')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-01+0530',0, 1,  1, 'CCTV', 'CCTV')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-02+0530',0, 2,  2, 'CCTV', 'CCTV')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-03+0530',0, 4,  4, 'CCTV', 'CCTV')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-04+0530',0, 5,  5, 'CCTV', 'CCTV')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-05+0530',0, 8,  8, 'CCTV', 'CCTV')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-02-06+0530',0, 3,  3, 'CATV', 'CATV')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-01+0530',0, 6,  6, 'CATV', 'CATV')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-01+0530',0, 9,  9, 'CATV', 'CATV')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-02+0530',0, 7,  7, 'CATV', 'CATV')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-03+0530',0, 10, 10, 'CATV', 'CATV')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-04+0530',0, 11,  11, 'AAAA ', 'AAAA aaaa cccc BBBB')");
+        getSession().execute("INSERT INTO sample_table (joindate,part, uid, otherid,othername, searchName) VALUES ('2013-03-05+0530',0, 12,  12, 'AAAA ', 'AAAA bbbb aaaa AAAA BBBB')");
 
     }
 }
