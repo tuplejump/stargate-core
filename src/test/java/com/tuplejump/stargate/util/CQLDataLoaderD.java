@@ -29,7 +29,7 @@ import java.util.Set;
 
 /**
  * User: satya
- * <p/>
+ * 
  * Dataloader implementation to use with CQLUnitD
  */
 public class CQLDataLoaderD {
@@ -51,7 +51,6 @@ public class CQLDataLoaderD {
         for (Map.Entry<String, Integer> entry : entries) {
             builder.addContactPoints(entry.getKey()).withPort(entry.getValue());
         }
-        builder.withQueryOptions(new QueryOptions().setFetchSize(7));
         Cluster cluster = builder.build();
         session = cluster.connect();
         return session;
