@@ -31,12 +31,9 @@ dependencies {
 
     //lucene dependencies
     compile group: 'org.apache.lucene', name: 'lucene-core', version: luceneVersion
-    compile group: 'org.apache.lucene', name: 'lucene-sandbox', version: luceneVersion
     compile group: 'org.apache.lucene', name: 'lucene-spatial', version: luceneVersion
     compile group: 'org.apache.lucene', name: 'lucene-analyzers-common', version: luceneVersion
-    compile("org.apache.lucene:lucene-queryparser:$luceneVersion") {
-        exclude group: 'org.apache.lucene', module: 'lucene-sandbox'
-    }
+    compile("org.apache.lucene:lucene-queryparser:$luceneVersion")
     compile("org.apache.lucene:lucene-join:$luceneVersion")
     compile('joda-time:joda-time:2.3')
     compile group: 'commons-collections', name: 'commons-collections', version: '3.2.2'
@@ -99,6 +96,8 @@ shadowJar {
         include(dependency('org.apache.lucene:lucene-queries'))
         include(dependency('org.apache.lucene:lucene-queryparser'))
         include(dependency('org.apache.lucene:lucene-join'))
+        include(dependency('org.apache.lucene:lucene-sandbox'))
+        include(dependency('jakarta-regexp:jakarta-regexp'))
         include(dependency('joda-time:joda-time'))
         include(dependency('commons-collections:commons-collections'))
         include(dependency('org.javolution:javolution'))
