@@ -16,8 +16,6 @@
 
 package com.tuplejump.stargate.cassandra;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
 import com.tuplejump.stargate.util.CQLUnitD;
 import com.tuplejump.stargate.util.Record;
 import junit.framework.Assert;
@@ -25,7 +23,6 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -47,14 +44,12 @@ public class DropAndRecreateTest extends IndexTestBase {
         try {
             Assert.assertEquals(Arrays.asList(records.get(7), records.get(6), records.get(4), records.get(5),
                     records.get(1), records.get(2), records.get(0), records.get(3)), (getRecords("TAG", "", false, "")));
-            Assert.assertEquals(8, countResults("TAG", "", false, false));
             Assert.assertEquals(3, countResults("TAG", "category = '" + mq("state", "CA") + "'", true));
             getSession().execute("DROP INDEX dropcreate;");
             createTableAndIndex(true);
 
             Assert.assertEquals(Arrays.asList(records.get(7), records.get(6), records.get(4), records.get(5),
                     records.get(1), records.get(2), records.get(0), records.get(3)), (getRecords("TAG", "", false, "")));
-            Assert.assertEquals(8, countResults("TAG", "", false, false));
             Assert.assertEquals(3, countResults("TAG", "category = '" + mq("state", "CA") + "'", true));
         } finally {
             dropKS(keyspace);
@@ -88,14 +83,14 @@ public class DropAndRecreateTest extends IndexTestBase {
         getSession().execute("CREATE CUSTOM INDEX dropcreate ON TAG(category) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + (isRecreate ? options1 : options) + "'}");
         if (!isRecreate) {
             //first insert some data
-            Record r1 = new Record(fields, new Object[]{"1", "A", "hello1 tag1 lol1", "CA", "first", 1L}, fieldTypes);
-            Record r2 = new Record(fields, new Object[]{"2", "B", "hello1 tag1 lol2", "LA", "first", 4L}, fieldTypes);
-            Record r3 = new Record(fields, new Object[]{"3", "C", "hello1 tag2 lol1", "NY", "first", 2L}, fieldTypes);
-            Record r4 = new Record(fields, new Object[]{"4", "D", "hello1 tag2 lol2", "TX", "first", 3L}, fieldTypes);
-            Record r5 = new Record(fields, new Object[]{"5", "A", "hello2 tag1 lol1", "CA", "second", 1L}, fieldTypes);
-            Record r6 = new Record(fields, new Object[]{"6", "B", "hello2 tag1 lol2", "NY", "second", 2L}, fieldTypes);
-            Record r7 = new Record(fields, new Object[]{"7", "C", "hello2 tag2 lol1", "CA", "second", 1L}, fieldTypes);
-            Record r8 = new Record(fields, new Object[]{"8", "D", "hello2 tag2 lol2", "TX", "second", null}, fieldTypes);
+            Record r1 = new Record(fields, fieldTypes, new Object[]{"1", "A", "hello1 tag1 lol1", "CA", "first", 1L});
+            Record r2 = new Record(fields, fieldTypes, new Object[]{"2", "B", "hello1 tag1 lol2", "LA", "first", 4L});
+            Record r3 = new Record(fields, fieldTypes, new Object[]{"3", "C", "hello1 tag2 lol1", "NY", "first", 2L});
+            Record r4 = new Record(fields, fieldTypes, new Object[]{"4", "D", "hello1 tag2 lol2", "TX", "first", 3L});
+            Record r5 = new Record(fields, fieldTypes, new Object[]{"5", "A", "hello2 tag1 lol1", "CA", "second", 1L});
+            Record r6 = new Record(fields, fieldTypes, new Object[]{"6", "B", "hello2 tag1 lol2", "NY", "second", 2L});
+            Record r7 = new Record(fields, fieldTypes, new Object[]{"7", "C", "hello2 tag2 lol1", "CA", "second", 1L});
+            Record r8 = new Record(fields, fieldTypes, new Object[]{"8", "D", "hello2 tag2 lol2", "TX", "second", null});
             records.addAll(Arrays.asList(r1, r2, r3, r4, r5, r6, r7, r8));
             insertRecords(keyspace, "TAG", records);
         }

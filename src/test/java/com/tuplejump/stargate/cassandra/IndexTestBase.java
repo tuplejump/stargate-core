@@ -25,7 +25,6 @@ import com.tuplejump.stargate.util.CQLUnitD;
 import com.tuplejump.stargate.util.Record;
 import junit.framework.Assert;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.compound.hyphenation.TernaryTree;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
@@ -44,7 +43,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.SyncFailedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;

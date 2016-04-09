@@ -40,9 +40,6 @@ public class BasicIndexTest extends IndexTestBase {
         cassandraCQLUnit = CQLUnitD.getCQLUnit(null);
     }
 
-    List<Record> recordsForRow = new ArrayList<Record>();
-    List<Record> recordsForRowNulls = new ArrayList<Record>();
-
     @Test
     public void shouldReportErrorRow() throws Exception {
         //hack to always create new Index during testing
@@ -63,7 +60,7 @@ public class BasicIndexTest extends IndexTestBase {
         //hack to always create new Index during testing
         try {
             createKS(keyspace);
-            createTableAndIndexForRowNulls();
+            List<Record> recordsForRowNulls = createTableAndIndexForRowNulls();
 
             countResults("TAG_NULL", "", false, true);
             Assert.assertEquals(Arrays.asList(recordsForRowNulls.get(15), recordsForRowNulls.get(35), recordsForRowNulls.get(5),
@@ -92,8 +89,7 @@ public class BasicIndexTest extends IndexTestBase {
         //hack to always create new Index during testing
         try {
             createKS(keyspace);
-            createTableAndIndexForRow();
-            ResultSet resultSet = getResults("TAG2", "magic = '" + q("tags", "tags:hello* AND state:CA") + "'", true);
+            List<Record> recordsForRow = createTableAndIndexForRow();
 
             countResults("TAG2", "", false, true);
             Assert.assertEquals(Arrays.asList(recordsForRow.get(10), recordsForRow.get(15), recordsForRow.get(17),
@@ -121,10 +117,10 @@ public class BasicIndexTest extends IndexTestBase {
             }
             String[] fields = {"key", "tags", "state", "segment"};
             String[] fieldsType = {"int", "text", "varchar", "int", "text"};
-            Record updated01 = new Record(fields, new Object[]{1, "hello2 tag1 lol1", "NY", 0}, fieldsType);
-            Record updated11 = new Record(fields, new Object[]{11, "hello2 tag1 lol1", "NY", 10}, fieldsType);
-            Record updated21 = new Record(fields, new Object[]{21, "hello2 tag1 lol1", "NY", 20}, fieldsType);
-            Record updated31 = new Record(fields, new Object[]{31, "hello2 tag1 lol1", "NY", 30}, fieldsType);
+            Record updated01 = new Record(fields, fieldsType, new Object[]{1, "hello2 tag1 lol1", "NY", 0});
+            Record updated11 = new Record(fields, fieldsType, new Object[]{11, "hello2 tag1 lol1", "NY", 10});
+            Record updated21 = new Record(fields, fieldsType, new Object[]{21, "hello2 tag1 lol1", "NY", 20});
+            Record updated31 = new Record(fields, fieldsType, new Object[]{31, "hello2 tag1 lol1", "NY", 30});
 
             Assert.assertEquals(Arrays.asList(updated11, recordsForRow.get(11), recordsForRow.get(12), recordsForRow.get(13),
                     recordsForRow.get(14), recordsForRow.get(15), recordsForRow.get(16), recordsForRow.get(17),
@@ -138,10 +134,10 @@ public class BasicIndexTest extends IndexTestBase {
                     recordsForRow.get(26), recordsForRow.get(27), recordsForRow.get(28), recordsForRow.get(29)),
                     getRecords("TAG2", "magic = '" + q("tags", "h*") + "'", true, "magic"));
 
-            Assert.assertEquals(getRecords("TAG2", "magic = '" + q("tags", "hello1") + "'", true, "magic"), Arrays.asList(
-                    recordsForRow.get(11), recordsForRow.get(12), recordsForRow.get(13), recordsForRow.get(31),
-                    recordsForRow.get(32), recordsForRow.get(33), recordsForRow.get(1), recordsForRow.get(2),
-                    recordsForRow.get(3), recordsForRow.get(21), recordsForRow.get(22), recordsForRow.get(23)));
+            Assert.assertEquals(Arrays.asList(recordsForRow.get(11), recordsForRow.get(12), recordsForRow.get(13),
+                    recordsForRow.get(31), recordsForRow.get(32), recordsForRow.get(33), recordsForRow.get(1),
+                    recordsForRow.get(2), recordsForRow.get(3), recordsForRow.get(21), recordsForRow.get(22),
+                    recordsForRow.get(23)), getRecords("TAG2", "magic = '" + q("tags", "hello1") + "'", true, "magic"));
             int i = 0;
             while (i < 20) {
                 i = i + 10;
@@ -196,9 +192,10 @@ public class BasicIndexTest extends IndexTestBase {
 
     }
 
-    private void createTableAndIndexForRow() throws InterruptedException {
+    private List<Record> createTableAndIndexForRow() throws InterruptedException {
         String[] fields = {"key", "tags", "state", "segment"};
         String[] fieldTypes = {"int", "text", "varchar", "int", "text"};
+        List<Record> records = new ArrayList<Record>();
         String options = "{\n" +
                 "\t\"numShards\":1024,\n" +
                 "\t\"metaColumn\":true,\n" +
@@ -214,26 +211,28 @@ public class BasicIndexTest extends IndexTestBase {
             if (i == 20) {
                 getSession().execute("CREATE CUSTOM INDEX tagsandstate ON TAG2(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
             }
-            Record r1 = new Record(fields, new Object[]{(i + 1), "hello1 tag1 lol1", "CA", i}, fieldTypes);
-            Record r2 = new Record(fields, new Object[]{(i + 2), "hello1 tag1 lol2", "LA", i}, fieldTypes);
-            Record r3 = new Record(fields, new Object[]{(i + 3), "hello1 tag2 lol1", "NY", i}, fieldTypes);
-            Record r4 = new Record(fields, new Object[]{(i + 4), "hello1 tag2 lol2", "TX", i}, fieldTypes);
-            Record r5 = new Record(fields, new Object[]{(i + 5), "hllo3 tag3 lol3", "TX", i}, fieldTypes);
-            Record r6 = new Record(fields, new Object[]{(i + 6), "hello2 tag1 lol1", "CA", i}, fieldTypes);
-            Record r7 = new Record(fields, new Object[]{(i + 7), "hello2 tag1 lol2", "NY", i}, fieldTypes);
-            Record r8 = new Record(fields, new Object[]{(i + 8), "hello2 tag2 lol1", "CA", i}, fieldTypes);
-            Record r9 = new Record(fields, new Object[]{(i + 9), "hello2 tag2 lol2", "TX", i}, fieldTypes);
-            Record r10 = new Record(fields, new Object[]{(i + 10), "hllo3 tag3 lol3", "TX", i}, fieldTypes);
+            Record r1 = new Record(fields, fieldTypes, new Object[]{(i + 1), "hello1 tag1 lol1", "CA", i});
+            Record r2 = new Record(fields, fieldTypes, new Object[]{(i + 2), "hello1 tag1 lol2", "LA", i});
+            Record r3 = new Record(fields, fieldTypes, new Object[]{(i + 3), "hello1 tag2 lol1", "NY", i});
+            Record r4 = new Record(fields, fieldTypes, new Object[]{(i + 4), "hello1 tag2 lol2", "TX", i});
+            Record r5 = new Record(fields, fieldTypes, new Object[]{(i + 5), "hllo3 tag3 lol3", "TX", i});
+            Record r6 = new Record(fields, fieldTypes, new Object[]{(i + 6), "hello2 tag1 lol1", "CA", i});
+            Record r7 = new Record(fields, fieldTypes, new Object[]{(i + 7), "hello2 tag1 lol2", "NY", i});
+            Record r8 = new Record(fields, fieldTypes, new Object[]{(i + 8), "hello2 tag2 lol1", "CA", i});
+            Record r9 = new Record(fields, fieldTypes, new Object[]{(i + 9), "hello2 tag2 lol2", "TX", i});
+            Record r10 = new Record(fields, fieldTypes, new Object[]{(i + 10), "hllo3 tag3 lol3", "TX", i});
             List<Record> tempRecords = Arrays.asList(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10);
-            recordsForRow.addAll(tempRecords);
+            records.addAll(tempRecords);
             insertRecords(keyspace, "TAG2", tempRecords);
             i = i + 10;
         }
+        return records;
     }
 
-    private void createTableAndIndexForRowNulls() throws InterruptedException {
+    private List<Record> createTableAndIndexForRowNulls() throws InterruptedException {
         String[] fields = {"key", "tags", "state", "segment"};
         String[] fieldTypes = {"int", "text", "varchar", "int", "text"};
+        List<Record> records = new ArrayList<Record>();
         String options = "{\n" +
                 "\t\"numShards\":1024,\n" +
                 "\t\"metaColumn\":true,\n" +
@@ -249,20 +248,21 @@ public class BasicIndexTest extends IndexTestBase {
             if (i == 20) {
                 getSession().execute("CREATE CUSTOM INDEX ntagsandstate ON TAG_NULL(magic) USING 'com.tuplejump.stargate.RowIndex' WITH options ={'sg_options':'" + options + "'}");
             }
-            Record r1 = new Record(fields, new Object[]{(i + 1), null, "CA", i}, fieldTypes);
-            Record r2 = new Record(fields, new Object[]{(i + 2), "hello1 tag1 lol2", null, i}, fieldTypes);
-            Record r3 = new Record(fields, new Object[]{(i + 3), "hello1 tag2 lol1", "NY", i}, fieldTypes);
-            Record r4 = new Record(fields, new Object[]{(i + 4), null, "TX", i}, fieldTypes);
-            Record r5 = new Record(fields, new Object[]{(i + 5), "hllo3 tag3 lol3", "TX", i}, fieldTypes);
-            Record r6 = new Record(fields, new Object[]{(i + 6), "hello2 tag1 lol1", "CA", i}, fieldTypes);
-            Record r7 = new Record(fields, new Object[]{(i + 7), "hello2 tag1 lol2", "NY", i}, fieldTypes);
-            Record r8 = new Record(fields, new Object[]{(i + 8), "hello2 tag2 lol1", null, i}, fieldTypes);
-            Record r9 = new Record(fields, new Object[]{(i + 9), "hello2 tag2 lol2", "TX", i}, fieldTypes);
-            Record r10 = new Record(fields, new Object[]{(i + 10), "hllo3 tag3 lol3", "TX", i}, fieldTypes);
+            Record r1 = new Record(fields, fieldTypes, new Object[]{(i + 1), null, "CA", i});
+            Record r2 = new Record(fields, fieldTypes, new Object[]{(i + 2), "hello1 tag1 lol2", null, i});
+            Record r3 = new Record(fields, fieldTypes, new Object[]{(i + 3), "hello1 tag2 lol1", "NY", i});
+            Record r4 = new Record(fields, fieldTypes, new Object[]{(i + 4), null, "TX", i});
+            Record r5 = new Record(fields, fieldTypes, new Object[]{(i + 5), "hllo3 tag3 lol3", "TX", i});
+            Record r6 = new Record(fields, fieldTypes, new Object[]{(i + 6), "hello2 tag1 lol1", "CA", i});
+            Record r7 = new Record(fields, fieldTypes, new Object[]{(i + 7), "hello2 tag1 lol2", "NY", i});
+            Record r8 = new Record(fields, fieldTypes, new Object[]{(i + 8), "hello2 tag2 lol1", null, i});
+            Record r9 = new Record(fields, fieldTypes, new Object[]{(i + 9), "hello2 tag2 lol2", "TX", i});
+            Record r10 = new Record(fields, fieldTypes, new Object[]{(i + 10), "hllo3 tag3 lol3", "TX", i});
             List<Record> tempRecords = Arrays.asList(r1, r2, r3, r4, r5, r6, r7, r8, r9, r10);
-            recordsForRowNulls.addAll(tempRecords);
+            records.addAll(tempRecords);
             insertRecords(keyspace, "TAG_NULL", tempRecords);
             i = i + 10;
         }
+        return records;
     }
 }

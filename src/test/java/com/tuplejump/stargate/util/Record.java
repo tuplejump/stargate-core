@@ -2,7 +2,6 @@ package com.tuplejump.stargate.util;
 
 import com.datastax.driver.core.Row;
 
-import java.lang.reflect.Array;
 import java.util.*;
 
 public class Record {
@@ -10,10 +9,10 @@ public class Record {
     private Map recordDefinition = new HashMap<String, String>();
     private Map<String, Object> record = new HashMap<String, Object>();
 
-    public Record(String[] fields, Object[] values, String[] type) {
+    public Record(String[] fields, String[] fieldTypes, Object[] values) {
         if (fields.length == values.length) {
             for (int i = 0; i < fields.length; i++) {
-                recordDefinition.put(fields[i].toLowerCase(), type[i]);
+                recordDefinition.put(fields[i].toLowerCase(), fieldTypes[i]);
                 record.put(fields[i].toLowerCase(), values[i]);
             }
         }
@@ -38,10 +37,10 @@ public class Record {
             valueList.add(map.getValue());
             types.add((String) recordDefinition.get(map.getKey()));
         }
-        return "(" + mkString(fieldList) + ")values(" + mkString(valueList, types) + ");";
+        return "(" + getFieldString(fieldList) + ")values(" + getValueString(valueList, types) + ");";
     }
 
-    private String mkString(List<String> list) {
+    private String getFieldString(List<String> list) {
         StringBuilder result = new StringBuilder();
         for (String s : list) {
             result.append(s);
@@ -50,13 +49,12 @@ public class Record {
         return result.length() > 0 ? result.substring(0, result.length() - 1) : "";
     }
 
-    private String mkString(List<Object> list, List<String> recordDefinition) {
+    private String getValueString(List<Object> list, List<String> recordDefinition) {
         StringBuilder result = new StringBuilder();
         int i = 0;
         for (Object s : list) {
-            if (s == null) {
-                result.append("null,");
-            } else {
+            if (s == null) result.append("null,");
+            else {
                 if (recordDefinition.get(i) == "int" || recordDefinition.get(i) == "boolean" || recordDefinition.get(i) == "bigint") {
                     result.append(s.toString());
                     result.append(",");
