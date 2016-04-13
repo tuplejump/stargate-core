@@ -55,13 +55,15 @@ public class Record {
         for (Object s : list) {
             if (s == null) result.append("null,");
             else {
-                if (recordDefinition.get(i) == "int" || recordDefinition.get(i) == "boolean" || recordDefinition.get(i) == "bigint") {
-                    result.append(s.toString());
-                    result.append(",");
-                } else {
-                    result.append("'" + s.toString() + "'");
-                    result.append(",");
+                switch (recordDefinition.get(i)) {
+                    case "varchar":
+                    case "text":
+                        result.append("'" + String.valueOf(s) + "'");
+                        break;
+                    default:
+                        result.append(String.valueOf(s));
                 }
+                result.append(",");
             }
             i++;
         }
