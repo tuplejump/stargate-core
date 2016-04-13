@@ -109,7 +109,7 @@ task copyJarToCCM(dependsOn: shadowJar) << {
     if (project.hasProperty('cassandraVersion')) {
         copy {
             from('build/libs') {
-              include('*-all.jar')
+                include('*-all.jar')
             }
             into System.getProperty('user.home') + '/.ccm/repository/' + project.property('cassandraVersion') + '/lib'
         }
@@ -126,7 +126,7 @@ task copySamples(type: Copy) {
 
 task copyJar(type: Copy) {
     dependsOn([shadowJar, copySamples])
-    from ('build/libs'){
+    from('build/libs') {
         include('*-all.jar')
     }
     into 'build/dist/stargate/libs'
@@ -158,6 +158,21 @@ signing {
     sign configurations.archives
 }
 
+task test1(type: Test) {
+    systemProperty "pagesize", "5"
+}
+
+task test2(type: Test) {
+    systemProperty "pagesize", "10"
+}
+
+task test3(type: Test) {
+    systemProperty "pagesize", "1000"
+}
+
+task testMain(dependsOn:[test1, test2, test3]) {
+
+}
 
 uploadArchives {
     repositories {

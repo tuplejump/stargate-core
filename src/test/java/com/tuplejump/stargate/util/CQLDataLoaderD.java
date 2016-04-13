@@ -24,12 +24,14 @@ import org.cassandraunit.dataset.CQLDataSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 /**
  * User: satya
- * 
+ *
  * Dataloader implementation to use with CQLUnitD
  */
 public class CQLDataLoaderD {
@@ -51,7 +53,7 @@ public class CQLDataLoaderD {
         for (Map.Entry<String, Integer> entry : entries) {
             builder.addContactPoints(entry.getKey()).withPort(entry.getValue());
         }
-        Cluster cluster = builder.build();
+        Cluster cluster = builder.withQueryOptions(new QueryOptions().setFetchSize(getPageSize())).build();
         session = cluster.connect();
         return session;
     }
@@ -101,6 +103,10 @@ public class CQLDataLoaderD {
         String useQuery = "USE " + keyspaceName;
         log.debug("executing : " + useQuery);
         session.execute(useQuery);
+    }
+
+    private int getPageSize() {
+        return Integer.parseInt(System.getProperty("pagesize", "100"));
     }
 
 }
