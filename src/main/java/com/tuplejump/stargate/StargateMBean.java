@@ -27,13 +27,13 @@ public interface StargateMBean {
 
     public String[] allIndexes();
 
-    public String[] indexShards(String indexName);
+    public String[] indexShards(String keyspaceName, String indexName);
 
-    public String describeIndex(String indexName) throws IOException;
+    public String describeIndex(String keyspaceName, String indexName) throws IOException;
 
-    public long indexSize(String indexName);
+    public long indexSize(String keyspaceName, String indexName);
 
-    public long indexLiveSize(String indexName);
+    public long indexLiveSize(String keyspaceName, String indexName);
 
     public long writeGeneration();
 

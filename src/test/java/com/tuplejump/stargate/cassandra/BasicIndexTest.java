@@ -175,16 +175,16 @@ public class BasicIndexTest extends IndexTestBase {
         for (String value : values) {
             System.out.println(value);
         }
-        String[] shards = (String[]) mBeanServer.invoke(objectName, "indexShards", new Object[]{"tagsandstate"}, new String[]{String.class.getName()});
+        String[] shards = (String[]) mBeanServer.invoke(objectName, "indexShards", new Object[]{keyspace, "tagsandstate"}, new String[]{String.class.getName(), String.class.getName()});
         for (String shard : shards) {
             System.out.println(shard);
         }
         //Assert.assertEquals(256, shards.length);
-        String desc = (String) mBeanServer.invoke(objectName, "describeIndex", new Object[]{"tagsandstate"}, new String[]{String.class.getName()});
+        String desc = (String) mBeanServer.invoke(objectName, "describeIndex", new Object[]{keyspace, "tagsandstate"}, new String[]{String.class.getName(), String.class.getName()});
         System.out.println(desc);
-        Long size = (Long) mBeanServer.invoke(objectName, "indexSize", new Object[]{"tagsandstate"}, new String[]{String.class.getName()});
+        Long size = (Long) mBeanServer.invoke(objectName, "indexSize", new Object[]{keyspace, "tagsandstate"}, new String[]{String.class.getName(), String.class.getName()});
         System.out.println(size);
-        Long liveSize = (Long) mBeanServer.invoke(objectName, "indexLiveSize", new Object[]{"tagsandstate"}, new String[]{String.class.getName()});
+        Long liveSize = (Long) mBeanServer.invoke(objectName, "indexLiveSize", new Object[]{keyspace, "tagsandstate"}, new String[]{String.class.getName(), String.class.getName()});
         System.out.println(liveSize);
         Long writeGen = (Long) mBeanServer.invoke(objectName, "writeGeneration", new Object[]{}, new String[]{});
         System.out.println(writeGen);
