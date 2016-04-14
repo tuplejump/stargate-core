@@ -19,9 +19,9 @@ package com.tuplejump.stargate.cassandra;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.tuplejump.stargate.util.CQLUnitD;
-import junit.framework.Assert;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.junit.Assert;
 import org.junit.Test;
 
 

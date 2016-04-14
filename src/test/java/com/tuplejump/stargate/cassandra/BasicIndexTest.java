@@ -21,13 +21,15 @@ import com.datastax.driver.core.Row;
 import com.tuplejump.stargate.StargateMBean;
 import com.tuplejump.stargate.util.CQLUnitD;
 import com.tuplejump.stargate.util.Record;
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.junit.Test;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.lang.management.ManagementFactory;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 
 /**
