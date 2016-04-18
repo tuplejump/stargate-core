@@ -127,7 +127,7 @@ public class Properties {
         if (analyzerObj == null) {
             if (getAnalyzer() == null) {
                 if (getType() != null && !getType().canTokenize())
-                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.KeywordAnalyzer.name());
+                    analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.CaseInsensitiveKeywordAnalyzer.name());
                 else
                     analyzerObj = AnalyzerFactory.getAnalyzer(AnalyzerFactory.Analyzers.StandardAnalyzer.name());
             } else {

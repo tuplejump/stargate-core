@@ -91,12 +91,14 @@ Read lucene docs for explanation on each of them.
 
 	* StandardAnalyzer
 	* WhitespaceAnalyzer
+	* StopAnalyzer
 	* SimpleAnalyzer
-	* KeywordAnalyzer 
+	* KeywordAnalyzer
+	* CaseInsensitiveKeywordAnalyzer - Same as Lucene's KeywordAnalyzer but case-insensitive
 
 Custom Analyzers
 ^^^^^^^^^^^^^^^^
-Custom analyzers may be specified using the fully qualified class name. Lucene 5.5 custom analyzers are required.
+Custom analyzers or other Lucene Analyzers may be specified using the fully qualified class name. Lucene 5.5 custom analyzers are required.
 
 Norms 
 ^^^^^^
