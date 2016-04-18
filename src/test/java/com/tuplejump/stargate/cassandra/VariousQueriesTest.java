@@ -17,8 +17,8 @@
 package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.util.CQLUnitD;
-import junit.framework.Assert;
 import org.apache.cassandra.service.StorageService;
+import org.junit.Assert;
 import org.junit.Test;
 
 /**

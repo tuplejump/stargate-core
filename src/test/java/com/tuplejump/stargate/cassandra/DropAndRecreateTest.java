@@ -18,7 +18,7 @@ package com.tuplejump.stargate.cassandra;
 
 import com.tuplejump.stargate.util.CQLUnitD;
 import com.tuplejump.stargate.util.Record;
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;

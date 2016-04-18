@@ -21,8 +21,8 @@ import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +80,7 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
     }
 
     public long index(ByteBuffer rowKey, ColumnFamily columnFamily) {
-        final RowIndexSupport rowIndexSupport = indexingService.support.get(columnFamily.metadata().cfName);
+        final RowIndexSupport rowIndexSupport = indexingService.support.get(columnFamily.metadata().ksAndCFName);
         try {
             rowIndexSupport.indexRow(rowKey, columnFamily);
         } catch (Exception e) {
@@ -147,16 +147,16 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
     public String[] allIndexes() {
         String[] allIndexes = new String[indexingService.support.size()];
         int i = 0;
-        for (Map.Entry<String, RowIndexSupport> entry : indexingService.support.entrySet()) {
+        for (Map.Entry<Pair<String, String>, RowIndexSupport> entry : indexingService.support.entrySet()) {
             RowIndexSupport rowIndexSupport = entry.getValue();
-            allIndexes[i++] = rowIndexSupport.indexContainer.indexName();
+            allIndexes[i++] = entry.getKey().left + "." + rowIndexSupport.indexContainer.indexName();
         }
         return allIndexes;
     }
 
     @Override
-    public String[] indexShards(String indexName) {
-        RowIndexSupport indexSupport = getRowIndexSupportByIndexName(indexName);
+    public String[] indexShards(String keyspaceName, String indexName) {
+        RowIndexSupport indexSupport = getRowIndexSupportByIndexName(keyspaceName, indexName);
         if (indexSupport != null && indexSupport.indexContainer instanceof PerVNodeIndexContainer) {
             PerVNodeIndexContainer indexContainer = (PerVNodeIndexContainer) indexSupport.indexContainer;
             Set<Range<Token>> indexShards = indexContainer.indexers.keySet();
@@ -171,25 +171,28 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
     }
 
     @Override
-    public String describeIndex(String indexName) throws IOException {
-        RowIndexSupport indexSupport = getRowIndexSupportByIndexName(indexName);
+    public String describeIndex(String keyspaceName, String indexName) throws IOException {
+        RowIndexSupport indexSupport = getRowIndexSupportByIndexName(keyspaceName, indexName);
         if (indexSupport != null) {
             return indexSupport.getOptions().describeAsJson();
         }
         return null;
     }
 
-    private RowIndexSupport getRowIndexSupportByIndexName(String indexName) {
-        for (Map.Entry<String, RowIndexSupport> entry : indexingService.support.entrySet()) {
+    private RowIndexSupport getRowIndexSupportByIndexName(String keyspaceName, String indexName) {
+        for (Map.Entry<Pair<String, String>, RowIndexSupport> entry : indexingService.support.entrySet()) {
             RowIndexSupport rowIndexSupport = entry.getValue();
-            if (rowIndexSupport.indexContainer.indexName().equalsIgnoreCase(indexName)) return rowIndexSupport;
+            if (entry.getKey().left.equalsIgnoreCase(keyspaceName) &&
+                    rowIndexSupport.indexContainer.indexName().equalsIgnoreCase(indexName)) {
+                return rowIndexSupport;
+            }
         }
         return null;
     }
 
     @Override
-    public long indexLiveSize(String indexName) {
-        RowIndexSupport indexSupport = getRowIndexSupportByIndexName(indexName);
+    public long indexLiveSize(String keyspaceName, String indexName) {
+        RowIndexSupport indexSupport = getRowIndexSupportByIndexName(keyspaceName, indexName);
         if (indexSupport != null) {
             return indexSupport.indexContainer.liveSize();
         }
@@ -197,8 +200,8 @@ public class Stargate implements IEndpointStateChangeSubscriber, StargateMBean {
     }
 
     @Override
-    public long indexSize(String indexName) {
-        RowIndexSupport indexSupport = getRowIndexSupportByIndexName(indexName);
+    public long indexSize(String keyspaceName, String indexName) {
+        RowIndexSupport indexSupport = getRowIndexSupportByIndexName(keyspaceName, indexName);
         if (indexSupport != null) {
             return indexSupport.indexContainer.size();
         }

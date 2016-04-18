@@ -18,6 +18,7 @@ package com.tuplejump.stargate.lucene;
 
 import org.apache.commons.lang3.ClassUtils;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
@@ -30,7 +31,7 @@ import org.apache.lucene.util.Version;
  */
 public class AnalyzerFactory {
     public enum Analyzers {
-        StandardAnalyzer, WhitespaceAnalyzer, StopAnalyzer, SimpleAnalyzer, KeywordAnalyzer
+        StandardAnalyzer, WhitespaceAnalyzer, StopAnalyzer, SimpleAnalyzer, KeywordAnalyzer, CaseInsensitiveKeywordAnalyzer
     }
 
     public static Analyzer getAnalyzer(String analyzerName) {
@@ -50,6 +51,9 @@ public class AnalyzerFactory {
                     return new WhitespaceAnalyzer();
                 }
                 case KeywordAnalyzer: {
+                    return new KeywordAnalyzer();
+                }
+                case CaseInsensitiveKeywordAnalyzer: {
                     return new CaseInsensitiveKeywordAnalyzer();
                 }
                 default: {

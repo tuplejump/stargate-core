@@ -26,7 +26,7 @@ public class IndexEventHandler implements EventHandler<IndexEntryEvent> {
         if ((sequence % numberOfConsumers) == ordinal) {
             ByteBuffer rowkeyBuffer = event.getRowKey();
             ColumnFamily columnFamily = event.getColumnFamily();
-            final RowIndexSupport rowIndexSupport = indexingService.support.get(columnFamily.metadata().cfName);
+            final RowIndexSupport rowIndexSupport = indexingService.support.get(columnFamily.metadata().ksAndCFName);
             try {
                 rowIndexSupport.indexRow(rowkeyBuffer, columnFamily);
             } catch (Exception e) {

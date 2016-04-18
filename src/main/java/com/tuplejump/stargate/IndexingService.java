@@ -23,6 +23,7 @@ import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class IndexingService {
     protected static final Logger logger = LoggerFactory.getLogger(Stargate.class);
     ExecutorService executorService;
-    Map<String, RowIndexSupport> support;
+    Map<Pair<String, String>, RowIndexSupport> support;
 
     IndexEntryEvent.Factory eventFactory = new IndexEntryEvent.Factory();
     int numWorkers = Math.max(4, Runtime.getRuntime().availableProcessors());
@@ -74,7 +75,7 @@ public class IndexingService {
     }
 
     public void register(RowIndexSupport rowIndexSupport) {
-        this.support.put(rowIndexSupport.tableMapper.cfMetaData.cfName, rowIndexSupport);
+        this.support.put(rowIndexSupport.tableMapper.cfMetaData.ksAndCFName, rowIndexSupport);
     }
 
 

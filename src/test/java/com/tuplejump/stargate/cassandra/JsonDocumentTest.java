@@ -26,9 +26,9 @@ import com.tuplejump.stargate.lucene.Type;
 import com.tuplejump.stargate.lucene.json.JsonDocument;
 import com.tuplejump.stargate.lucene.json.StreamingJsonDocument;
 import com.tuplejump.stargate.util.CQLUnitD;
-import junit.framework.Assert;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.*;
