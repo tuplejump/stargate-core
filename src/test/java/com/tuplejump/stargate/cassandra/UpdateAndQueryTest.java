@@ -43,6 +43,7 @@ public class UpdateAndQueryTest extends IndexTestBase {
         Record r7_new = new Record(fields, fieldTypes, new Object[]{7, true, 34, "black", "Avis Mosley", "female", "TETRATREX", "avismosley@tetratrex.com", "+1 (883) 461-3832", "391 Heyward Street, Hayes, Alabama, 5934"});
         Record r9_new = new Record(fields, fieldTypes, new Object[]{10, false, 38, "blue", "Weaver Carson", "male", "isologix1", "weavercarson@isologix.com", "+1 (916) 566-2681", "560 Hanson Place, Gardners, Puerto Rico, 7821"});
         Assert.assertEquals(3, countResults("PERSON", "stargate='" + gtq("age", "30") + "'", true, true));
+        Assert.assertEquals(Arrays.asList(records.get(4), records.get(3), records.get(6)), getRecords("PERSON", "stargate='" + mq("isActive", "true") + "'", true, "stargate"));
         getSession().execute("UPDATE PERSON SET company='isologix1' WHERE id=10 AND email='weavercarson@isologix.com'");
         getSession().execute("UPDATE PERSON SET eyeColor='black' WHERE id=7 AND email='avismosley@tetratrex.com'");
         getSession().execute("UPDATE PERSON SET age=27 WHERE id=9 AND email='edwardspatton@mangelica.com'");
