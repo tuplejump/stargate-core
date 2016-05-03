@@ -20,7 +20,10 @@ import com.tuplejump.stargate.cassandra.CassandraUtils;
 import com.tuplejump.stargate.cassandra.RowIndexSupport;
 import com.tuplejump.stargate.cassandra.SearchSupport;
 import com.tuplejump.stargate.cassandra.TableMapper;
-import com.tuplejump.stargate.lucene.*;
+import com.tuplejump.stargate.lucene.Constants;
+import com.tuplejump.stargate.lucene.LuceneUtils;
+import com.tuplejump.stargate.lucene.Options;
+import com.tuplejump.stargate.lucene.SearcherCallback;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ColumnFamily;
@@ -34,14 +37,11 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.commons.collections.map.LRUMap;
 import org.apache.lucene.index.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -69,8 +69,6 @@ public class RowIndex extends PerRowSecondaryIndex {
     IndexContainer indexContainer;
     boolean nearRealTime = false;
     protected volatile long latest;
-
-    public Map<String, IndexEntryCollector> collectorMap = Collections.synchronizedMap(new LRUMap(10));
 
     public TableMapper getTableMapper() {
         return tableMapper;
